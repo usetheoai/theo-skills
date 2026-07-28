@@ -1,4 +1,4 @@
-import { skillRevisions } from '@usetheo/skillregistry/db';
+import { skillRevisions } from '@usetheo/skills/db';
 import { desc, eq } from 'drizzle-orm';
 
 import { type Db } from '../db.js';

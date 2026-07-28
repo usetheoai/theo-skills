@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { createStubEmbedder, EMBEDDING_DIM, type EmbeddingProvider } from '@usetheo/skillregistry';
+import { createStubEmbedder, EMBEDDING_DIM, type EmbeddingProvider } from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createDb } from '../../src/server/db.js';

@@ -1,4 +1,4 @@
-import { NonRetriableOperationError, type WebhookEventType } from '@usetheo/skillregistry';
+import { NonRetriableOperationError, type WebhookEventType } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from './logger.js';

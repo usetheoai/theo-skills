@@ -1,5 +1,5 @@
 {
-  "name": "@usetheo/skillregistry-cli",
+  "name": "@usetheo/skills-cli",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@usetheo/skillregistry": "workspace:*",
-    "@usetheo/skillregistry-api": "workspace:*",
+    "@usetheo/skills": "workspace:*",
+    "@usetheo/skills-api": "workspace:*",
     "yazl": "^3.3.1"
   },
   "devDependencies": {

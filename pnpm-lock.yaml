@@ -47,7 +47,7 @@ importers:
       '@secretlint/secretlint-rule-preset-recommend':
         specifier: ^11.3.1
         version: 11.7.1
-      '@usetheo/skillregistry':
+      '@usetheo/skills':
         specifier: workspace:*
         version: link:../core
       drizzle-orm:
@@ -93,10 +93,10 @@ importers:
 
   packages/cli:
     dependencies:
-      '@usetheo/skillregistry':
+      '@usetheo/skills':
         specifier: workspace:*
         version: link:../core
-      '@usetheo/skillregistry-api':
+      '@usetheo/skills-api':
         specifier: workspace:*
         version: link:../api
       yazl:

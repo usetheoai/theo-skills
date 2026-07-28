@@ -1,6 +1,6 @@
-# CLAUDE.md — theo-skillregistry
+# CLAUDE.md — theo-skills
 
-The **theo-skillregistry** module of the Theo platform.
+The **theo-skills** module of the Theo platform.
 
 > This file currently carries the platform-integration pointer below; add project-specific
 > rules/contract above this line as the module matures.

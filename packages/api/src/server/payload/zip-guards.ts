@@ -5,7 +5,7 @@ import {
   MAX_UNCOMPRESSED_TOTAL_BYTES,
   MAX_ZIP_ENTRIES,
   type PayloadErrorCode,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 
 const S_IFMT = 0o170000;
 const S_IFLNK = 0o120000;

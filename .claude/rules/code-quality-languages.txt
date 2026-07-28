@@ -7,7 +7,7 @@
 #
 # Lines starting with '#' and blank lines are skipped.
 
-typescript | package.json | ENABLED | TS strict monorepo (@usetheo/skillregistry core + api)
+typescript | package.json | ENABLED | TS strict monorepo (@usetheo/skills core + api)
 javascript | package.json | DISABLED | no standalone JS sources
 python | pyproject.toml | DISABLED | no Python in this project
 rust | Cargo.toml | DISABLED | no Rust in this project

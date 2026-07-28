@@ -6,7 +6,7 @@ import {
   type SecretScanner,
   type ValidatedPayload,
   validateSkillPayload,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 import { type Context, type Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type PgBoss from 'pg-boss';

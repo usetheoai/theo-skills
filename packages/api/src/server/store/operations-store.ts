@@ -1,5 +1,5 @@
-import { type Operation, type OperationState, OperationStateSchema } from '@usetheo/skillregistry/contract';
-import { operations } from '@usetheo/skillregistry/db';
+import { type Operation, type OperationState, OperationStateSchema } from '@usetheo/skills/contract';
+import { operations } from '@usetheo/skills/db';
 import { eq } from 'drizzle-orm';
 
 import { type Db } from '../db.js';

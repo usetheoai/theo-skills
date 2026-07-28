@@ -8,7 +8,7 @@ import {
   type RetrievedSkill,
   type RetrieveStrategy,
   type SkillRetriever,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 
 /** A strategy-aware retriever: `retrieve` dispatches on `params.strategy`. */
 export interface DispatchingRetriever {

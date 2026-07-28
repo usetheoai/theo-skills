@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { createStubEmbedder, stubEmbed } from '@usetheo/skillregistry';
+import { createStubEmbedder, stubEmbed } from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeEach, expect, it } from 'vitest';

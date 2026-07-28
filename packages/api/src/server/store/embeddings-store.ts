@@ -1,4 +1,4 @@
-import { type EmbeddingRow, embeddings, skillRevisions, skills } from '@usetheo/skillregistry/db';
+import { type EmbeddingRow, embeddings, skillRevisions, skills } from '@usetheo/skills/db';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { type Db } from '../db.js';

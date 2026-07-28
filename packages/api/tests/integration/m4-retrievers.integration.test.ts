@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { createKeywordRetriever, createStubEmbedder, createVectorRetriever, RetrieverError, stubEmbed } from '@usetheo/skillregistry';
+import { createKeywordRetriever, createStubEmbedder, createVectorRetriever, RetrieverError, stubEmbed } from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createPgExecutor } from '../../src/server/retrieve/pg-executor.js';

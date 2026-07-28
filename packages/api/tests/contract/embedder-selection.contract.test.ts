@@ -1,4 +1,4 @@
-import { createStubEmbedder, type EmbeddingProvider } from '@usetheo/skillregistry';
+import { createStubEmbedder, type EmbeddingProvider } from '@usetheo/skills';
 import { describe, expect, it } from 'vitest';
 
 import {

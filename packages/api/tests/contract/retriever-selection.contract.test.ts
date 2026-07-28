@@ -1,4 +1,4 @@
-import { type SkillRetriever } from '@usetheo/skillregistry';
+import { type SkillRetriever } from '@usetheo/skills';
 import { describe, expect, it } from 'vitest';
 
 import { createDispatchingRetriever } from '../../src/server/providers/retriever-selection.js';

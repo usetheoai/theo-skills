@@ -1,4 +1,4 @@
-import { type WebhookSendResponse, type WebhookSender } from '@usetheo/skillregistry';
+import { type WebhookSendResponse, type WebhookSender } from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createDb } from '../../src/server/db.js';

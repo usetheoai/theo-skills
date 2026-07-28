@@ -2,7 +2,7 @@ import {
   type WebhookSendRequest,
   type WebhookSendResponse,
   type WebhookSender,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';

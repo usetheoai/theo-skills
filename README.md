@@ -76,12 +76,12 @@ Monorepo pnpm com arquitetura hexagonal (ports & adapters) — o domínio depend
 abstrações, a infraestrutura as implementa (DIP):
 
 ```
-packages/core  (@usetheo/skillregistry)        → biblioteca, sem HTTP
+packages/core  (@usetheo/skills)        → biblioteca, sem HTTP
   contract/        → tipos e ports: Skill, SkillRevision, EmbeddingProvider
   domain/          → regras: validação de skillId, revisões, retrieve
   infrastructure/  → adapters: Drizzle/Postgres · embedders/{openai,local,stub} · pg-boss
 
-packages/api   (@usetheo/skillregistry-api)    → servidor Hono
+packages/api   (@usetheo/skills-api)    → servidor Hono
   server/          → app Hono, rotas OpenAPI /v1/*, handlers, middleware
 ```
 

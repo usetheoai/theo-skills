@@ -1,4 +1,4 @@
-import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skillregistry-api/validators';
+import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills-api/validators';
 import { describe, expect, it } from 'vitest';
 import yazl from 'yazl';
 
