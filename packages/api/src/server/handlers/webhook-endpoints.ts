@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { createId } from '@paralleldrive/cuid2';
-import { WebhookEndpointCreateSchema } from '@usetheo/skillregistry/contract';
+import { WebhookEndpointCreateSchema } from '@usetheo/skills/contract';
 import { type Hono } from 'hono';
 
 import { type Logger } from '../logger.js';

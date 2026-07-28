@@ -35,7 +35,7 @@ export const WEBHOOK_DELIVERY_SINGLETON_SECONDS = 120;
 
 /** Build a pg-boss instance bound to the Postgres connection URI. */
 export function createQueue(uri: string): PgBoss {
-  return new PgBoss({ connectionString: uri, application_name: '@usetheo/skillregistry-api' });
+  return new PgBoss({ connectionString: uri, application_name: '@usetheo/skills-api' });
 }
 
 export interface CreateSkillJobData {

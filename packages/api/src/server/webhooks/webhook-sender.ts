@@ -6,7 +6,7 @@ import {
   type WebhookSendRequest,
   type WebhookSendResponse,
   type WebhookSender,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 
 import {
   type AddressPolicy,

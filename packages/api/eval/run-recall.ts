@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { stubEmbed } from '@usetheo/skillregistry';
+import { stubEmbed } from '@usetheo/skills';
 import { type Pool } from 'pg';
 
 import { type DispatchingRetriever } from '../src/server/providers/retriever-selection.js';

@@ -6,7 +6,7 @@ import {
   PayloadValidationError,
   type PayloadValidator,
   type ValidatedPayload,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 import yauzl, { type Entry } from 'yauzl';
 
 import { checkEntry, newGuardState } from './zip-guards.js';

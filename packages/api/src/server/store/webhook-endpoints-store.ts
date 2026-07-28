@@ -1,5 +1,5 @@
-import { type WebhookEndpoint, type WebhookEventType } from '@usetheo/skillregistry/contract';
-import { type WebhookDeliveryRow, webhookDeliveries, webhookEndpoints } from '@usetheo/skillregistry/db';
+import { type WebhookEndpoint, type WebhookEventType } from '@usetheo/skills/contract';
+import { type WebhookDeliveryRow, webhookDeliveries, webhookEndpoints } from '@usetheo/skills/db';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';

@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { assertEmbeddingDim } from '@usetheo/skillregistry';
+import { assertEmbeddingDim } from '@usetheo/skills';
 
 import { createApp } from './server/app.js';
 import { createDb, createPool } from './server/db.js';
@@ -103,7 +103,7 @@ async function main(): Promise<void> {
 
   const app = createApp({ pool, queue, logger });
   const server = serve({ fetch: app.fetch, port }, (info) => {
-    logger.info({ port: info.port }, '@usetheo/skillregistry-api listening');
+    logger.info({ port: info.port }, '@usetheo/skills-api listening');
   });
 
   // Drain order is non-negotiable: server.close → reconciler → queue.stop → pool.end.

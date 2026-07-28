@@ -1,4 +1,4 @@
-import { type SkillValidationDeps, validateSkillPayload } from '@usetheo/skillregistry';
+import { type SkillValidationDeps, validateSkillPayload } from '@usetheo/skills';
 
 import { packageSkill } from '../zip.js';
 

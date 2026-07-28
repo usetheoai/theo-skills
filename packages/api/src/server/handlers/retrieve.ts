@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { RetrieveParamsSchema } from '@usetheo/skillregistry/contract';
+import { RetrieveParamsSchema } from '@usetheo/skills/contract';
 import { type Hono } from 'hono';
 
 import { type Logger } from '../logger.js';

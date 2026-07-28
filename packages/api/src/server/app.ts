@@ -1,4 +1,4 @@
-import { type EmbeddingProvider, type PayloadValidator, type SecretScanner } from '@usetheo/skillregistry';
+import { type EmbeddingProvider, type PayloadValidator, type SecretScanner } from '@usetheo/skills';
 import { Hono } from 'hono';
 import { type Pool } from 'pg';
 import type PgBoss from 'pg-boss';

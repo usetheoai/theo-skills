@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { skillRevisions, skills } from '@usetheo/skillregistry/db';
+import { skillRevisions, skills } from '@usetheo/skills/db';
 import { and, asc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';

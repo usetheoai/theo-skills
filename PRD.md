@@ -275,13 +275,13 @@ clara (qual arquivo, qual regra violada).
 Monorepo pnpm, espelhando theo-memory/theo-rag:
 
 ```
-packages/core  (@usetheo/skillregistry)        ← biblioteca, sem HTTP
+packages/core  (@usetheo/skills)        ← biblioteca, sem HTTP
   src/contract/        ← tipos e interfaces (ports): Skill, SkillRevision, EmbeddingProvider
   src/domain/          ← regras de negócio: validação de skillId, ciclo de revisões, retrieve
   src/infrastructure/  ← adapters: db (Drizzle/Postgres), embedders/{openai,local,stub}, queue (pg-boss)
     db/schema.ts · db/migrations/
 
-packages/api   (@usetheo/skillregistry-api)    ← servidor Hono
+packages/api   (@usetheo/skills-api)    ← servidor Hono
   src/server/          ← app Hono, rotas OpenAPI /v1/*, handlers, middleware
 ```
 

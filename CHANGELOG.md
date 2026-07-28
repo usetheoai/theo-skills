@@ -10,6 +10,7 @@ ao [Semantic Versioning](https://semver.org/).
 ### Added
 
 ### Changed
+- Projeto renomeado de `theo-skillregistry` para `theo-skills`: repositório GitHub agora é `usetheodev/theo-skills` e os pacotes do monorepo passam de `@usetheo/skillregistry*` para `@usetheo/skills*` (`@usetheo/skills`, `@usetheo/skills-api`, `@usetheo/skills-cli`). A URL antiga do repositório continua redirecionando, mas atualize seus remotes. O binário do CLI (`theoskill`) e as variáveis de ambiente (`THEOSKILL_*`) não mudam.
 
 ### Deprecated
 

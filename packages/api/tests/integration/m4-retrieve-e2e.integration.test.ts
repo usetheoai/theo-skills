@@ -1,4 +1,4 @@
-import { createStubEmbedder } from '@usetheo/skillregistry';
+import { createStubEmbedder } from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';

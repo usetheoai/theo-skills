@@ -1,5 +1,5 @@
 /**
- * Test-support entry (`@usetheo/skillregistry-api/testkit`) — boots an in-process
+ * Test-support entry (`@usetheo/skills-api/testkit`) — boots an in-process
  * registry (HTTP app + create/update/delete workers) bound to a Postgres URI and
  * exposes it as a `fetch`-shaped function. Lets sibling packages (the CLI) run a
  * real validate→publish→retrieve E2E WITHOUT importing pg / pg-boss / hono types.

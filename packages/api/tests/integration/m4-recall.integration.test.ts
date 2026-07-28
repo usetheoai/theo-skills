@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { createStubEmbedder } from '@usetheo/skillregistry';
+import { createStubEmbedder } from '@usetheo/skills';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { type EvalDataset, runRecallEval, seedDataset } from '../../eval/run-recall.js';

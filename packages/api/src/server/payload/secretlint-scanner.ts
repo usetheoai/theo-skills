@@ -7,7 +7,7 @@ import {
   type PayloadFile,
   type SecretFinding,
   type SecretScanner,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 
 // @secretlint/core expects flat rule descriptors `{ id, rule: <creator> }` in
 // config.rules (preset expansion is the config-loader's job, which we bypass).

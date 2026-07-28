@@ -2,8 +2,8 @@
 import { argv } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-import { type SkillValidationDeps } from '@usetheo/skillregistry';
-import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skillregistry-api/validators';
+import { type SkillValidationDeps } from '@usetheo/skills';
+import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills-api/validators';
 
 import { CliUsageError, HELP_TEXT, parseCliArgs, resolveArgs } from './args.js';
 import { runInit } from './commands/init.js';

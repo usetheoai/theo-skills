@@ -1,4 +1,4 @@
-import { validateSkillPayload } from '@usetheo/skillregistry';
+import { validateSkillPayload } from '@usetheo/skills';
 import { describe, expect, it } from 'vitest';
 import yazl from 'yazl';
 
