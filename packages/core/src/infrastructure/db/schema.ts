@@ -12,11 +12,11 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
+import { EMBEDDING_DIM } from '../../domain/embedders/types.js';
 import { DEFAULT_WORKSPACE_ID } from '../../domain/principal.js';
 
 // Single source of truth for the embedding dimension lives in the domain port;
 // infra MAY depend on domain (allowed direction). Avoids drift (DRY).
-import { EMBEDDING_DIM } from '../../domain/embedders/types.js';
 
 /** Postgres `bytea` column type (Drizzle has no native helper). */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
