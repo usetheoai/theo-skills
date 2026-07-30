@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { assertEmbeddingDim, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
+import { runMigrations } from '@usetheo/skills/migrate';
 
 import { createApp } from './server/app.js';
 import { createDb, createPool } from './server/db.js';
@@ -45,6 +46,20 @@ async function main(): Promise<void> {
 
   const pool = createPool(uri);
   const queue = createQueue(uri);
+
+  // O schema da APLICAÇÃO vem antes de tudo — a imagem é autossuficiente.
+  //
+  // Sem este passo o serviço subia com ZERO tabelas contra um banco novo: `/v1/health`
+  // devolvia 200 (ele é estático de propósito — liveness dependente do banco deixaria uma
+  // queda de 30 s matar o container) enquanto `/v1/skills` devolvia 500. Um serviço
+  // "saudável" servindo erro em tudo é pior que um fora do ar: o painel o conta como frota
+  // completa. Observado no dev host em 2026-07-30, no primeiro deploy real.
+  //
+  // Vem ANTES de `queue.start()` pela mesma razão que ele vem antes de `serve()`: quem
+  // depende do schema não pode correr antes de o schema existir. `runMigrations` serializa
+  // réplicas concorrentes com advisory lock — migrar no boot é seguro com N réplicas.
+  await runMigrations(pool);
+  logger.info({}, 'schema aplicado');
 
   // pg-boss MUST start before serve() — bootstraps its schema (pg-boss v10).
   await queue.start();
