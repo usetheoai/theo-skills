@@ -14,6 +14,7 @@ import { registerHealthRoutes } from './handlers/health.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
+import { registerVersionRoutes } from './handlers/version.js';
 import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
 import { createSecretlintScanner } from './payload/secretlint-scanner.js';
@@ -79,6 +80,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   });
 
   registerHealthRoutes(app);
+  registerVersionRoutes(app);
   registerSkillsRoutes(app, {
     skillsStoreFor: (ws: string) => createSkillsStore(db, ws),
     revisionsStoreFor: (ws: string) => createRevisionsStore(db, ws),
