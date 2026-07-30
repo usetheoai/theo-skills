@@ -51,6 +51,14 @@ jobs:
 
   image:
     needs: [gate-ci]
+    # `if` EXPLÍCITO, e não o default `success()`.
+    #
+    # O DEFEITO QUE ISTO CORRIGE (run 30572539211): num push de `develop` o
+    # `guard-release-on-main` é `skipped` (ele só roda em tag). O GitHub propaga o skip pela
+    # CADEIA de `needs`, então este job ficava `skipped` mesmo com o `gate-ci` verde — a
+    # imagem NUNCA era publicada, e o workflow reportava `success`. Um pipeline que passa sem
+    # produzir o artefato é pior que um que falha: ninguém vai investigar o verde.
+    if: ${{ always() && needs.gate-ci.result == 'success' }}
     uses: ./.github/workflows/build-publish.yml
     with:
       image: theo-skills
