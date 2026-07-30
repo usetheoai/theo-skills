@@ -8,7 +8,7 @@ ao [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- **Fundação do isolamento entre inquilinos** (M11, em andamento): cada skill agora pertence a um *workspace*. O identificador da skill deixou de ser único globalmente e passou a ser único **por workspace** — antes, o primeiro cliente a registrar `deploy-helper` bloquearia esse nome para todos os outros, para sempre. Instalações existentes continuam funcionando sem mudança: tudo o que já estava gravado passou a pertencer ao workspace `default`.
+- **Isolamento entre inquilinos** (M11, em andamento): cada skill agora pertence a um *workspace*, e toda leitura e escrita é restrita ao workspace de quem chamou. O identificador da skill deixou de ser único globalmente e passou a ser único **por workspace** — antes, o primeiro cliente a registrar `deploy-helper` bloquearia esse nome para todos os outros, para sempre. O mesmo vale para a chave de idempotência de operações, que era global. Instalações existentes continuam funcionando sem mudança: tudo o que já estava gravado passou a pertencer ao workspace `default`, e operações em andamento no momento da atualização não são perdidas.
 - **Integração contínua** (M10): o repositório passa a verificar todo PR e todo push no trunk. `ci` (build → lint → typecheck → testes, sem banco), `integration` (suítes contra Postgres real, mais uma execução diária), `security-sast` (semgrep OWASP + varredura de segredos), `actionlint` (valida os próprios workflows) e `publish` (imagem de container assinada, publicada só atrás dos gates). Antes disso não havia verificação automática alguma.
 - **Imagem de container** publicável: `Dockerfile` multi-stage rodando como usuário não-root, com healthcheck em `/v1/health`. A imagem é escaneada por Trivy (CRITICAL/HIGH) e assinada com cosign antes de ir para o registry.
 - **Prontidão para código aberto**: `LICENSE` (Apache-2.0), `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md` e `CODE_OF_CONDUCT.md`. O `SECURITY.md` declara explicitamente que ainda não há autenticação nem isolamento entre inquilinos, e orienta a não expor a API à internet pública enquanto isso for verdade.
@@ -23,6 +23,9 @@ ao [Semantic Versioning](https://semver.org/).
 ### Deprecated
 
 ### Removed
+
+### Security
+- **Assinaturas de webhook não eram isoladas por cliente.** O componente que gerencia endpoints e entregas de webhook lia e gravava sem restringir ao workspace de quem chamou — 18 operações afetadas. Um cliente poderia listar, consultar e remover endpoints de outro. Corrigido junto com o isolamento de M11.
 
 ### Fixed
 - **A API não gerava build de produção.** O pacote `@usetheo/skills-api` declarava um passo de build que na verdade só fazia checagem de tipos — nenhum JavaScript era emitido, e o servidor só rodava a partir do TypeScript, via `tsx`. Agora emite `dist/`, e a imagem de container executa JavaScript compilado.
