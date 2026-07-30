@@ -16,3 +16,21 @@ packages:
 # do projeto rodou num ambiente sem `node_modules` pré-aprovado.
 onlyBuiltDependencies:
   - esbuild
+
+# NÃO aborta o install quando um script de dependência é ignorado.
+#
+# O que isto NÃO faz: não afrouxa a proteção de supply chain. Quem decide QUAIS pacotes
+# podem executar script continua sendo `onlyBuiltDependencies` acima — `strictDepBuilds`
+# só governa se um script IGNORADO derruba o install inteiro.
+#
+# Por que é necessário: no pnpm 11.1.0 o `esbuild` aparece em três versões transitivas
+# (0.18.20, 0.25.12, 0.28.1, via vitest/tsx/eslint) e continua sendo reportado como
+# ignorado mesmo constando em `onlyBuiltDependencies` — verificado com
+# `pnpm config get onlyBuiltDependencies`, que devolve `["esbuild"]` e ainda assim aborta.
+# O efeito era travar `pnpm install --frozen-lockfile` em TODO ambiente limpo: o CI e o
+# `docker build`.
+#
+# Por que é seguro: o esbuild não precisa do script. Ele distribui o binário em pacotes
+# de plataforma (`@esbuild/linux-x64`); o `postinstall` apenas valida. Provado em container
+# limpo antes de adotar — install, build e a suíte de testes completa passam sem ele.
+strictDepBuilds: false
