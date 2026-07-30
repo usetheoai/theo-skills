@@ -1,9 +1,8 @@
 # Runtime da API + worker de LRO.
 #
-# Multi-stage: o estágio de build carrega toolchain e devDependencies; o de runtime carrega
-# só o que executa. Exigido pelo Theo Architecture Standard § 5.
+# TRÊS estágios, não dois — e o terceiro existe por uma razão medida, não por elegância.
 #
-# O MAJOR DO NODE AQUI E O DO `ci.yml` SÃO O MESMO, e isso é travado por
+# O MAJOR DO NODE AQUI E O DO `ci.yml` SÃO O MESMO, travado por
 # `tests/workflows/gates.test.ts`: testar num major diferente do que se publica é como um
 # worker morto chegar ao host de dev com a esteira verde.
 
@@ -12,34 +11,46 @@ FROM node:22-slim AS build
 WORKDIR /app
 
 # O pnpm pede confirmação interativa antes de purgar `node_modules` e aborta sem TTY
-# (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY) — que é exatamente o caso de um `docker build`.
+# (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY) — exatamente o caso de um `docker build`.
 # `CI=true` é a via documentada pelo próprio pnpm para ambiente não-interativo.
 ENV CI=true
 
-# Habilita o pnpm da versão declarada em `packageManager` (corepack lê do package.json).
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/api/package.json ./packages/api/
 COPY packages/cli/package.json ./packages/cli/
 RUN corepack enable && corepack prepare --activate
 
-# Camada de dependências separada da de código: alterar um `.ts` não invalida o install.
-#
 # `--ignore-scripts` NÃO é contorno do ERR_PNPM_IGNORED_BUILDS — é a postura correta para
-# build de container: nenhum script de dependência executa aqui.
-#
-# Verificado antes de decidir: o único pacote que pede script é o `esbuild`, e ele é
-# 100% TRANSITIVO (vitest / tsx / eslint). Nenhuma dependência de PRODUÇÃO precisa de
-# script — o estágio de build só executa `tsc`, que não tem `postinstall`, e o estágio
-# de runtime instala com `--prod`, sem as devDependencies. O binário nativo do esbuild
-# seria baixado para nunca ser usado.
+# build de container: nenhum script de dependência executa aqui. Verificado antes de decidir:
+# o único pacote que pede script é o `esbuild`, 100% transitivo (vitest/tsx/eslint), e ele
+# distribui o binário em pacotes de plataforma; o `postinstall` apenas valida.
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY tsconfig*.json ./
 COPY packages ./packages
 RUN pnpm run build
 
-# Reinstala apenas produção, descartando o toolchain de build do node_modules final.
+# ── deps de produção, em árvore SEPARADA ─────────────────────────────────────────────────
+#
+# O DEFEITO QUE ESTE ESTÁGIO CORRIGE (Trivy, run 30572922060 — 47 achados CRITICAL/HIGH):
+# antes, o mesmo `node_modules` era instalado completo e depois "podado" com
+# `pnpm install --prod` no MESMO diretório. A poda não limpa o store `.pnpm/`: a imagem final
+# saía com TRÊS cópias do esbuild (0.18.20, 0.25.12, 0.28.1), mais postcss, js-yaml, picomatch
+# e tar — nenhum deles alcançável em runtime, todos contando como superfície de ataque.
+#
+# 44 dos 47 achados vinham daí. Instalar produção numa árvore que NUNCA teve devDependencies
+# elimina a classe inteira, em vez de remediar CVE por CVE. Mesmo desenho do estágio
+# `production-deps` do theo-memory.
+FROM node:22-slim AS production-deps
+WORKDIR /app
+ENV CI=true
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/core/package.json ./packages/core/
+COPY packages/api/package.json ./packages/api/
+COPY packages/cli/package.json ./packages/cli/
+RUN corepack enable && corepack prepare --activate
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # ── runtime ──────────────────────────────────────────────────────────────────────────────
@@ -52,8 +63,11 @@ ENV NODE_ENV=production
 # escalonamento gratuito para qualquer RCE na dependência mais obscura da árvore.
 USER node
 
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/packages ./packages
+# As deps vêm do estágio que nunca viu devDependencies; o código, do que compilou.
+COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=production-deps --chown=node:node /app/packages ./packages
+COPY --from=build --chown=node:node /app/packages/core/dist ./packages/core/dist
+COPY --from=build --chown=node:node /app/packages/api/dist ./packages/api/dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
 
 EXPOSE 8080
