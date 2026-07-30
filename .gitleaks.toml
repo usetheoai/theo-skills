@@ -1,0 +1,72 @@
+# Config do scan de segredos (M10).
+#
+# GATE PREVENTIVO, não forense: varre a ÁRVORE DE TRABALHO, não o histórico. Reescrever
+# histórico é proibido (Regra Inquebrável 4), então um scan de histórico produziria um alarme
+# permanente que ninguém pode silenciar — ruído que treina o time a ignorar o gate.
+title = "theo-skills secret scan"
+
+[extend]
+# Herda o ruleset padrão do gitleaks (chaves AWS/GCP/GitHub/Stripe/…): Regra 9 — não
+# reinventar detecção de segredo. As regras abaixo ACRESCENTAM os formatos próprios do
+# produto, que nenhum ruleset genérico conhece.
+useDefault = true
+
+# ── Formatos do produto ──────────────────────────────────────────────────────────────────
+#
+# `theoskill init` grava `auth` em `.theoskill/config.json` com permissão 0600
+# (`packages/cli/src/config.ts:5`). O arquivo é do usuário e nunca deve ser commitado; esta
+# regra pega o caso em que alguém cola o token direto no código ou na prosa.
+#
+# NOTA HONESTA: o theo-skills ainda NÃO tem formato canônico de credencial — autenticação é
+# M12. Quando o formato existir (o theo-memory usa `theo_live_` + 43 chars base64url), esta
+# regra tem de ser reescrita para casá-lo exatamente, como o `.gitleaks.toml` do theo-memory
+# faz. Até lá, a regra abaixo cobre a forma como o token aparece hoje: um campo `auth` com
+# valor longo em JSON commitado.
+[[rules]]
+id = "theoskill-config-auth"
+description = "Campo `auth` do .theoskill/config.json com valor literal (token do registry)"
+regex = '''(?i)"auth"\s*:\s*"[A-Za-z0-9_\-\.]{24,}"'''
+tags = ["theo-skills", "registry-token"]
+
+[[rules]]
+id = "theoskill-npm-token"
+description = "Token npm (npm_…) em código ou prosa — publicação usa secret do CI, nunca literal"
+regex = '''npm_[A-Za-z0-9]{36}'''
+tags = ["npm", "publish"]
+
+# ── Allowlist ────────────────────────────────────────────────────────────────────────────
+[allowlist]
+description = "Caminhos alheios e fixtures sintéticas"
+
+# ── Valores sintéticos ───────────────────────────────────────────────────────────────────
+#
+# O ruleset padrão acusa 4 fixtures que existem para TESTAR o próprio secret scanner do
+# produto (`secretlint-scanner.contract.test.ts`, `validate.contract.test.ts`,
+# `webhook-signing.contract.test.ts`, `m1-e2e.integration.test.ts`). São tokens falsos com
+# corpo sequencial `0123456789abcdef…`.
+#
+# POR QUE ALLOWLIST POR VALOR, E NÃO POR CAMINHO: excluir `**/tests/**` silenciaria também um
+# segredo REAL colado num teste — e teste é exatamente onde alguém cola uma credencial "só
+# para ver funcionando". Casar a sequência sintética é cirúrgico: nenhuma chave real tem
+# corpo `0123456789abcdef`.
+#
+# POR QUE NÃO DESLIGAR O RULESET PADRÃO (o que o theo-memory faz): sem ele, uma chave AWS,
+# GCP ou GitHub real commitada passaria em silêncio. O ruído das 4 fixtures não justifica
+# abrir mão da detecção de todo o resto.
+regexes = [
+  '''0123456789abcdef''',
+  '''whsec_test_''',
+]
+
+paths = [
+  # Zona de estudo: 9 repositórios de TERCEIROS clonados (`reference-provenance.md`). São
+  # dezenas de milhares de arquivos alheios; qualquer achado ali é sobre o projeto do outro,
+  # não sobre o nosso, e afogaria o sinal. A zona é gitignored — nada dela chega ao remoto.
+  '''knowledge-base/references/.*''',
+  '''node_modules/.*''',
+  '''dist/.*''',
+  '''pnpm-lock\.yaml''',
+  # O exemplo de env existe para DOCUMENTAR os nomes das variáveis; os valores são
+  # placeholders por definição.
+  '''\.env\.example''',
+]

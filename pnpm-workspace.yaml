@@ -1,6 +1,18 @@
 packages:
   - 'packages/*'
-allowBuilds:
-  esbuild: set this to true or false
+
+# Pacotes autorizados a rodar script de build na instalação.
+#
+# O pnpm 10+ NÃO roda script de dependência por default (supply chain: um `postinstall`
+# malicioso executa com a permissão de quem instala). Sem esta lista, `pnpm install` num
+# ambiente limpo aborta com ERR_PNPM_IGNORED_BUILDS.
+#
+# `esbuild` precisa do script: ele instala o binário nativo da plataforma. É dependência
+# transitiva do vitest e do tsx — ferramenta de desenvolvimento, não vai para a imagem final.
+#
+# CORRIGIDO EM M10: havia aqui uma chave `allowBuilds:` com o valor literal
+# "set this to true or false" — placeholder de template commitado desde o M0 (e1a42dd) e nunca
+# preenchido. A chave sequer existe no pnpm. Só se manifestou quando o primeiro `docker build`
+# do projeto rodou num ambiente sem `node_modules` pré-aprovado.
 onlyBuiltDependencies:
   - esbuild

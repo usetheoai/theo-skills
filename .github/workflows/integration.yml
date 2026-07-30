@@ -1,0 +1,85 @@
+# Suítes que precisam de Postgres real (pgvector).
+#
+# SEPARADO do `ci.yml` de propósito: aquele é o gate rápido (~1 min, sem I/O) que dá o sinal
+# em todo PR. Este sobe um serviço, aplica migrations e roda as suítes de integração — mais
+# caro, e por isso não fica no caminho crítico de cada push.
+name: Integration (Postgres)
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'prototype/**'
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'prototype/**'
+  # Diário: pega a quebra que vem de FORA do repositório — imagem base do Postgres que muda,
+  # dependência transitiva republicada. Um repo só com gate de PR acha que está verde durante
+  # dias enquanto o mundo se moveu debaixo dele.
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: integração contra pgvector real
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      # Mesma imagem do `docker-compose.yaml` — testar contra outra versão do pgvector seria
+      # verificar um banco que não é o que roda.
+      pgvector:
+        image: ankane/pgvector:v0.5.1
+        env:
+          POSTGRES_USER: theoskill
+          POSTGRES_PASSWORD: theoskill
+          POSTGRES_DB: theoskill
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U theoskill"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      THEOSKILL_PG_URI: postgres://theoskill:theoskill@127.0.0.1:5432/theoskill
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 11.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Mesma razão do ci.yml: os pacotes consomem os `.d.ts` uns dos outros a partir de `dist/`.
+      - name: Build
+        run: pnpm run build
+
+      - name: Aplicar migrations versionadas
+        run: pnpm run db:migrate
+
+      - name: Testes de integração
+        run: pnpm run test:integration

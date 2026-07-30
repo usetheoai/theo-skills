@@ -1,0 +1,16 @@
+# Contexto de build: só o que a imagem precisa.
+node_modules
+**/node_modules
+**/dist
+.git
+.github
+.claude
+knowledge-base
+prototype
+cross-validation-output
+tests
+**/tests
+**/*.test.ts
+.env
+.env.example
+*.md
