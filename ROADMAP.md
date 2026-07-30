@@ -335,7 +335,7 @@ Lidos no código do theo-memory; qualquer milestone abaixo que os viole está er
 
 ---
 
-### M10 — [ ] CI/CD, supply chain e prontidão OSS
+### M10 — [x] CI/CD, supply chain e prontidão OSS
 
 **Objective:** Dar ao repositório a rede de proteção que ele não tem — hoje são **zero
 workflows** — e a papelada mínima para poder ser aberto, espelhando os 8 workflows do
