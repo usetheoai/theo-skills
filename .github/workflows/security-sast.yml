@@ -21,7 +21,7 @@ concurrency:
 jobs:
   semgrep:
     name: semgrep (TypeScript / OWASP) + gitleaks
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Medido no theo-memory: ~3 min para os dois scans. 15 cobre pull de imagem em runner frio.
     timeout-minutes: 15
     steps:
