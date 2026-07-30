@@ -45,6 +45,38 @@ jobs:
               --exclude '*.spec.ts' \
               /src/packages
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 11.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # GATE DE DEPENDÊNCIA — restrito a PRODUÇÃO, e isso é uma decisão, não descuido.
+      #
+      # Medido em 2026-07-30: 5 vulnerabilidades HIGH na árvore completa, TODAS em
+      # devDependencies (brace-expansion via eslint, js-yaml, postcss). Nenhuma alcança o
+      # runtime: não entram na imagem, que instala com `--prod`.
+      #
+      # Bloquear o pipeline por CVE de linter treina o time a ignorar o gate — e um gate
+      # ignorado não protege nada. O que chega ao usuário é a árvore de produção, e É ELA
+      # que reprova o build aqui.
+      - name: Audit de dependências de produção (bloqueante)
+        run: pnpm audit --prod --audit-level=high
+
+      # A árvore completa fica visível sem derrubar o build: quem for atualizar o toolchain
+      # vê o débito no log em vez de descobrir por acaso.
+      - name: Audit da árvore completa (informativo)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
+
       - name: Secret scan (gitleaks)
         # ESCOPO = A RAIZ, não `packages/`. O theo-memory aprendeu isso do jeito difícil: o
         # scan dele lia só `/src/packages` enquanto a justificativa dizia que "prosa é onde
