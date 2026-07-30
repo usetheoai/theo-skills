@@ -8,6 +8,7 @@ ao [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Fundação do isolamento entre inquilinos** (M11, em andamento): cada skill agora pertence a um *workspace*. O identificador da skill deixou de ser único globalmente e passou a ser único **por workspace** — antes, o primeiro cliente a registrar `deploy-helper` bloquearia esse nome para todos os outros, para sempre. Instalações existentes continuam funcionando sem mudança: tudo o que já estava gravado passou a pertencer ao workspace `default`.
 - **Integração contínua** (M10): o repositório passa a verificar todo PR e todo push no trunk. `ci` (build → lint → typecheck → testes, sem banco), `integration` (suítes contra Postgres real, mais uma execução diária), `security-sast` (semgrep OWASP + varredura de segredos), `actionlint` (valida os próprios workflows) e `publish` (imagem de container assinada, publicada só atrás dos gates). Antes disso não havia verificação automática alguma.
 - **Imagem de container** publicável: `Dockerfile` multi-stage rodando como usuário não-root, com healthcheck em `/v1/health`. A imagem é escaneada por Trivy (CRITICAL/HIGH) e assinada com cosign antes de ir para o registry.
 - **Prontidão para código aberto**: `LICENSE` (Apache-2.0), `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md` e `CODE_OF_CONDUCT.md`. O `SECURITY.md` declara explicitamente que ainda não há autenticação nem isolamento entre inquilinos, e orienta a não expor a API à internet pública enquanto isso for verdade.

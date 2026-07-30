@@ -6,6 +6,7 @@ import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createApp } from '../../src/server/app.js';
 import { type Logger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 
 import { closePool, getPool, truncateAll } from './_helpers/db.js';
 import { describeIntegration } from './_helpers/env.js';
@@ -44,7 +45,7 @@ function capturingLogger(sink: LogLine[]): Logger {
 const stubQueue = {} as unknown as PgBoss;
 
 describeIntegration('M4 GET /v1/skills:retrieve endpoint + metric (T3.3/T3.4)', () => {
-  let app: Hono;
+  let app: Hono<AppEnv>;
   const logs: LogLine[] = [];
 
   beforeEach(async () => {

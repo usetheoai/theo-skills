@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { assertEmbeddingDim } from '@usetheo/skills';
+import { assertEmbeddingDim, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 
 import { createApp } from './server/app.js';
 import { createDb, createPool } from './server/db.js';
@@ -57,8 +57,8 @@ async function main(): Promise<void> {
   await queue.createQueue(EMBED_SKILL_DLQ_QUEUE_NAME);
 
   const db = createDb(pool);
-  const endpointsStore = createWebhookEndpointsStore(db);
-  const embeddingsStore = createEmbeddingsStore(db);
+  const endpointsStore = createWebhookEndpointsStore(db, DEFAULT_WORKSPACE_ID);
+  const embeddingsStore = createEmbeddingsStore(db, DEFAULT_WORKSPACE_ID);
 
   // Select the embedding provider. Probe the dimension at boot ONLY for the
   // deterministic stub (free, instant). For network providers a live boot probe

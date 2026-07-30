@@ -3,6 +3,7 @@ import { RetrieveParamsSchema } from '@usetheo/skills/contract';
 import { type Hono } from 'hono';
 
 import { type Logger } from '../logger.js';
+import { type AppEnv } from '../principal-context.js';
 import { type DispatchingRetriever } from '../providers/retriever-selection.js';
 
 /** Monotonic clock for latency measurement — distinct from the wall-clock in `time/clock.ts`
@@ -24,7 +25,7 @@ export interface RetrieveRoutesDeps {
  * explicit per-result `score`. Emits a `retrieve` metric line carrying latency +
  * top score (the time-to-relevant-skill north-star signal).
  */
-export function registerRetrieveRoutes(app: Hono, deps: RetrieveRoutesDeps): void {
+export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDeps): void {
   const clock = deps.clock ?? monotonicClock;
   app.get('/v1/skills:retrieve', async (c) => {
     const parsed = RetrieveParamsSchema.safeParse({

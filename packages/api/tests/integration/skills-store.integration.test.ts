@@ -1,4 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createDb } from '../../src/server/db.js';
@@ -25,8 +26,8 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   afterAll(closePool);
 
   it('createWithRevision is atomic; getView and listBySkill reflect it', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
-    const revisions = createRevisionsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
+    const revisions = createRevisionsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await skills.createWithRevision(newRev('demo'));
 
     const view = await skills.getView('demo');
@@ -39,8 +40,8 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   });
 
   it('addRevision appends an immutable revision and moves latest', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
-    const revisions = createRevisionsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
+    const revisions = createRevisionsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await skills.createWithRevision(newRev('demo'));
     const first = (await skills.getView('demo'))?.latest_revision_id;
 
@@ -58,13 +59,13 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   });
 
   it('duplicate createWithRevision maps to a typed error', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await skills.createWithRevision(newRev('demo'));
     await expect(skills.createWithRevision(newRev('demo'))).rejects.toBeInstanceOf(SkillAlreadyExistsError);
   });
 
   it('updateMetadata changes only the given fields', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await skills.createWithRevision(newRev('demo'));
     await skills.updateMetadata('demo', { description: 'updated' });
     const view = await skills.getView('demo');
@@ -73,7 +74,7 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   });
 
   it('listPaginated is keyset-paginated and excludes deleted', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     for (const id of ['a-skill', 'b-skill', 'c-skill']) {
       await skills.createWithRevision(newRev(id));
     }
@@ -86,7 +87,7 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   });
 
   it('softDelete reserves the id within the configured window', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await skills.createWithRevision(newRev('demo'));
 
     expect(await skills.softDelete('demo', new Date(Date.now() + 3600_000))).toBe(true);
@@ -100,8 +101,8 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   });
 
   it('an id can be recreated after the reservation window expires (was a BLOCKER)', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
-    const revisions = createRevisionsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
+    const revisions = createRevisionsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await skills.createWithRevision(newRev('recyclable', 'First'));
     await skills.softDelete('recyclable', new Date(Date.now() - 1000)); // already expired
     expect(await skills.isReserved('recyclable')).toBe(false);
@@ -120,7 +121,7 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
   });
 
   it('concurrent createWithRevision same skill_id is a race resolved to one winner', async () => {
-    const skills = createSkillsStore(createDb(getPool()));
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     const results = await Promise.allSettled([
       skills.createWithRevision(newRev('race', 'A')),
       skills.createWithRevision(newRev('race', 'B')),
@@ -134,7 +135,7 @@ describeIntegration('skills + revisions stores (T3.2)', () => {
 
   // operations store (carried over from M0) still works
   it('operations store roundtrip and state transition', async () => {
-    const ops = createOperationsStore(createDb(getPool()));
+    const ops = createOperationsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await ops.create({ operationId: 'op_1', skillId: 'demo', type: 'create_skill', initialState: 'CREATING' });
     expect((await ops.get('op_1'))?.state).toBe('CREATING');
     await ops.updateState('op_1', 'ACTIVE');

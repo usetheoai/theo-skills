@@ -1,4 +1,4 @@
-import { createStubEmbedder, type EmbeddingProvider, stubEmbed } from '@usetheo/skills';
+import { createStubEmbedder, type EmbeddingProvider, stubEmbed, DEFAULT_WORKSPACE_ID }  from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { createApp } from '../../src/server/app.js';
 import { createDb } from '../../src/server/db.js';
 import { createEmbedEnqueuer, createEmbedSkillHandler, registerEmbedWorker } from '../../src/server/embed/embed-worker.js';
 import { createNoopLogger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { createEmbeddingsStore } from '../../src/server/store/embeddings-store.js';
 import { buildWorkerHandlers } from '../../src/server/wiring.js';
 import { registerWorker } from '../../src/server/worker.js';
@@ -32,7 +33,7 @@ const proxyEmbedder: EmbeddingProvider = {
   embedBatch: (t, o) => holder.current.embedBatch(t, o),
 };
 
-async function pollOp(app: Hono, opId: string, target: string): Promise<string> {
+async function pollOp(app: Hono<AppEnv>, opId: string, target: string): Promise<string> {
   for (let i = 0; i < 200; i++) {
     const op = (await (await app.request(`/v1/operations/${opId}`)).json()) as { state: string };
     if (op.state === target || op.state === 'FAILED') return op.state;
@@ -50,7 +51,7 @@ async function waitForEmbedding(skillId: string): Promise<void> {
   throw new Error('embedding not produced');
 }
 
-async function postSkill(app: Hono, skillId: string): Promise<string> {
+async function postSkill(app: Hono<AppEnv>, skillId: string): Promise<string> {
   const zip = await buildZipBase64([{ path: 'SKILL.md', content: skillMd(skillId) }]);
   const res = await app.request('/v1/skills', {
     method: 'POST',
@@ -62,11 +63,11 @@ async function postSkill(app: Hono, skillId: string): Promise<string> {
 
 describeIntegration('M3 E2E: create skill → embedding present + queryable; provider swap (T4.1/T4.2)', () => {
   let boss: PgBoss;
-  let app: Hono;
+  let app: Hono<AppEnv>;
 
   beforeAll(async () => {
     boss = await startBoss();
-    const embeddingsStore = createEmbeddingsStore(createDb(getPool()));
+    const embeddingsStore = createEmbeddingsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     const embedEnqueuer = createEmbedEnqueuer({ queue: boss, embeddingsStore, logger: createNoopLogger() });
     const h = buildWorkerHandlers(getPool(), createNoopLogger(), embedEnqueuer);
     await registerWorker({ queue: boss, createHandler: h.createHandler, updateHandler: h.updateHandler, deleteHandler: h.deleteHandler });

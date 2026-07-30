@@ -1,3 +1,4 @@
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -5,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createApp } from '../../src/server/app.js';
 import { createDb } from '../../src/server/db.js';
 import { createNoopLogger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { createOperationsStore } from '../../src/server/store/operations-store.js';
 import { createSkillsStore } from '../../src/server/store/skills-store.js';
 import { buildWorkerHandlers } from '../../src/server/wiring.js';
@@ -17,7 +19,7 @@ import { buildZipBase64, skillMd } from './_helpers/zip.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-async function pollState(app: Hono, opId: string, target: string): Promise<string> {
+async function pollState(app: Hono<AppEnv>, opId: string, target: string): Promise<string> {
   for (let i = 0; i < 200; i++) {
     const op = (await (await app.request(`/v1/operations/${opId}`)).json()) as { state: string };
     if (op.state === target || op.state === 'FAILED') {
@@ -30,7 +32,7 @@ async function pollState(app: Hono, opId: string, target: string): Promise<strin
 
 describeIntegration('operation lifecycle: states, idempotency, retry (T1.1)', () => {
   let boss: PgBoss;
-  let app: Hono;
+  let app: Hono<AppEnv>;
 
   beforeAll(async () => {
     boss = await startBoss();
@@ -65,15 +67,15 @@ describeIntegration('operation lifecycle: states, idempotency, retry (T1.1)', ()
 
   it('worker marks a business-rule failure FAILED without retry, and is idempotent on terminal ops', async () => {
     const db = createDb(getPool());
-    const ops = createOperationsStore(db);
-    const skills = createSkillsStore(db);
+    const ops = createOperationsStore(db, DEFAULT_WORKSPACE_ID);
+    const skills = createSkillsStore(db, DEFAULT_WORKSPACE_ID);
     // pre-create the skill so createWithRevision hits the unique constraint (business rule).
     await skills.createWithRevision({
       skillId: 'dup', name: 'X', description: '', payload: Buffer.from('z'), contentHash: 'h', frontmatter: {}, skillMd: '# X',
     });
     await ops.create({ operationId: 'op_dup', skillId: 'dup', type: 'create_skill', initialState: 'CREATING' });
 
-    const handle = createCreateSkillHandler({ skillsStore: skills, operationsStore: ops, logger: createNoopLogger() });
+    const handle = createCreateSkillHandler({ skillsStoreFor: () => skills, operationsStoreFor: () => ops, logger: createNoopLogger() });
     // retryCount 0 — business rule must NOT throw (no retry) and mark FAILED.
     await handle(
       { operation_id: 'op_dup', skill_id: 'dup', trace_id: 'tr-test', name: 'Y', description: '', content_hash: 'h2', payload_b64: Buffer.from('z2').toString('base64'), frontmatter: {}, skill_md: '# Y' },
@@ -91,8 +93,8 @@ describeIntegration('operation lifecycle: states, idempotency, retry (T1.1)', ()
 
   it('worker RETRIES a transient error and reaches ACTIVE on a later attempt', async () => {
     const db = createDb(getPool());
-    const ops = createOperationsStore(db);
-    const realSkills = createSkillsStore(db);
+    const ops = createOperationsStore(db, DEFAULT_WORKSPACE_ID);
+    const realSkills = createSkillsStore(db, DEFAULT_WORKSPACE_ID);
     await ops.create({ operationId: 'op_t', skillId: 'transient', type: 'create_skill', initialState: 'CREATING' });
 
     let attempts = 0;
@@ -106,7 +108,7 @@ describeIntegration('operation lifecycle: states, idempotency, retry (T1.1)', ()
         return realSkills.createWithRevision(input);
       },
     };
-    const handle = createCreateSkillHandler({ skillsStore: flakySkills, operationsStore: ops, logger: createNoopLogger() });
+    const handle = createCreateSkillHandler({ skillsStoreFor: () => flakySkills, operationsStoreFor: () => ops, logger: createNoopLogger() });
     const data = { operation_id: 'op_t', skill_id: 'transient', trace_id: 'tr-test', name: 'T', description: '', content_hash: 'h', payload_b64: Buffer.from('z').toString('base64'), frontmatter: {}, skill_md: '# T' };
 
     // attempt 0: transient throw → re-thrown (pg-boss would retry), state still CREATING.

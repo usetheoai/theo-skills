@@ -1,4 +1,4 @@
-import { type WebhookSendResponse, type WebhookSender } from '@usetheo/skills';
+import { type WebhookSendResponse, type WebhookSender, DEFAULT_WORKSPACE_ID }  from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createDb } from '../../src/server/db.js';
@@ -22,7 +22,7 @@ class CountingSender implements WebhookSender {
   }
 }
 
-const store = () => createWebhookEndpointsStore(createDb(getPool()));
+const store = () => createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
 
 async function seedDelivery(id: string, opts: { active?: boolean; enqueue?: boolean } = {}): Promise<void> {
   const s = store();

@@ -6,10 +6,13 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+
+import { DEFAULT_WORKSPACE_ID } from '../../domain/principal.js';
 
 // Single source of truth for the embedding dimension lives in the domain port;
 // infra MAY depend on domain (allowed direction). Avoids drift (DRY).
@@ -56,7 +59,13 @@ const tsvector = customType<{ data: string }>({
 export const skills = pgTable(
   'skills',
   {
-    skillId: text('skill_id').primaryKey(),
+    // M11 — âncora do inquilino. Primeira coluna de toda consulta e de todo índice.
+    //
+    // O `skill_id` DEIXOU de ser PK global: como PK única, o primeiro inquilino a registrar
+    // `deploy-helper` bloquearia o nome para todos os outros para sempre — agravado pela
+    // regra de reserva pós-delete. A identidade agora é o PAR (workspace, skill).
+    workspaceId: text('workspace_id').notNull().default(DEFAULT_WORKSPACE_ID),
+    skillId: text('skill_id').notNull(),
     name: text('name').notNull(),
     description: text('description').notNull(),
     state: text('state').notNull().default('ACTIVE'),
@@ -71,7 +80,14 @@ export const skills = pgTable(
     createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
     updateTime: timestamp('update_time', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('skills_search_tsv_gin').using('gin', t.searchTsv)],
+  (t) => [
+    // Identidade composta: o MESMO skillId coexiste em workspaces diferentes.
+    primaryKey({ columns: [t.workspaceId, t.skillId], name: 'skills_pkey' }),
+    index('skills_search_tsv_gin').using('gin', t.searchTsv),
+    // O planner precisa de um caminho barato para o recorte do inquilino ANTES de tocar
+    // GIN/HNSW — sem ele, a busca varre o catálogo inteiro e filtra depois.
+    index('skills_workspace_idx').on(t.workspaceId),
+  ],
 );
 
 /**
@@ -83,6 +99,8 @@ export const skillRevisions = pgTable(
   'skill_revisions',
   {
     revisionId: text('revision_id').primaryKey(),
+    // M11 — o inquilino dono da revisão. A revisão pertence à skill, e a skill ao workspace.
+    workspaceId: text('workspace_id').notNull().default(DEFAULT_WORKSPACE_ID),
     skillId: text('skill_id').notNull(),
     payload: bytea('payload').notNull(),
     contentHash: text('content_hash').notNull(),
@@ -92,7 +110,11 @@ export const skillRevisions = pgTable(
     skillMd: text('skill_md').notNull().default(''),
     createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('skill_revisions_skill_id_create_time_idx').on(t.skillId, desc(t.createTime))],
+  (t) => [
+    // Índice LIDERADO pelo inquilino: listar revisões é sempre "as revisões desta skill
+    // DESTE workspace".
+    index('skill_revisions_ws_skill_create_idx').on(t.workspaceId, t.skillId, desc(t.createTime)),
+  ],
 );
 
 /**
@@ -104,6 +126,8 @@ export const embeddings = pgTable(
   'embeddings',
   {
     id: text('id').primaryKey(),
+    // M11 — o filtro do inquilino na busca vetorial.
+    workspaceId: text('workspace_id').notNull().default(DEFAULT_WORKSPACE_ID),
     revisionId: text('revision_id')
       .notNull()
       .references(() => skillRevisions.revisionId, { onDelete: 'cascade' }),
@@ -116,6 +140,12 @@ export const embeddings = pgTable(
   },
   (t) => [
     uniqueIndex('embeddings_revision_provider_model_uq').on(t.revisionId, t.provider, t.model),
+    // O HNSW indexa APENAS o vetor — pgvector não aceita coluna de filtro liderando um
+    // índice ANN. O recorte do inquilino depende deste B-tree, que o planner combina com a
+    // busca vetorial. É exatamente aqui que mora o risco de recall medido em T5.1:
+    // pre-filter preserva recall mas pode abandonar o HNSW; post-filter usa o índice e
+    // derruba o recall.
+    index('embeddings_workspace_idx').on(t.workspaceId),
     index('embeddings_vector_hnsw').using('hnsw', t.vector.op('vector_cosine_ops')),
   ],
 );
@@ -128,6 +158,8 @@ export const operations = pgTable(
   'operations',
   {
     operationId: text('operation_id').primaryKey(),
+    // M11 — o inquilino que pediu a operação.
+    workspaceId: text('workspace_id').notNull().default(DEFAULT_WORKSPACE_ID),
     // NO foreign key to skills.skill_id BY DESIGN: the operation row is created
     // (CREATING) before the skill exists — the worker inserts the skill only on
     // success. An FK here would make the operation insert fail. Do not "fix" this.
@@ -142,15 +174,21 @@ export const operations = pgTable(
     updateTime: timestamp('update_time', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('operations_idempotency_key_uq')
-      .on(t.idempotencyKey)
+    // Idempotência é POR INQUILINO: dois workspaces podem usar a mesma chave sem colidir.
+    // Fosse global, um inquilino conseguiria adivinhar a chave de outro e receber a operação
+    // alheia — vazamento por canal lateral.
+    uniqueIndex('operations_ws_idempotency_key_uq')
+      .on(t.workspaceId, t.idempotencyKey)
       .where(sql`${t.idempotencyKey} IS NOT NULL`),
+    index('operations_workspace_idx').on(t.workspaceId),
   ],
 );
 
 /** Webhook endpoints — subscriptions that receive skill events (M2). */
 export const webhookEndpoints = pgTable('webhook_endpoints', {
   id: text('id').primaryKey(),
+  // M11 — endpoints são por inquilino: ninguém assina eventos do catálogo alheio.
+  workspaceId: text('workspace_id').notNull().default(DEFAULT_WORKSPACE_ID),
   url: text('url').notNull(),
   // Server-generated HMAC secret, returned once on create.
   secret: text('secret').notNull(),
@@ -170,6 +208,9 @@ export const webhookDeliveries = pgTable(
   'webhook_deliveries',
   {
     id: text('id').primaryKey(),
+    // M11 — desnormalizado a partir do endpoint para o reconciliador varrer por inquilino
+    // sem join.
+    workspaceId: text('workspace_id').notNull().default(DEFAULT_WORKSPACE_ID),
     endpointId: text('endpoint_id')
       .notNull()
       .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),

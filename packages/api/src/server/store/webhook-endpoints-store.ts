@@ -120,10 +120,14 @@ function toRecord(row: WebhookDeliveryRow): DeliveryRecord {
   };
 }
 
-export function createWebhookEndpointsStore(db: Db): WebhookEndpointsStore {
+export function createWebhookEndpointsStore(db: Db, workspaceId: string): WebhookEndpointsStore {
+  /** Todo predicado nasce ancorado no inquilino (M11). */
+  const wsEndpoint = eq(webhookEndpoints.workspaceId, workspaceId);
+  const wsDelivery = eq(webhookDeliveries.workspaceId, workspaceId);
   return {
     async create(input) {
       await db.insert(webhookEndpoints).values({
+        workspaceId,
         id: input.id,
         url: input.url,
         secret: input.secret,
@@ -133,18 +137,18 @@ export function createWebhookEndpointsStore(db: Db): WebhookEndpointsStore {
     },
 
     async getPublicById(id) {
-      const rows = await db.select().from(webhookEndpoints).where(eq(webhookEndpoints.id, id)).limit(1);
+      const rows = await db.select().from(webhookEndpoints).where(and(wsEndpoint, eq(webhookEndpoints.id, id))).limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toPublic(row);
     },
 
     async listPublic() {
-      const rows = await db.select().from(webhookEndpoints).orderBy(desc(webhookEndpoints.createTime));
+      const rows = await db.select().from(webhookEndpoints).where(wsEndpoint).orderBy(desc(webhookEndpoints.createTime));
       return rows.map(toPublic);
     },
 
     async remove(id) {
-      const deleted = await db.delete(webhookEndpoints).where(eq(webhookEndpoints.id, id)).returning({ id: webhookEndpoints.id });
+      const deleted = await db.delete(webhookEndpoints).where(and(wsEndpoint, eq(webhookEndpoints.id, id))).returning({ id: webhookEndpoints.id });
       return deleted.length > 0;
     },
 
@@ -168,13 +172,14 @@ export function createWebhookEndpointsStore(db: Db): WebhookEndpointsStore {
       const rows = await db
         .select({ id: webhookEndpoints.id, url: webhookEndpoints.url, secret: webhookEndpoints.secret, active: webhookEndpoints.active })
         .from(webhookEndpoints)
-        .where(eq(webhookEndpoints.id, id))
+        .where(and(wsEndpoint, eq(webhookEndpoints.id, id)))
         .limit(1);
       return rows[0];
     },
 
     async recordDelivery(input) {
       await db.insert(webhookDeliveries).values({
+        workspaceId,
         id: input.id,
         endpointId: input.endpointId,
         eventType: input.eventType,
@@ -184,7 +189,7 @@ export function createWebhookEndpointsStore(db: Db): WebhookEndpointsStore {
     },
 
     async getDeliveryById(id) {
-      const rows = await db.select().from(webhookDeliveries).where(eq(webhookDeliveries.id, id)).limit(1);
+      const rows = await db.select().from(webhookDeliveries).where(and(wsDelivery, eq(webhookDeliveries.id, id))).limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toRecord(row);
     },
@@ -193,7 +198,7 @@ export function createWebhookEndpointsStore(db: Db): WebhookEndpointsStore {
       await db
         .update(webhookDeliveries)
         .set({ enqueuedAt: new Date() })
-        .where(eq(webhookDeliveries.id, deliveryId));
+        .where(and(wsDelivery, eq(webhookDeliveries.id, deliveryId)));
     },
 
     async markDelivered(deliveryId) {
@@ -201,14 +206,14 @@ export function createWebhookEndpointsStore(db: Db): WebhookEndpointsStore {
       await db
         .update(webhookDeliveries)
         .set({ deliveredAt: new Date(), attemptCount: sql`${webhookDeliveries.attemptCount} + 1` })
-        .where(and(eq(webhookDeliveries.id, deliveryId), isNull(webhookDeliveries.deliveredAt), isNull(webhookDeliveries.failedAt)));
+        .where(and(wsDelivery, eq(webhookDeliveries.id, deliveryId), isNull(webhookDeliveries.deliveredAt), isNull(webhookDeliveries.failedAt)));
     },
 
     async markFailed(deliveryId) {
       await db
         .update(webhookDeliveries)
         .set({ failedAt: new Date(), attemptCount: sql`${webhookDeliveries.attemptCount} + 1` })
-        .where(and(eq(webhookDeliveries.id, deliveryId), isNull(webhookDeliveries.deliveredAt), isNull(webhookDeliveries.failedAt)));
+        .where(and(wsDelivery, eq(webhookDeliveries.id, deliveryId), isNull(webhookDeliveries.deliveredAt), isNull(webhookDeliveries.failedAt)));
     },
 
     async claimOrphanedDeliveries(olderThan, limit) {
