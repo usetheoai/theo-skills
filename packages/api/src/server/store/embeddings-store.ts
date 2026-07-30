@@ -43,7 +43,7 @@ export interface EmbeddingsStore {
   listByRevision(revisionId: string): Promise<EmbeddingRow[]>;
 }
 
-export function createEmbeddingsStore(db: Db): EmbeddingsStore {
+export function createEmbeddingsStore(db: Db, workspaceId: string): EmbeddingsStore {
   return {
     async getEmbedSourceBySkill(skillId) {
       const rows = await db
@@ -56,7 +56,13 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
         })
         .from(skills)
         .innerJoin(skillRevisions, eq(skillRevisions.revisionId, skills.latestRevisionId))
-        .where(and(eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+        .where(
+          and(
+            eq(skills.workspaceId, workspaceId),
+            eq(skills.skillId, skillId),
+            isNull(skills.deletedAt),
+          ),
+        )
         .limit(1);
       return rows[0];
     },
@@ -72,7 +78,13 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
         })
         .from(skillRevisions)
         .innerJoin(skills, eq(skills.skillId, skillRevisions.skillId))
-        .where(and(eq(skillRevisions.revisionId, revisionId), isNull(skills.deletedAt)))
+        .where(
+          and(
+            eq(skillRevisions.workspaceId, workspaceId),
+            eq(skillRevisions.revisionId, revisionId),
+            isNull(skills.deletedAt),
+          ),
+        )
         .limit(1);
       return rows[0];
     },
@@ -96,7 +108,12 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
     },
 
     async listByRevision(revisionId) {
-      return db.select().from(embeddings).where(eq(embeddings.revisionId, revisionId));
+      return db
+        .select()
+        .from(embeddings)
+        .where(
+          and(eq(embeddings.workspaceId, workspaceId), eq(embeddings.revisionId, revisionId)),
+        );
     },
   } satisfies EmbeddingsStore;
 }

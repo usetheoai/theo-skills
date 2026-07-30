@@ -1,5 +1,5 @@
 import { skillRevisions } from '@usetheo/skills/db';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 
@@ -32,7 +32,7 @@ function toView(row: {
   };
 }
 
-export function createRevisionsStore(db: Db): RevisionsStore {
+export function createRevisionsStore(db: Db, workspaceId: string): RevisionsStore {
   return {
     async listBySkill(skillId) {
       const rows = await db
@@ -43,7 +43,12 @@ export function createRevisionsStore(db: Db): RevisionsStore {
           createTime: skillRevisions.createTime,
         })
         .from(skillRevisions)
-        .where(eq(skillRevisions.skillId, skillId))
+        .where(
+          and(
+            eq(skillRevisions.workspaceId, workspaceId),
+            eq(skillRevisions.skillId, skillId),
+          ),
+        )
         .orderBy(desc(skillRevisions.createTime), desc(skillRevisions.revisionId));
       return rows.map(toView);
     },
@@ -57,7 +62,14 @@ export function createRevisionsStore(db: Db): RevisionsStore {
           createTime: skillRevisions.createTime,
         })
         .from(skillRevisions)
-        .where(eq(skillRevisions.revisionId, revisionId))
+        // O inquilino entra mesmo com `revisionId` sendo unico: sem ele, quem descobrisse
+        // (ou adivinhasse) o id de uma revisao alheia leria o payload de outro cliente.
+        .where(
+          and(
+            eq(skillRevisions.workspaceId, workspaceId),
+            eq(skillRevisions.revisionId, revisionId),
+          ),
+        )
         .limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toView(row);

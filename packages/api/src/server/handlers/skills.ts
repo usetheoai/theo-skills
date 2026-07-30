@@ -13,6 +13,7 @@ import type PgBoss from 'pg-boss';
 
 import { type Logger } from '../logger.js';
 import { resolveTraceId } from '../observability/trace-context.js';
+import { type AppEnv, workspaceOf } from '../principal-context.js';
 import { JOB_NAMES, SKILL_SEND_OPTIONS } from '../queue/queue.js';
 import { type OperationsStore } from '../store/operations-store.js';
 import { type RevisionsStore } from '../store/revisions-store.js';
@@ -21,9 +22,9 @@ import { type SkillsStore } from '../store/skills-store.js';
 const UPDATE_MASK_FIELDS = new Set(['displayName', 'description', 'zippedFilesystem']);
 
 export interface SkillsRoutesDeps {
-  readonly skillsStore: SkillsStore;
-  readonly revisionsStore: RevisionsStore;
-  readonly operationsStore: OperationsStore;
+  readonly skillsStoreFor: (workspaceId: string) => SkillsStore;
+  readonly revisionsStoreFor: (workspaceId: string) => RevisionsStore;
+  readonly operationsStoreFor: (workspaceId: string) => OperationsStore;
   readonly queue: PgBoss;
   readonly payloadValidator: PayloadValidator;
   readonly secretScanner: SecretScanner;
@@ -84,7 +85,7 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
   };
 }
 
-function fail(c: Context, err: unknown): Response {
+function fail(c: Context<AppEnv>, err: unknown): Response {
   if (err instanceof BoundaryError) {
     return c.json({ error: err.code }, err.status);
   }
@@ -101,7 +102,7 @@ function fail(c: Context, err: unknown): Response {
  */
 async function enqueueOperation(
   deps: SkillsRoutesDeps,
-  c: Context,
+  c: Context<AppEnv>,
   args: {
     skillId: string;
     jobName: string;
@@ -113,7 +114,7 @@ async function enqueueOperation(
 ): Promise<Response> {
   const traceId = resolveTraceId(c.req.header('traceparent'));
   const newId = `op_${createId()}`;
-  const { operationId, created } = await deps.operationsStore.create({
+  const { operationId, created } = await deps.operationsStoreFor(workspaceOf(c)).create({
     operationId: newId,
     skillId: args.skillId,
     type: args.jobName,
@@ -131,7 +132,7 @@ async function enqueueOperation(
       SKILL_SEND_OPTIONS,
     );
   } catch (err) {
-    await deps.operationsStore.updateState(operationId, 'FAILED', `failed to enqueue ${args.jobName}`);
+    await deps.operationsStoreFor(workspaceOf(c)).updateState(operationId, 'FAILED', `failed to enqueue ${args.jobName}`);
     throw err;
   }
   deps.logger.info(
@@ -141,12 +142,12 @@ async function enqueueOperation(
   return c.json({ operation_id: operationId, skill_id: args.skillId }, 202);
 }
 
-function idempotencyKeyOf(c: Context): string | undefined {
+function idempotencyKeyOf(c: Context<AppEnv>): string | undefined {
   const key = c.req.header('Idempotency-Key');
   return key !== undefined && key.length > 0 ? key : undefined;
 }
 
-export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
+export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps): void {
   const limit = bodyLimit({
     maxSize: deps.maxBodyBytes,
     onError: (c) => c.json({ error: 'payload_too_large' }, 413),
@@ -162,10 +163,10 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
         return c.json({ error: 'invalid_input' }, 400);
       }
       skillId = parseSkillId(typeof body.skill_id === 'string' ? body.skill_id : '');
-      if (await deps.skillsStore.isReserved(skillId)) {
+      if (await deps.skillsStoreFor(workspaceOf(c)).isReserved(skillId)) {
         return c.json({ error: 'reserved' }, 409);
       }
-      if ((await deps.skillsStore.getView(skillId)) !== undefined) {
+      if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) !== undefined) {
         return c.json({ error: 'already_exists' }, 409);
       }
       ingest = await ingestPayload(deps, body.zippedFilesystem);
@@ -195,13 +196,13 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
     const rawSize = Number(c.req.query('page_size') ?? '50');
     const pageSize = Number.isFinite(rawSize) ? Math.min(Math.max(Math.trunc(rawSize), 1), 200) : 50;
     const pageToken = c.req.query('page_token') ?? null;
-    const page = await deps.skillsStore.listPaginated(pageSize, pageToken);
+    const page = await deps.skillsStoreFor(workspaceOf(c)).listPaginated(pageSize, pageToken);
     return c.json({ skills: page.skills, next_page_token: page.nextPageToken }, 200);
   });
 
   // GET /v1/skills/:id
   app.get('/v1/skills/:id', async (c) => {
-    const skill = await deps.skillsStore.getView(c.req.param('id'));
+    const skill = await deps.skillsStoreFor(workspaceOf(c)).getView(c.req.param('id'));
     if (skill === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
@@ -211,7 +212,7 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
   // PATCH /v1/skills/:id — updateMask-driven; LRO when a payload is present.
   app.patch('/v1/skills/:id', limit, async (c) => {
     const skillId = c.req.param('id');
-    if ((await deps.skillsStore.getView(skillId)) === undefined) {
+    if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
     const mask = (c.req.query('updateMask') ?? '')
@@ -264,7 +265,7 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
   // DELETE /v1/skills/:id — LRO (DELETING). Soft-delete + id reservation in the worker.
   app.delete('/v1/skills/:id', async (c) => {
     const skillId = c.req.param('id');
-    if ((await deps.skillsStore.getView(skillId)) === undefined) {
+    if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
     const reservedUntil = new Date(Date.now() + deps.reservationHours * 3600_000).toISOString();
@@ -281,16 +282,16 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
   // GET /v1/skills/:id/revisions
   app.get('/v1/skills/:id/revisions', async (c) => {
     const skillId = c.req.param('id');
-    if ((await deps.skillsStore.getView(skillId)) === undefined) {
+    if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
-    const revisions = await deps.revisionsStore.listBySkill(skillId);
+    const revisions = await deps.revisionsStoreFor(workspaceOf(c)).listBySkill(skillId);
     return c.json({ revisions }, 200);
   });
 
   // GET /v1/skills/:id/revisions/:revisionId
   app.get('/v1/skills/:id/revisions/:revisionId', async (c) => {
-    const revision = await deps.revisionsStore.getById(c.req.param('revisionId'));
+    const revision = await deps.revisionsStoreFor(workspaceOf(c)).getById(c.req.param('revisionId'));
     if (revision === undefined || revision.skill_id !== c.req.param('id')) {
       return c.json({ error: 'not_found' }, 404);
     }

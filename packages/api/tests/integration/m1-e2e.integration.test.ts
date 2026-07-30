@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import { createApp } from '../../src/server/app.js';
 import { createNoopLogger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { buildWorkerHandlers } from '../../src/server/wiring.js';
 import { registerWorker } from '../../src/server/worker.js';
 
@@ -19,7 +20,7 @@ interface OpBody {
   error: string | null;
 }
 
-async function postSkill(app: Hono, skillId: string, zip: string): Promise<Response> {
+async function postSkill(app: Hono<AppEnv>, skillId: string, zip: string): Promise<Response> {
   return app.request('/v1/skills', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -27,7 +28,7 @@ async function postSkill(app: Hono, skillId: string, zip: string): Promise<Respo
   });
 }
 
-async function pollDone(app: Hono, opId: string): Promise<OpBody> {
+async function pollDone(app: Hono<AppEnv>, opId: string): Promise<OpBody> {
   for (let i = 0; i < 200; i++) {
     const res = await app.request(`/v1/operations/${opId}`);
     const op = (await res.json()) as OpBody;
@@ -44,7 +45,7 @@ async function pollDone(app: Hono, opId: string): Promise<OpBody> {
 
 describeIntegration('M1 skill ingestion E2E (T4)', () => {
   let boss: PgBoss;
-  let app: Hono;
+  let app: Hono<AppEnv>;
 
   beforeAll(async () => {
     boss = await startBoss();
@@ -62,7 +63,7 @@ describeIntegration('M1 skill ingestion E2E (T4)', () => {
     await closePool();
   });
 
-  function makeApp(): Hono {
+  function makeApp(): Hono<AppEnv> {
     return createApp({ pool: getPool(), queue: boss, logger: createNoopLogger(), reservationHours: 1 });
   }
 

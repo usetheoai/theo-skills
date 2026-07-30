@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { createStubEmbedder, EMBEDDING_DIM, type EmbeddingProvider } from '@usetheo/skills';
+import { createStubEmbedder, EMBEDDING_DIM, type EmbeddingProvider, DEFAULT_WORKSPACE_ID }  from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createDb } from '../../src/server/db.js';
@@ -10,7 +10,7 @@ import { createEmbeddingsStore } from '../../src/server/store/embeddings-store.j
 import { closePool, getPool, truncateAll } from './_helpers/db.js';
 import { describeIntegration } from './_helpers/env.js';
 
-const store = () => createEmbeddingsStore(createDb(getPool()));
+const store = () => createEmbeddingsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
 
 async function seedSkill(skillId: string, body = '# body'): Promise<string> {
   const revisionId = `rev_${createId()}`;

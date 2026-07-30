@@ -93,16 +93,36 @@ const liveColumns = {
  * so the lexical index is always consistent — including metadata-only updates
  * that do not create a new revision.
  */
-function refreshSearchText(executor: { execute: (q: ReturnType<typeof sql>) => Promise<unknown> }, skillId: string): Promise<unknown> {
+function refreshSearchText(
+  executor: { execute: (q: ReturnType<typeof sql>) => Promise<unknown> },
+  workspaceId: string,
+  skillId: string,
+): Promise<unknown> {
   return executor.execute(sql`
     UPDATE skills s
     SET search_text = s.name || ' ' || s.description || ' ' || coalesce(r.skill_md, '')
     FROM skill_revisions r
-    WHERE r.revision_id = s.latest_revision_id AND s.skill_id = ${skillId}
+    WHERE r.revision_id = s.latest_revision_id
+      AND s.workspace_id = ${workspaceId}
+      AND s.skill_id = ${skillId}
   `);
 }
 
-export function createSkillsStore(db: Db): SkillsStore {
+/**
+ * Cria um store JA ESCOPADO a um workspace.
+ *
+ * POR QUE A FACTORY RECEBE O INQUILINO, em vez de cada metodo receber um `workspaceId`:
+ * sao 17 operacoes so neste store (52 no conjunto). Com o inquilino como parametro de
+ * metodo, basta UMA chamada esquecida para vazar o catalogo inteiro de outro cliente — e o
+ * compilador nao ajuda, porque o parametro estaria la, so preenchido errado.
+ *
+ * Escopando na construcao, o filtro deixa de ser disciplina e vira estrutura: nao existe
+ * caminho de codigo que alcance o store sem antes ter resolvido de quem e a requisicao.
+ * E o mesmo desenho do `memory.withWorkspace('acme')` do theo-memory.
+ */
+export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
+  /** Todo predicado nasce ancorado no inquilino. */
+  const ws = eq(skills.workspaceId, workspaceId);
   return {
     async createWithRevision(input) {
       const revisionId = `rev_${createId()}`;
@@ -114,6 +134,7 @@ export function createSkillsStore(db: Db): SkillsStore {
           .delete(skills)
           .where(
             and(
+              ws,
               eq(skills.skillId, input.skillId),
               isNotNull(skills.deletedAt),
               lt(skills.reservedUntil, sql`now()`),
@@ -121,10 +142,18 @@ export function createSkillsStore(db: Db): SkillsStore {
           )
           .returning({ skillId: skills.skillId });
         if (purged.length > 0) {
-          await tx.delete(skillRevisions).where(eq(skillRevisions.skillId, input.skillId));
+          await tx
+            .delete(skillRevisions)
+            .where(
+              and(
+                eq(skillRevisions.workspaceId, workspaceId),
+                eq(skillRevisions.skillId, input.skillId),
+              ),
+            );
         }
         try {
           await tx.insert(skills).values({
+            workspaceId,
             skillId: input.skillId,
             name: input.name,
             description: input.description,
@@ -139,13 +168,14 @@ export function createSkillsStore(db: Db): SkillsStore {
         }
         await tx.insert(skillRevisions).values({
           revisionId,
+          workspaceId,
           skillId: input.skillId,
           payload: input.payload,
           contentHash: input.contentHash,
           frontmatter: input.frontmatter,
           skillMd: input.skillMd,
         });
-        await refreshSearchText(tx, input.skillId);
+        await refreshSearchText(tx, workspaceId, input.skillId);
       });
     },
 
@@ -154,6 +184,7 @@ export function createSkillsStore(db: Db): SkillsStore {
       await db.transaction(async (tx) => {
         await tx.insert(skillRevisions).values({
           revisionId,
+          workspaceId,
           skillId,
           payload: rev.payload,
           contentHash: rev.contentHash,
@@ -163,8 +194,8 @@ export function createSkillsStore(db: Db): SkillsStore {
         await tx
           .update(skills)
           .set({ latestRevisionId: revisionId, updateTime: new Date() })
-          .where(eq(skills.skillId, skillId));
-        await refreshSearchText(tx, skillId);
+          .where(and(ws, eq(skills.skillId, skillId)));
+        await refreshSearchText(tx, workspaceId, skillId);
       });
       return revisionId;
     },
@@ -178,8 +209,8 @@ export function createSkillsStore(db: Db): SkillsStore {
         patch['description'] = fields.description;
       }
       await db.transaction(async (tx) => {
-        await tx.update(skills).set(patch).where(eq(skills.skillId, skillId));
-        await refreshSearchText(tx, skillId);
+        await tx.update(skills).set(patch).where(and(ws, eq(skills.skillId, skillId)));
+        await refreshSearchText(tx, workspaceId, skillId);
       });
     },
 
@@ -187,7 +218,7 @@ export function createSkillsStore(db: Db): SkillsStore {
       const rows = await db
         .select(liveColumns)
         .from(skills)
-        .where(and(eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+        .where(and(ws, eq(skills.skillId, skillId), isNull(skills.deletedAt)))
         .limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toView(row);
@@ -196,8 +227,8 @@ export function createSkillsStore(db: Db): SkillsStore {
     async listPaginated(pageSize, pageToken) {
       const where =
         pageToken === null
-          ? isNull(skills.deletedAt)
-          : and(isNull(skills.deletedAt), gt(skills.skillId, pageToken));
+          ? and(ws, isNull(skills.deletedAt))
+          : and(ws, isNull(skills.deletedAt), gt(skills.skillId, pageToken));
       const rows = await db
         .select(liveColumns)
         .from(skills)
@@ -217,7 +248,7 @@ export function createSkillsStore(db: Db): SkillsStore {
       const result = await db
         .update(skills)
         .set({ state: 'DELETED', deletedAt: new Date(), reservedUntil, updateTime: new Date() })
-        .where(and(eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+        .where(and(ws, eq(skills.skillId, skillId), isNull(skills.deletedAt)))
         .returning({ skillId: skills.skillId });
       return result.length > 0;
     },
@@ -228,6 +259,7 @@ export function createSkillsStore(db: Db): SkillsStore {
         .from(skills)
         .where(
           and(
+            ws,
             eq(skills.skillId, skillId),
             isNotNull(skills.reservedUntil),
             gt(skills.reservedUntil, sql`now()`),

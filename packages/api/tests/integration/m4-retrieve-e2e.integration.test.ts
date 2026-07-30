@@ -1,4 +1,4 @@
-import { createStubEmbedder } from '@usetheo/skills';
+import { createStubEmbedder, DEFAULT_WORKSPACE_ID }  from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { createApp } from '../../src/server/app.js';
 import { createDb } from '../../src/server/db.js';
 import { createEmbedEnqueuer, createEmbedSkillHandler, registerEmbedWorker } from '../../src/server/embed/embed-worker.js';
 import { createNoopLogger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { createEmbeddingsStore } from '../../src/server/store/embeddings-store.js';
 import { buildWorkerHandlers } from '../../src/server/wiring.js';
 import { registerWorker } from '../../src/server/worker.js';
@@ -18,7 +19,7 @@ import { buildZipBase64, skillMd } from './_helpers/zip.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-async function pollOp(app: Hono, opId: string, target: string): Promise<string> {
+async function pollOp(app: Hono<AppEnv>, opId: string, target: string): Promise<string> {
   for (let i = 0; i < 200; i++) {
     const op = (await (await app.request(`/v1/operations/${opId}`)).json()) as { state: string };
     if (op.state === target || op.state === 'FAILED') return op.state;
@@ -37,7 +38,7 @@ async function waitForEmbedding(skillId: string): Promise<void> {
 }
 
 /** POST a skill whose SKILL.md frontmatter carries name + description. */
-async function postSkill(app: Hono, skillId: string, name: string, description: string): Promise<void> {
+async function postSkill(app: Hono<AppEnv>, skillId: string, name: string, description: string): Promise<void> {
   const zip = await buildZipBase64([{ path: 'SKILL.md', content: skillMd(name, description) }]);
   const res = await app.request('/v1/skills', {
     method: 'POST',
@@ -52,11 +53,11 @@ async function postSkill(app: Hono, skillId: string, name: string, description: 
 
 describeIntegration('M4 E2E: index via POST → retrieve hybrid scored (T4.3)', () => {
   let boss: PgBoss;
-  let app: Hono;
+  let app: Hono<AppEnv>;
 
   beforeAll(async () => {
     boss = await startBoss();
-    const embeddingsStore = createEmbeddingsStore(createDb(getPool()));
+    const embeddingsStore = createEmbeddingsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     const embedEnqueuer = createEmbedEnqueuer({ queue: boss, embeddingsStore, logger: createNoopLogger() });
     const h = buildWorkerHandlers(getPool(), createNoopLogger(), embedEnqueuer);
     await registerWorker({ queue: boss, createHandler: h.createHandler, updateHandler: h.updateHandler, deleteHandler: h.deleteHandler });

@@ -34,8 +34,9 @@ export function buildWorkerHandlers(
 ): WorkerHandlers {
   const db = createDb(pool);
   const deps = {
-    skillsStore: createSkillsStore(db),
-    operationsStore: createOperationsStore(db),
+    // Factories, nao instancias: cada job e processado no inquilino que o criou.
+    skillsStoreFor: (ws: string) => createSkillsStore(db, ws),
+    operationsStoreFor: (ws: string) => createOperationsStore(db, ws),
     logger,
     ...(onTerminal !== undefined ? { onTerminal } : {}),
   };

@@ -1,10 +1,12 @@
 import { createId } from '@paralleldrive/cuid2';
+import { DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import { Hono } from 'hono';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { createDb } from '../../src/server/db.js';
 import { registerWebhookEndpointRoutes } from '../../src/server/handlers/webhook-endpoints.js';
 import { createNoopLogger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { createWebhookEndpointsStore } from '../../src/server/store/webhook-endpoints-store.js';
 import { type DnsResolver } from '../../src/server/webhooks/url-safety.js';
 
@@ -16,10 +18,10 @@ const publicResolver: DnsResolver = {
   resolve6: () => Promise.resolve([]),
 };
 
-function buildApp(): Hono {
-  const app = new Hono();
+function buildApp(): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
   registerWebhookEndpointRoutes(app, {
-    endpointsStore: createWebhookEndpointsStore(createDb(getPool())),
+    endpointsStoreFor: (ws: string) => createWebhookEndpointsStore(createDb(getPool()), ws),
     logger: createNoopLogger(),
     dnsResolver: publicResolver,
   });
@@ -93,7 +95,7 @@ describeIntegration('webhook endpoints CRUD + store (T3.1-T3.3)', () => {
   });
 
   it('listActiveForEvent honors the event-type filter (null/empty = all)', async () => {
-    const store = createWebhookEndpointsStore(createDb(getPool()));
+    const store = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await store.create({ id: 'whe_all', url: 'https://all.example', secret: 's1', eventTypes: null });
     await store.create({ id: 'whe_created', url: 'https://c.example', secret: 's2', eventTypes: ['skill.created'] });
     await store.create({ id: 'whe_deleted', url: 'https://d.example', secret: 's3', eventTypes: ['skill.deleted'] });
@@ -103,7 +105,7 @@ describeIntegration('webhook endpoints CRUD + store (T3.1-T3.3)', () => {
   });
 
   it('records a delivery, stamps enqueued, marks delivered (attempt bumped)', async () => {
-    const store = createWebhookEndpointsStore(createDb(getPool()));
+    const store = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await store.create({ id: 'whe_d', url: 'https://d.example', secret: 's', eventTypes: null });
     const did = `whd_${createId()}`;
     await store.recordDelivery({ id: did, endpointId: 'whe_d', eventType: 'skill.created', traceId: 'tr-test', payload: { a: 1 } });
@@ -123,7 +125,7 @@ describeIntegration('webhook endpoints CRUD + store (T3.1-T3.3)', () => {
   });
 
   it('claimOrphanedDeliveries recovers an un-enqueued delivery exactly once', async () => {
-    const store = createWebhookEndpointsStore(createDb(getPool()));
+    const store = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await store.create({ id: 'whe_o', url: 'https://o.example', secret: 's', eventTypes: null });
     const orphan = `whd_${createId()}`;
     await store.recordDelivery({ id: orphan, endpointId: 'whe_o', eventType: 'skill.created', traceId: 'tr-test', payload: {} });

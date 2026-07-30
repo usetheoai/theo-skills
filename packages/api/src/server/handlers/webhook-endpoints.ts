@@ -1,15 +1,17 @@
 import { randomBytes } from 'node:crypto';
 
+
 import { createId } from '@paralleldrive/cuid2';
 import { WebhookEndpointCreateSchema } from '@usetheo/skills/contract';
 import { type Hono } from 'hono';
 
 import { type Logger } from '../logger.js';
+import { type AppEnv, workspaceOf } from '../principal-context.js';
 import { type WebhookEndpointsStore } from '../store/webhook-endpoints-store.js';
 import { assertPublicUrl, type DnsResolver, UrlSafetyError } from '../webhooks/url-safety.js';
 
 export interface WebhookEndpointsRoutesDeps {
-  readonly endpointsStore: WebhookEndpointsStore;
+  readonly endpointsStoreFor: (workspaceId: string) => WebhookEndpointsStore;
   readonly logger: Logger;
   /** Injectable for tests; defaults to real DNS in url-safety. */
   readonly dnsResolver?: DnsResolver;
@@ -19,7 +21,7 @@ function newSecret(): string {
   return `whsec_${randomBytes(32).toString('hex')}`;
 }
 
-export function registerWebhookEndpointRoutes(app: Hono, deps: WebhookEndpointsRoutesDeps): void {
+export function registerWebhookEndpointRoutes(app: Hono<AppEnv>, deps: WebhookEndpointsRoutesDeps): void {
   // POST /v1/webhookEndpoints — register a subscriber. Secret is returned ONCE.
   app.post('/v1/webhookEndpoints', async (c) => {
     const json: unknown = await c.req.json().catch(() => undefined);
@@ -41,9 +43,9 @@ export function registerWebhookEndpointRoutes(app: Hono, deps: WebhookEndpointsR
     const id = `whe_${createId()}`;
     const secret = newSecret();
     const eventTypes = parsed.data.event_types ?? null;
-    await deps.endpointsStore.create({ id, url: parsed.data.url, secret, eventTypes });
+    await deps.endpointsStoreFor(workspaceOf(c)).create({ id, url: parsed.data.url, secret, eventTypes });
 
-    const created = await deps.endpointsStore.getPublicById(id);
+    const created = await deps.endpointsStoreFor(workspaceOf(c)).getPublicById(id);
     if (created === undefined) {
       // Should be impossible immediately after a successful insert.
       return c.json({ error: 'internal_error' }, 500);
@@ -55,12 +57,12 @@ export function registerWebhookEndpointRoutes(app: Hono, deps: WebhookEndpointsR
 
   // GET /v1/webhookEndpoints — list (public view, no secrets).
   app.get('/v1/webhookEndpoints', async (c) => {
-    return c.json({ endpoints: await deps.endpointsStore.listPublic() }, 200);
+    return c.json({ endpoints: await deps.endpointsStoreFor(workspaceOf(c)).listPublic() }, 200);
   });
 
   // GET /v1/webhookEndpoints/:id
   app.get('/v1/webhookEndpoints/:id', async (c) => {
-    const endpoint = await deps.endpointsStore.getPublicById(c.req.param('id'));
+    const endpoint = await deps.endpointsStoreFor(workspaceOf(c)).getPublicById(c.req.param('id'));
     if (endpoint === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
@@ -69,7 +71,7 @@ export function registerWebhookEndpointRoutes(app: Hono, deps: WebhookEndpointsR
 
   // DELETE /v1/webhookEndpoints/:id
   app.delete('/v1/webhookEndpoints/:id', async (c) => {
-    const removed = await deps.endpointsStore.remove(c.req.param('id'));
+    const removed = await deps.endpointsStoreFor(workspaceOf(c)).remove(c.req.param('id'));
     if (!removed) {
       return c.json({ error: 'not_found' }, 404);
     }
