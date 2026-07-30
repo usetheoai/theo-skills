@@ -8,8 +8,10 @@ ao [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Roadmap estendido com a **fase 2 — paridade com o Theo Architecture Standard (M10–M17)**: CI/CD e prontidão OSS, isolamento por workspace, autenticação (API keys + OIDC), RBAC e membros, visibilidade com catálogo público curado, servidor MCP, SDK de agente, e hardening com observabilidade. A referência normativa é o código do `theo-memory`, cujo `docs/ARCHITECTURE.md` se declara padrão obrigatório de todo repo do ecossistema. Decisões em `knowledge-base/grills/theo-memory-parity-roadmap-grill.md`.
 
 ### Changed
+- **M6 (RBAC granular) e M8 (hardening + observabilidade) foram marcados `SUPERSEDED`** — entregues por M13 e M17 respectivamente, que adotam o modelo do `theo-memory` em vez de implementação própria. Os milestones seguem no documento como histórico da intenção original; não trabalhe neles.
 - Projeto renomeado de `theo-skillregistry` para `theo-skills`: repositório GitHub agora é `usetheodev/theo-skills` e os pacotes do monorepo passam de `@usetheo/skillregistry*` para `@usetheo/skills*` (`@usetheo/skills`, `@usetheo/skills-api`, `@usetheo/skills-cli`). A URL antiga do repositório continua redirecionando, mas atualize seus remotes. O binário do CLI (`theoskill`) e as variáveis de ambiente (`THEOSKILL_*`) não mudam.
 
 ### Deprecated

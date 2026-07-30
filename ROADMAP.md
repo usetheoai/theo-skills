@@ -209,7 +209,13 @@ capacidade que o Google não tem.
 
 ---
 
-### M6 — [ ] RBAC granular por skill
+### M6 — [~] RBAC granular por skill — SUPERSEDED por M13 (2026-07-30)
+
+> **Substituído.** O DoD abaixo é entregue por **M13 — RBAC + membros**, que implementa o
+> modelo completo do `theo-memory` (papéis `owner`/`admin`/`member`, last-owner invariant,
+> anti-escalation) em vez de um RBAC próprio. Mantido aqui como histórico da intenção
+> original; **não trabalhe neste milestone** — vá para M13. Decisão do owner no grill
+> `knowledge-base/grills/theo-memory-parity-roadmap-grill.md` (Q1).
 
 **Objective:** Controle de acesso por skill (não all-or-nothing por projeto, como no Google),
 com auditoria.
@@ -249,7 +255,12 @@ dogfood real — é o critério de "shipped".
 
 ---
 
-### M8 — [ ] Hardening + observabilidade por skill
+### M8 — [~] Hardening + observabilidade por skill — SUPERSEDED por M17 (2026-07-30)
+
+> **Substituído.** O DoD abaixo é entregue por **M17 — Hardening, observabilidade e E2E**,
+> que adota o middleware OTel e o rate limiting do `theo-memory` em vez de instrumentação
+> própria. Mantido como histórico; **não trabalhe neste milestone** — vá para M17. Decisão
+> do owner no grill `knowledge-base/grills/theo-memory-parity-roadmap-grill.md` (Q1).
 
 **Objective:** Levar o V1 a qualidade de produção: observabilidade por skill, rate limiting,
 SLO e cobertura E2E.
@@ -295,9 +306,222 @@ owner como "todos os 7 gaps num milestone", ciente da sobreposição com M8 (tra
 
 ---
 
+## Fase 2 — Paridade com o Theo Architecture Standard (M10–M17)
+
+> **Por que existe.** `theo-memory/docs/ARCHITECTURE.md` se declara *"Theo Architecture
+> Standard — canonical reference for every project in the Theo ecosystem. All repos MUST
+> conform."* O theo-skills conforma no layout (`contract`/`domain`/`infrastructure`), nos
+> nomes de pacote e no tooling — e **não conforma** em CI, auth, multi-tenancy, RBAC,
+> observabilidade, MCP, SDK e prontidão OSS. Esta fase fecha esse gap e transforma o
+> registry num serviço SaaS multi-tenant do ecossistema, ao lado do theo-memory.
+>
+> **A referência normativa é o código do `theo-memory`, não este documento.** Onde os dois
+> divergirem, o theo-memory vence e este roadmap é corrigido.
+>
+> Origem: `knowledge-base/grills/theo-memory-parity-roadmap-grill.md` (2026-07-30).
+> **M6 e M8 foram absorvidos** por M13 e M17 respectivamente.
+
+### Invariantes herdados (valem para M11–M17, não se renegociam por milestone)
+
+Lidos no código do theo-memory; qualquer milestone abaixo que os viole está errado:
+
+1. **O `Principal` vem da credencial, nunca do corpo da requisição.**
+2. **`workspace_id` denormalizado** em toda tabela consultada diretamente, **primeiro no `WHERE`**; índices únicos lideram por ele.
+3. **Cross-tenant é `404`, nunca `403`** — negar revela existência; a linha tem de ser invisível.
+4. **Default-deny de papel** — credencial sem membership resolve para o menor privilégio, jamais para `owner`.
+5. **Fail-closed** — erro no backend de auth devolve `503`, nunca um default privilegiado.
+6. **Legacy bridge** — sem credencial, tudo colapsa no workspace `default`, e a instalação single-tenant continua funcionando.
+7. **Isolamento provado por teste de integração contra Postgres real**, como hard gate — não por mock.
+
+---
+
+### M10 — [ ] CI/CD, supply chain e prontidão OSS
+
+**Objective:** Dar ao repositório a rede de proteção que ele não tem — hoje são **zero
+workflows** — e a papelada mínima para poder ser aberto, espelhando os 8 workflows do
+theo-memory.
+
+**Definition of done:**
+
+- [ ] Workflows espelhados do theo-memory: `ci` (lint · build · typecheck), `integration`, `security-sast`, `actionlint`, `publish` (imagem em GHCR assinada com cosign). **`Build` roda ANTES de `Lint`** — as regras `no-unsafe-*` são type-aware e, sem `dist/`, acusam erro em código intocado.
+- [ ] `Dockerfile` multi-stage na raiz + `vitest.e2e.config.ts` (o README já promete E2E que não existe).
+- [ ] `LICENSE`, `SECURITY.md`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` presentes; `pnpm audit` e `gitleaks` verdes no CI.
+- [ ] Um PR de teste falha o merge quando um teste quebra — a rede é provada, não presumida.
+
+**Dependencies:** none (é a base para tudo que vem depois).
+
+**Top risks:**
+
+1. **Blacksmith exige organização.** O repo está em `usetheodev` (conta pessoal); a frota `blacksmith-*` só serve repos de organização. Aplicar a label antes de transferir deixa o job **`queued` para sempre, sem erro**. Mitigação: usar a frota padrão do GitHub até a transferência para `usetheoai`, e seguir o runbook do umbrella.
+2. **Reusable `build-publish.yml` vive em `usetheodev/theo`** (privado, outro dono). O GitHub só compartilha reusable privado dentro do mesmo dono. Mitigação: vendorizar com teste que trave a volta ao reusable, como o theo-memory fez.
+
+---
+
+### M11 — [ ] Isolamento por workspace (multi-tenancy)
+
+**Objective:** Tornar o registry multi-tenant no dado, adotando o `Principal` e o
+`workspace_id` denormalizado do theo-memory.
+
+**Definition of done:**
+
+- [ ] `Principal { workspaceId, userId, role, scopes }` resolvido na fronteira; nenhum handler lê tenant do corpo.
+- [ ] `workspace_id` em `skills`, `skill_revisions`, `embeddings`, `operations`, `webhook_endpoints`, `webhook_deliveries`, primeiro em todo `WHERE`.
+- [ ] **`skillId` deixa de ser PK global** (`schema.ts:59`) e vira PK composta `(workspace_id, skill_id)`; a reserva pós-delete passa a ser por workspace. Migration com dados existentes colapsados no workspace `default`.
+- [ ] Acesso cross-tenant devolve `404` em todas as rotas por id — incluindo revisões e operações.
+- [ ] Teste de integração contra `ankane/pgvector` real prova que o workspace B não lê nada do A, nem por id direto, nem pelo retrieve.
+
+**Dependencies:** M10.
+
+**Top risks:**
+
+1. **Busca vetorial com filtro de tenant.** O índice `hnsw (vector_cosine_ops)` é global; filtrar ANN por `workspace_id` é o problema clássico de pre-filter vs post-filter — ou o recall cai, ou o planner abandona o índice. **Ameaça direta às metas de M4 (Recall@5 ≥ 0.85, p95 < 200ms).** Mitigação: medir antes de prometer; avaliar índice parcial por workspace ou `iterative scan` do pgvector, com o número medido registrado em ADR.
+2. **Migration destrutiva de PK.** Trocar a PK de uma tabela com revisões e embeddings apontando para ela é irreversível na prática. Mitigação: migration em duas fases (coluna + índice único novo, depois troca de PK), ensaiada contra dump real.
+
+---
+
+### M12 — [ ] Autenticação: API keys, OIDC e scopes
+
+**Objective:** Fechar a porta da API, com o mesmo arranjo do theo-memory — hoje qualquer
+um que alcança a porta publica o que quiser.
+
+**Definition of done:**
+
+- [ ] `AuthVerifier` (port) com adapters de API key e de OIDC introspect; `bootstrap-token` para o primeiro acesso e `dual-validation` na janela de rotação.
+- [ ] Hierarquia de scopes de capacidade (`skills:read` · `skills:write` · `skills:publish` · `skills:admin`), verificada por rota; comparação de credencial em **tempo constante**.
+- [ ] Erro no backend de auth devolve **`503`**, nunca acesso; sem credencial, colapsa no workspace `default` (bridge legado).
+- [ ] Matriz scope × verbo coberta por teste, incluindo os casos negativos (scope insuficiente → `403`; credencial inválida → `401`, e `401` precede `403`).
+
+**Dependencies:** M11.
+
+**Top risks:**
+
+1. **Ordem `401`/`403` invertida** vaza existência de rota e de recurso. Mitigação: fixar a ordem em teste, como o theo-memory faz.
+2. **Rotação de credencial derrubando cliente em produção.** Mitigação: `dual-validation` (aceita chave velha e nova durante a janela) + o runbook de `credential-rotation.md` do theo-memory.
+
+---
+
+### M13 — [ ] RBAC e membros de workspace *(absorve M6)*
+
+**Objective:** Controlar **quem publica** — em skills isso é mais grave que em memória,
+porque publicar injeta código executável no runtime de outros agentes.
+
+**Definition of done:**
+
+- [ ] `users` ↔ `workspace_users` (M:N) com papéis `owner ⊇ admin ⊇ member`; **default-deny**: chave sem membership resolve para `member`.
+- [ ] Rotas `/v1/members` e `/v1/admin/keys` exigem `admin`; publicar exige papel explícito (decisão registrada em ADR — `member` publica ou só `admin`?).
+- [ ] **Last-owner invariant**: transação com `SELECT … FOR UPDATE` antes da contagem — duas demoções concorrentes não zeram os owners (a segunda recebe `409`).
+- [ ] **Anti-escalation**: cunhar chave para membro de papel superior é `403`; para não-membro é `422`.
+- [ ] Matriz papel × rota coberta por teste, incluindo as duas corridas acima.
+
+**Dependencies:** M12.
+
+**Top risks:**
+
+1. **RBAC complexo demais para o V1** (risco herdado do M6 original). Mitigação: exatamente os três papéis do theo-memory, sem permissão por skill individual nesta fase.
+2. **Corrida no last-owner** só aparece sob concorrência real. Mitigação: teste de integração com duas transações simultâneas, não teste unitário.
+
+---
+
+### M14 — [ ] Visibilidade e catálogo público curado
+
+**Objective:** Resolver o cold start — um tenant novo com catálogo vazio tem busca
+semântica sem valor no dia 1 — sem abrir o acervo de todo mundo.
+
+**Definition of done:**
+
+- [ ] Campo de visibilidade por skill: `private` (workspace) · `shared` (organização) · `public` (catálogo curado).
+- [ ] `GET /v1/skills:retrieve` busca na **união** `minhas + públicas`, e cada resultado declara sua origem; nenhuma skill `private` de outro workspace aparece jamais.
+- [ ] Skill `public` carrega **proveniência** (workspace e principal que publicou) e integridade verificável (`content_hash` já existe); há caminho de **revogação** que remove a skill do retrieve de todos os tenants.
+- [ ] Promover a `public` é ação de `admin`, auditada, e reversível.
+
+**Dependencies:** M11, M4.
+
+**Top risks:**
+
+1. **Skill pública é vetor de supply chain.** Código de um tenant passa a ser carregado pelo agente de outro — risco que o theo-memory não tem, porque memória é texto. Mitigação: curadoria explícita (não é auto-publicação), proveniência obrigatória e revogação testada; o precedente útil é o `cosign` do nosso CI, não o theo-memory.
+2. **Ranking enviesado para o acervo público**, afogando as skills do próprio tenant. Mitigação: medir Recall@5 separando origem, com o eval set de M4.
+
+---
+
+### M15 — [ ] Servidor MCP (`@usetheo/skills-mcp`)
+
+**Objective:** Expor o registry como servidor MCP, a porta pela qual os agentes do
+ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoje.
+
+**Definition of done:**
+
+- [ ] Pacote `packages/mcp` publicando `@usetheo/skills-mcp`, conforme o padrão de nomes da seção 2 do Theo Architecture Standard.
+- [ ] Ferramentas MCP para descobrir e obter skill (busca por intenção, obter por id, listar revisões), com **os âncoras de tenant vindos do contexto autenticado do transporte** — nunca de argumento da ferramenta.
+- [ ] `.mcp.json.example` + registro no `theo-traefik-mcp` com isolamento por tenant (Model B), como o theo-memory.
+- [ ] Teste que prova que uma ferramenta MCP não alcança skill de outro workspace.
+
+**Dependencies:** M12.
+
+**Top risks:**
+
+1. **Agente escolhendo o próprio tenant** via argumento da ferramenta seria escalada de privilégio. Mitigação: seguir a decisão do ADR-0021 do theo-memory — o que é selecionável pelo agente é apenas partição *dentro* do próprio espaço.
+2. **Ferramenta de publicação via MCP** ampliaria a superfície de escrita para dentro de agentes. Mitigação: nesta fase, MCP é somente-leitura; publicação continua em REST/CLI.
+
+---
+
+### M16 — [ ] SDK de agente
+
+**Objective:** Dar ao consumidor programático o mesmo conforto que o `agent-core` do
+theo-memory dá — resolver skills com escopo, cache e erro classificado, sem falar HTTP na mão.
+
+**Definition of done:**
+
+- [ ] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
+- [ ] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
+- [ ] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
+
+**Dependencies:** M12, M7.
+
+**Top risks:**
+
+1. **SDK sem consumidor** vira código morto elegante (Regra 11). Mitigação: o DoD exige o M7 consumindo; se M7 escorregar, este milestone espera.
+2. **Divergência entre SDK e REST.** Mitigação: os tipos saem do `contract/` do core, nunca redeclarados no SDK.
+
+---
+
+### M17 — [ ] Hardening, observabilidade e E2E *(absorve M8)*
+
+**Objective:** Levar o serviço ao padrão operacional do theo-memory: instrumentado,
+limitado, documentado e coberto ponta a ponta.
+
+**Definition of done:**
+
+- [ ] Middleware OTel (traces + métricas por skill e por operação) construído **sobre o módulo de trace-context de M9** — sem instrumentação duplicada.
+- [ ] Rate limiting por principal, com limites distintos para leitura e escrita, definidos por medição e não por chute.
+- [ ] Suíte E2E verde no CI cobrindo os fluxos críticos (publicar → recuperar por busca → obter revisão), mais `benchmarks/` com número reproduzível para retrieve.
+- [ ] `docs/ARCHITECTURE.md` (declarando conformidade e listando desvios com ADR), `docs/RUNBOOK.md`, `docs/credential-rotation.md` e os ADRs desta fase escritos.
+- [ ] SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
+
+**Dependencies:** M11, M12.
+
+**Top risks:**
+
+1. **Observabilidade adicionada tarde demais para guiar o tuning** do filtro de tenant em M11 (risco herdado do M8 original). Mitigação: instrumentar o caminho do retrieve já em M11, e aqui só consolidar.
+2. **Rate limit sem backpressure coerente** derruba cliente legítimo. Mitigação: limites derivados dos números de M17 e do uso real, com `429` + `Retry-After`.
+
+---
+
 ## State-of-the-art references
 
-Peers cloned under `knowledge-base/references/`. See `_catalog.md` in that folder for license-gate decisions and study notes.
+### Referência normativa interna (não é peer clonado)
+
+| Fonte | O que é | Governa |
+|---|---|---|
+| `theo-memory/docs/ARCHITECTURE.md` | **Theo Architecture Standard** — "canonical reference for every project in the Theo ecosystem. All repos MUST conform. Deviations require an ADR." | M10–M17 inteiros |
+| `theo-memory` (código) | Implementação de referência de `Principal`, isolamento por workspace, RBAC, OIDC, rate limit, OTel, MCP, SDK | M11–M17 |
+
+**Precedência:** onde este roadmap divergir do código do theo-memory, **o theo-memory
+vence** e este documento é corrigido — não o contrário.
+
+### Peers clonados
+
+Sob `knowledge-base/references/`. Ver `references-catalog.md` (na raiz de
+`knowledge-base/`, não dentro da zona read-only) para decisões de license-gate e notas.
 
 | Peer | License | Why it's here | Supports milestone(s) |
 |---|---|---|---|
@@ -305,9 +529,11 @@ Peers cloned under `knowledge-base/references/`. See `_catalog.md` in that folde
 | agentskills-spec | Apache-2.0 | Especificação aberta do formato `SKILL.md` (regras de conformance) | M1 |
 | openskills | non-standard (study-only) | Loader/parser de `SKILL.md` cross-agent em TypeScript | M1, M7 |
 | semantic-router | MIT | Núcleo de retrieval/roteamento por intenção (embeddings, latência) | M4 |
-| composio | MIT | Tool search em escala + auth + context management (TS) | M4, M6 |
-| mcp-context-forge | Apache-2.0 | Registry + governance + observability + plugins | M2, M8 |
-| mcp-gateway-registry | Apache-2.0 | Registry de assets com OAuth/RBAC auditável | M6 |
+| composio | MIT | Tool search em escala + auth + context management (TS) | M4, M13 |
+| mcp-context-forge | Apache-2.0 | Registry + governance + observability + plugins | M2, M15, M17 |
+| mcp-gateway-registry | Apache-2.0 | Registry de assets com OAuth/RBAC auditável | M12, M13 |
+| agentic-context-engine | Apache-2.0 (study-only) | Loop Agent/Reflector/SkillManager + Skillbook — prior art do contrato registry↔Theokit | M7, M9 |
+| cat-agent-skills | MIT | Galeria de Agent Skills em operação: separação catálogo-vs-agente na descrição, ratings como sinal, schema único build-time + CI | M1, M4, M5, M14 |
 
 ---
 
@@ -319,6 +545,14 @@ This roadmap is a living document but NOT a freeform scratchpad. To modify:
 - **Adjusting a milestone's DoD:** edit in place, note the date in CHANGELOG.md.
 - **Adding a milestone post-M8:** the project has outgrown its initial scope — write a new roadmap revision (e.g. `ROADMAP-v2.md`) rather than inflating this one.
 - **Removing a milestone:** mark it `~~M3 — [-] name (cancelled YYYY-MM-DD — reason)~~` rather than deleting. The history matters.
+- **Superseding a milestone:** mark the header `[~] … — SUPERSEDED por M<N>` with a block saying who replaced it and why, and keep the original DoD below it. Precedent: M6 → M13 e M8 → M17 (2026-07-30).
+
+> **Exceção registrada (2026-07-30).** A regra "post-M8 → `ROADMAP-v2.md`" foi
+> **conscientemente dispensada pelo owner** ao acrescentar M10–M17 (fase de paridade com o
+> Theo Architecture Standard). A recomendação foi apresentada e recusada; a decisão está
+> em `knowledge-base/grills/theo-memory-parity-roadmap-grill.md`. Consequência aceita:
+> este arquivo passa de 10 para 18 milestones. Se uma **fase 3** aparecer, faça a revisão
+> em arquivo novo — a exceção vale para esta fase, não é o novo padrão.
 
 ## Unresolved at inception
 
