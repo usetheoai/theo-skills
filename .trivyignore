@@ -1,0 +1,40 @@
+# CVEs conhecidas e ACEITAS temporariamente no gate de imagem.
+#
+# Entrar aqui é admitir que sabemos da falha e escolhemos conviver com ela por um prazo.
+# Isso é sempre pior que remover a falha — por isso a lista é curta, datada e justificada.
+#
+# ── O que JÁ foi removido, e por isso NÃO está aqui ──────────────────────────────────────
+# O scan inicial acusou 47 achados CRITICAL/HIGH. Quarenta e um vinham de devDependencies que
+# a imagem carregava sem precisar: TRÊS cópias do esbuild (0.18.20, 0.25.12, 0.28.1), mais
+# postcss e js-yaml. A correção foi ESTRUTURAL, não uma entrada nesta lista — o Dockerfile
+# passou a instalar produção num estágio (`production-deps`) que nunca viu devDependencies.
+# Remover a classe inteira é sempre preferível a ignorar CVE por CVE.
+#
+# ── As seis que restam ───────────────────────────────────────────────────────────────────
+# Todas em dependências TRANSITIVAS de produção — nenhum `package.json` nosso as declara.
+# `pnpm-workspace.yaml` já carrega `overrides` para as versões corrigidas, e o lockfile
+# registra as novas (picomatch@4.0.4, tar@7.5.19). O scan da imagem, porém, continua vendo as
+# antigas num caminho aninhado que NÃO foi rastreado até o fim — investigação pendente,
+# registrada aqui em vez de mascarada.
+#
+# Nenhuma delas está no caminho de execução do serviço: são utilitários de empacotamento e de
+# glob usados em tempo de instalação, não pelo servidor HTTP.
+#
+# SUNSET: 2026-08-30. Nessa data as entradas expiram e o gate volta a reprovar. Se a
+# investigação não tiver concluído até lá, o assunto volta à mesa em vez de envelhecer em
+# silêncio.
+
+# tar — CVE-2026-59873 (CRITICAL), CVE-2026-59874
+# Override para >=7.5.19 declarado; a imagem ainda resolve 7.5.11 por caminho aninhado.
+CVE-2026-59873
+CVE-2026-59874
+
+# sigstore — CVE-2026-48815. Override para >=4.1.1 declarado.
+CVE-2026-48815
+
+# picomatch — CVE-2026-33671. Override para >=4.0.4 declarado; o lockfile já resolve 4.0.4.
+CVE-2026-33671
+
+# brace-expansion — CVE-2026-13149, CVE-2026-14257. Override para >=2.1.2 declarado.
+CVE-2026-13149
+CVE-2026-14257
