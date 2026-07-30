@@ -25,6 +25,9 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+### Fixed
+- **O serviço subia sem as tabelas do banco.** Contra um banco novo, o container ficava de pé e respondia `200` em `/v1/health`, mas qualquer operação real — listar skills, publicar, buscar — falhava com erro interno, porque nenhum passo criava o schema. Agora a imagem aplica as próprias migrations ao iniciar: subir o container é tudo o que você precisa fazer. Aplicações simultâneas são serializadas, então várias réplicas podem iniciar juntas contra um banco vazio sem corromper o schema nem entrar em ciclo de reinício. `/v1/health` continua deliberadamente independente do banco — ele responde "o processo está vivo", não "o banco está de pé", para que uma indisponibilidade momentânea do Postgres não derrube o container.
+
 ### Security
 - **Assinaturas de webhook não eram isoladas por cliente.** O componente que gerencia endpoints e entregas de webhook lia e gravava sem restringir ao workspace de quem chamou — 18 operações afetadas. Um cliente poderia listar, consultar e remover endpoints de outro. Corrigido junto com o isolamento de M11.
 
