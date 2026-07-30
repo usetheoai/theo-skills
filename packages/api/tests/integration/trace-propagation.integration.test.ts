@@ -58,12 +58,22 @@ const publicResolver = {
   resolve6: () => Promise.resolve([] as string[]),
 };
 
+/**
+ * Mesmo orçamento e mesma razão do `webhook-delivery.integration.test.ts`: estes testes
+ * seguem a propagação do trace ATÉ a entrega do webhook, então herdam o backoff da fila
+ * (2s+4s+8s) mais o polling dos workers (1-2s). O teto anterior de 10s ficava abaixo do
+ * pior caso e produzia vermelho por corrida perdida, não por defeito.
+ */
+const WAIT_BUDGET_MS = 45_000;
+const WAIT_STEP_MS = 50;
+
 async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
-  for (let i = 0; i < 200; i++) {
+  const deadline = Date.now() + WAIT_BUDGET_MS;
+  while (Date.now() < deadline) {
     if (await predicate()) return;
-    await sleep(50);
+    await sleep(WAIT_STEP_MS);
   }
-  throw new Error('condition not reached');
+  throw new Error(`condition not reached in ${WAIT_BUDGET_MS}ms`);
 }
 
 async function deliveryTraceId(skillId: string): Promise<string | undefined> {

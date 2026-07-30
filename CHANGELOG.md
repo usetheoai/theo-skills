@@ -8,8 +8,15 @@ ao [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Integração contínua** (M10): o repositório passa a verificar todo PR e todo push no trunk. `ci` (build → lint → typecheck → testes, sem banco), `integration` (suítes contra Postgres real, mais uma execução diária), `security-sast` (semgrep OWASP + varredura de segredos), `actionlint` (valida os próprios workflows) e `publish` (imagem de container assinada, publicada só atrás dos gates). Antes disso não havia verificação automática alguma.
+- **Imagem de container** publicável: `Dockerfile` multi-stage rodando como usuário não-root, com healthcheck em `/v1/health`. A imagem é escaneada por Trivy (CRITICAL/HIGH) e assinada com cosign antes de ir para o registry.
+- **Prontidão para código aberto**: `LICENSE` (Apache-2.0), `NOTICE`, `SECURITY.md`, `CONTRIBUTING.md` e `CODE_OF_CONDUCT.md`. O `SECURITY.md` declara explicitamente que ainda não há autenticação nem isolamento entre inquilinos, e orienta a não expor a API à internet pública enquanto isso for verdade.
+- **`pnpm db:migrate`** — aplica as migrations versionadas de forma não-interativa. O `db:push` existente pede confirmação no terminal e por isso não serve para automação.
+- **`pnpm test:e2e`** — executa a categoria E2E (publicar → buscar → obter revisão) isoladamente, que o README já prometia e não era executável.
+- Roadmap estendido com a **fase 2 — paridade com o Theo Architecture Standard (M10–M17)**: CI/CD e prontidão OSS, isolamento por workspace, autenticação (API keys + OIDC), RBAC e membros, visibilidade com catálogo público curado, servidor MCP, SDK de agente, e hardening com observabilidade. A referência normativa é o código do `theo-memory`, cujo `docs/ARCHITECTURE.md` se declara padrão obrigatório de todo repo do ecossistema. Decisões em `knowledge-base/grills/theo-memory-parity-roadmap-grill.md`.
 
 ### Changed
+- **M6 (RBAC granular) e M8 (hardening + observabilidade) foram marcados `SUPERSEDED`** — entregues por M13 e M17 respectivamente, que adotam o modelo do `theo-memory` em vez de implementação própria. Os milestones seguem no documento como histórico da intenção original; não trabalhe neles.
 - Projeto renomeado de `theo-skillregistry` para `theo-skills`: repositório GitHub agora é `usetheodev/theo-skills` e os pacotes do monorepo passam de `@usetheo/skillregistry*` para `@usetheo/skills*` (`@usetheo/skills`, `@usetheo/skills-api`, `@usetheo/skills-cli`). A URL antiga do repositório continua redirecionando, mas atualize seus remotes. O binário do CLI (`theoskill`) e as variáveis de ambiente (`THEOSKILL_*`) não mudam.
 
 ### Deprecated
@@ -17,6 +24,10 @@ ao [Semantic Versioning](https://semver.org/).
 ### Removed
 
 ### Fixed
+- **A API não gerava build de produção.** O pacote `@usetheo/skills-api` declarava um passo de build que na verdade só fazia checagem de tipos — nenhum JavaScript era emitido, e o servidor só rodava a partir do TypeScript, via `tsx`. Agora emite `dist/`, e a imagem de container executa JavaScript compilado.
+- **Instalação limpa falhava.** O `pnpm-workspace.yaml` carregava um marcador de template nunca preenchido (`allowBuilds: esbuild: set this to true or false`), commitado desde o primeiro milestone. Em qualquer ambiente sem `node_modules` pré-existente — inclusive o build da imagem — `pnpm install` abortava.
+- **Suíte de integração deixava resíduo entre testes.** A limpeza entre casos apagava as tabelas de domínio mas não os trabalhos pendentes na fila; um teste consumia o trabalho enfileirado pelo anterior. Medido: 200 trabalhos acumulados numa única execução.
+- **Esperas dos testes de webhook eram menores que o tempo real de retentativa.** O orçamento era de 10s, enquanto a política de retentativa soma 14s (2s + 4s + 8s) mais o intervalo de sondagem — os testes falhavam por corrida perdida, não por defeito do produto.
 - `/code-quality` audit no longer walks `knowledge-base/references/` (cloned third-party reference repos): the skip-list used `referencia` (PT) instead of the real directory name `references` (EN), so the symbol-fabrication detector parsed foreign files — wasting time/RAM and producing a spurious `FAIL_HARD` that blocked `/review`. Now the references zone is correctly skipped, with a behavioral regression test. (#37)
 
 ### Security

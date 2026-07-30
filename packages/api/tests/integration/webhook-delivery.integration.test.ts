@@ -67,12 +67,32 @@ async function deliveryRow(id: string): Promise<{ delivered_at: Date | null; fai
   return r.rows[0];
 }
 
+/**
+ * Orçamento de espera derivado da FÍSICA do sistema sob teste, não de chute.
+ *
+ * O teto anterior era 200 × 50ms = 10s — MENOR que o pior caso real, o que tornava estes
+ * testes matematicamente impossíveis de passar quando a fila ia até o fim do backoff:
+ *
+ *   retryDelay: 2s com retryBackoff (queue.ts:21,101) → 2s + 4s + 8s = 14s só de espera
+ *   + pollingIntervalSeconds 1 e 2 (webhook-delivery-worker.ts:113,122) → +1-2s por ciclo
+ *
+ * Resultado: ~14-20s no pior caso contra um teto de 10s. Passava quando o polling calhava
+ * cedo e falhava quando não — a flakiness que o CI de M10 expôs (3-4 de 8 vermelhos,
+ * variando entre execuções do MESMO commit).
+ *
+ * 45s cobre o pior caso com folga sem esconder travamento real: um teste que trave de
+ * verdade ainda falha, só que por diagnóstico correto em vez de por corrida perdida.
+ */
+const WAIT_BUDGET_MS = 45_000;
+const WAIT_STEP_MS = 50;
+
 async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
-  for (let i = 0; i < 200; i++) {
+  const deadline = Date.now() + WAIT_BUDGET_MS;
+  while (Date.now() < deadline) {
     if (await predicate()) return;
-    await sleep(50);
+    await sleep(WAIT_STEP_MS);
   }
-  throw new Error('condition not reached');
+  throw new Error(`condition not reached in ${WAIT_BUDGET_MS}ms`);
 }
 
 async function createEndpoint(app: Hono, eventTypes?: string[]): Promise<{ id: string; secret: string }> {

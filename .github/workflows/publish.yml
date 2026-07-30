@@ -1,0 +1,60 @@
+# Publica a imagem — SOMENTE atrás dos gates, e nunca em pull request.
+#
+# POR QUE NÃO RODA EM PR: o reusable de build SEMPRE dá push da imagem; não existe modo
+# build-only. Rodar em PR publicaria artefato de código não mergeado. Travado por
+# `tests/workflows/gates.test.ts`.
+#
+# POR QUE OS GATES SÃO JOBS, e não confiança: `gate-ci` INVOCA o `ci.yml` neste commit. A
+# alternativa — "o CI já rodou antes" — é falsa sempre que o push carrega mais de um commit,
+# ou quando o CI foi pulado por `paths-ignore`.
+name: publish
+
+on:
+  push:
+    branches: [develop]
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false # nunca cancelar um push de imagem no meio
+
+jobs:
+  # Guarda: uma TAG só publica se o commit dela estiver em `main`. Uma tag criada numa branch
+  # qualquer publicaria uma "release" que nunca passou pelo gate de release.
+  guard-release-on-main:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: A tag aponta para um commit contido em main?
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::A tag $GITHUB_REF_NAME nao esta contida em main — release invalida."
+            exit 1
+          fi
+
+  gate-ci:
+    needs: [guard-release-on-main]
+    # `always()` + checagem de resultado: o guard só roda em tag; num push de develop ele é
+    # `skipped`, e sem isto o gate inteiro seria pulado junto.
+    if: ${{ always() && (needs.guard-release-on-main.result == 'success' || needs.guard-release-on-main.result == 'skipped') }}
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    needs: [gate-ci]
+    uses: ./.github/workflows/build-publish.yml
+    with:
+      image: theo-skills
+      dockerfile: Dockerfile
+      sign: true
+      verify: true
+      trivy: true

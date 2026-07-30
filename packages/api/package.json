@@ -4,15 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./validators": "./src/validators.ts",
-    "./testkit": "./src/testkit.ts"
+    "./validators": {
+      "types": "./dist/validators.d.ts",
+      "default": "./dist/validators.js"
+    },
+    "./testkit": {
+      "types": "./dist/testkit.d.ts",
+      "default": "./dist/testkit.js"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "start": "tsx src/server.ts"
   },
   "dependencies": {
@@ -36,5 +42,6 @@
     "typescript": "^5.4.0",
     "vitest": "^4.0.0",
     "yazl": "^3.3.1"
-  }
+  },
+  "main": "./dist/server.js"
 }

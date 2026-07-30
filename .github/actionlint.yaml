@@ -1,0 +1,21 @@
+# Labels de runner que o actionlint deve aceitar em `runs-on`.
+#
+# HOJE ESTÁ VAZIO DE PROPÓSITO. Todos os jobs usam `ubuntu-latest`, que o actionlint conhece
+# nativamente, então nenhuma declaração é necessária.
+#
+# O ARQUIVO EXISTE MESMO ASSIM porque a armadilha que ele resolve é cara de redescobrir: no
+# dia em que este repositório migrar para uma organização e adotar a frota Blacksmith
+# (`blacksmith-8vcpu-ubuntu-2404`), o actionlint passará a REJEITAR a label em TODOS os
+# workflows ("label ... is unknown") — inclusive validando a si mesmo. A chave prevista para
+# isso é `self-hosted-runner.labels`; do ponto de vista do actionlint, qualquer runner
+# não-GitHub-hosted é "self-hosted", apesar do nome.
+#
+# Quando a migração acontecer, descomente:
+#
+# self-hosted-runner:
+#   labels:
+#     - blacksmith-8vcpu-ubuntu-2404
+#
+# Contexto completo: knowledge-base/discoveries/blueprints/m10-cicd-supply-chain-blueprint.md
+# (ADR-M10-1) e o runbook de migração no CLAUDE.md do umbrella.
+{}

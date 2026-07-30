@@ -1,0 +1,100 @@
+# Gate rápido e SEM banco: build + lint + typecheck + testes.
+#
+# O DEFEITO QUE ISTO PREVINE: até M10 o repositório tinha ZERO workflows. 5.483 LoC, 32
+# arquivos de teste e nenhuma verificação automática — a única barreira antes de `develop`
+# era a leitura humana do diff.
+#
+# ESCOPO: aqui rodam os quatro gates genuinamente livres de I/O. O theo-memory exclui
+# `pnpm test` do gate equivalente porque parte da suíte dele abre `Pool` real e vazaria
+# ECONNREFUSED sem banco. AQUI ESSA RAZÃO NÃO EXISTE, e foi verificado antes de decidir:
+# `packages/api/tests/contract/api.contract.test.ts:9` usa `fakePool = {} as unknown as Pool`
+# — só o tipo. `pnpm test` roda verde sem banco em ~11s (74 + 46 + core). Copiar a exclusão
+# do theo-memory teria sido cargo cult (ADR-M10-2 do plano).
+name: CI
+
+# GATILHOS: PR para `develop`/`main`, mais push em `develop`.
+#
+# POR QUE OS DOIS, e não um: o gate de PR mata o defeito antes de entrar no trunk; o de push
+# pós-merge pega o que só existe DEPOIS do merge — dois PRs verdes isoladamente que se
+# quebram juntos (conflito semântico). Escopos diferentes, não redundância.
+on:
+  # Invocado por publish.yml como gate encadeado, e disparado direto num PR.
+  workflow_call:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'prototype/**'
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'prototype/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Chaveado pela BRANCH, não por `github.ref`. Um push em develop e o PR do MESMO commit
+  # carregam `github.ref` diferentes (`refs/heads/develop` vs `refs/pull/N/merge`), cairiam
+  # em grupos distintos e AMBOS rodariam — o dobro do trabalho para o mesmo commit.
+  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: build + lint + typecheck + test (sem banco)
+    # `ubuntu-latest`, NÃO a frota Blacksmith do theo-memory: ela serve apenas repositórios
+    # de ORGANIZAÇÃO, e este repo está em `usetheodev` (conta pessoal). Aplicar a label antes
+    # da transferência deixa o job `queued` para sempre, SEM ERRO — medido no theo-traefik-mcp
+    # (>24h em fila). Migrar é trabalho de transferência de org, não deste milestone. (ADR-M10-1)
+    runs-on: ubuntu-latest
+    # Folga sobre o observado (~1 min local). Muito abaixo do default de 360, que deixaria um
+    # hang segurando a fila.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 11.1.0
+
+      - name: Setup Node
+        # Precisa casar o major do Dockerfile — testar num major diferente do que se publica
+        # é como um worker morto chegar ao host de dev com a esteira verde. Travado por
+        # `tests/workflows/gates.test.ts`.
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Build PRIMEIRO. Os pacotes consomem os `.d.ts` uns dos outros a partir de `dist/`;
+      # num checkout limpo nada que precise de TIPOS resolve os aliases de workspace antes disto.
+      #
+      # O DEFEITO QUE ESTA ORDEM PREVINE (medido no theo-memory, run 30306550640): com `Lint`
+      # antes do `Build`, as regras `@typescript-eslint/no-unsafe-*` — que são TYPE-AWARE —
+      # acusaram 14 erros em código que ninguém havia tocado, porque sem `dist/` os imports
+      # entre pacotes resolvem para `any`. Travado por `tests/workflows/gates.test.ts`.
+      - name: Build
+        run: pnpm run build
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm run test
+
+      # Auto-verificação: a suíte que trava os invariantes destes próprios workflows.
+      - name: Test — invariantes dos workflows
+        run: pnpm run test:workflows
