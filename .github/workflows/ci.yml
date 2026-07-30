@@ -48,11 +48,13 @@ concurrency:
 jobs:
   static:
     name: build + lint + typecheck + test (sem banco)
-    # `ubuntu-latest`, NÃO a frota Blacksmith do theo-memory: ela serve apenas repositórios
-    # de ORGANIZAÇÃO, e este repo está em `usetheodev` (conta pessoal). Aplicar a label antes
-    # da transferência deixa o job `queued` para sempre, SEM ERRO — medido no theo-traefik-mcp
-    # (>24h em fila). Migrar é trabalho de transferência de org, não deste milestone. (ADR-M10-1)
-    runs-on: ubuntu-latest
+    # Frota Blacksmith, adotada em 2026-07-30 junto com a transferência para a organização
+    # `usetheoai`. As DUAS pré-condições foram verificadas por comando ANTES de aplicar a label:
+    #   gh api repos/usetheoai/theo-skills --jq .owner.type   → "Organization"
+    #   gh api orgs/usetheoai/installations                   → "blacksmith-sh" presente
+    # Aplicar a label sem elas deixa o job `queued` para SEMPRE, sem erro algum — medido no
+    # theo-traefik-mcp (>24h em fila). O sintoma não é uma falha; é silêncio.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Folga sobre o observado (~1 min local). Muito abaixo do default de 360, que deixaria um
     # hang segurando a fila.
     timeout-minutes: 15

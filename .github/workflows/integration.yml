@@ -37,7 +37,7 @@ concurrency:
 jobs:
   integration:
     name: integração contra pgvector real
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 25
     services:
       # Mesma imagem do `docker-compose.yaml` — testar contra outra versão do pgvector seria

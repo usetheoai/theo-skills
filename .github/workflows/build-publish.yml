@@ -46,7 +46,7 @@ permissions:
 
 jobs:
   build-publish:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # TEM DE FICAR AQUI. O GitHub NÃO honra `timeout-minutes` num job `uses:`, então declará-lo
     # no chamador seria inerte. Sem ele, o default de 360 min vale.
     timeout-minutes: 30
