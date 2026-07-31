@@ -506,6 +506,98 @@ limitado, documentado e coberto ponta a ponta.
 
 ---
 
+### M18 — [ ] Instalação no disco (`theoskill install`) *(fecha a dívida do ADR 0005)*
+
+**Objective:** Fechar o último metro. Hoje o registry publica skills que **nenhum agente
+instala** — o `theoskill` fala HTTP e não materializa nada em disco (ADR 0005). Sem isto,
+M11–M17 constroem uma plataforma que o consumidor não alcança.
+
+**Definition of done:**
+
+- [ ] `theoskill install <skill-id>` baixa a revisão do registry e materializa a pasta em `.claude/skills/<name>/`, project-local por padrão e global com `--global` — o **mesmo layout** que os agentes já leem, e o mesmo do `openskills` (`src/utils/dirs.ts`).
+- [ ] O zip é verificado contra o `content_hash` **antes** de tocar o disco; hash divergente aborta sem escrever nada e sem deixar pasta parcial.
+- [ ] Metadado de proveniência gravado na pasta (registry, `skill_id`, `revision_id`, data), de modo que `install` seja idempotente e `update` saiba de onde veio.
+- [ ] `@usetheo/skills-cli` publicado no npm — hoje é `private: true`, sem `files` nem `publishConfig` — e `npx @usetheo/skills-cli install …` funciona a partir de uma máquina limpa, provado em container.
+- [ ] Skill instalada pelo `theoskill` é enxergada por `openskills list` sem que nenhuma das duas ferramentas conheça a outra (interoperabilidade por layout, per ADR 0005 § decisão 4).
+
+**Dependencies:** M11.
+
+**Top risks:**
+
+1. **Escrita em diretório do usuário é superfície de path traversal.** Um `name` malicioso no frontmatter (`../../.ssh`) escreveria fora do alvo. Mitigação: resolver o destino e recusar qualquer caminho que escape do diretório de skills; teste negativo com nome hostil é obrigatório, não opcional.
+2. **Instalar sem auth enquanto M12 não existe** expõe qualquer skill a qualquer um que saiba o id. Mitigação: aceitar conscientemente por ser o estado atual de TODA a API (não é regressão), e declarar no README que o serviço não deve ser exposto à internet antes de M12 — como o `SECURITY.md` já faz.
+
+---
+
+### M19 — [ ] Canais e versionamento para o consumidor
+
+**Objective:** Dar ao consumidor uma referência **estável** em vez de um id de revisão. Sem
+canais, o cliente do nosso cliente precisa saber qual revisão quer — e o publisher não tem como
+promover uma correção sem avisar cada um individualmente.
+
+**Definition of done:**
+
+- [ ] Revisões ganham versão semântica declarada no `SKILL.md`; o registry recusa publicar versão que retroceda ou colida com uma já existente na mesma skill.
+- [ ] Canais mutáveis por skill (`stable`, `beta`, e nomeados pelo publisher) apontam para uma revisão; promover um canal é operação auditada e **reversível** para a revisão anterior.
+- [ ] `theoskill install <skill>@stable` e `@^1.2.0` resolvem no servidor, não no cliente — o cliente não escolhe entre revisões, ele declara intenção.
+- [ ] `theoskill update` respeita o canal declarado no metadado de instalação e mostra o diff de versão antes de sobrescrever.
+- [ ] Revisão referenciada por um canal **não pode ser apagada** enquanto o canal apontar para ela.
+
+**Dependencies:** M18.
+
+**Top risks:**
+
+1. **Canal mutável quebra a promessa de revisão imutável.** A revisão continua imutável; o canal é um ponteiro — mas se o cliente cachear por canal sem gravar a revisão resolvida, perde a reprodutibilidade. Mitigação: o metadado de instalação grava **sempre** a revisão concreta que foi resolvida, e o canal só serve para a próxima resolução.
+2. **Semver mentiroso**: o publisher marca `patch` numa mudança que quebra o consumidor. Mitigação: não é detectável automaticamente em conteúdo de prompt — declarar honestamente como limite, e compensar com o diff obrigatório no `update`.
+
+---
+
+### M20 — [ ] Distribuição para clientes de terceiros (bundles + tokens delegados)
+
+**Objective:** O milestone que responde ao pedido: um publisher (nosso cliente) empacota um
+subconjunto do catálogo dele e o distribui aos **clientes dele**, que consomem direto do nosso
+registry com credencial que **o publisher** emite e revoga — modelo Supabase / Stripe Connect.
+
+**Definition of done:**
+
+- [ ] **Bundle** — conjunto nomeado e versionado de skills de um workspace, curado pelo publisher. Um bundle referencia skills por canal (M19), não por revisão fixa, de modo que corrigir uma skill propaga sem reemitir tokens.
+- [ ] **Token de distribuição** emitido pelo publisher, escopado a **um** bundle, com TTL obrigatório, revogável a qualquer momento com efeito imediato na próxima requisição — nunca logado, nunca recuperável após a emissão.
+- [ ] `theoskill install --token=<t>` resolve o bundle e instala; um token de outro publisher devolve **404, não 403** — a existência do bundle alheio não vaza (mesmo contrato do isolamento de M11).
+- [ ] Quota por token e por publisher, com `429` + `Retry-After`; exceder não derruba os demais clientes do mesmo publisher.
+- [ ] Suíte de isolamento cruzado: token do publisher A **nunca** alcança bundle, skill ou revisão do publisher B — em list, get, retrieve, install e nos erros.
+
+**Dependencies:** M12, M13, M19.
+
+**Top risks:**
+
+1. **Token de terceiro na nossa superfície.** Um vazamento expõe o catálogo de um publisher a quem não deveria vê-lo, e a culpa é nossa mesmo quando o vazamento foi dele. Mitigação: escopo mínimo (um bundle), TTL curto por padrão, revogação testada como parte do DoD, e valor nunca persistido em claro nem em log.
+2. **Fan-out multiplica a superfície de tenant.** O isolamento de M11 foi desenhado para workspaces nossos; aqui cada workspace passa a ter N consumidores externos. Um `WHERE workspace_id` esquecido deixa de ser bug interno e vira incidente entre empresas. Mitigação: o filtro estrutural por factory (`createSkillsStore(db, workspaceId)`) se estende ao bundle, e a suíte cruzada roda no CI, não sob demanda.
+
+---
+
+### M21 — [ ] Telemetria de adoção para o publisher
+
+**Objective:** Dar ao publisher a resposta que ele vai pedir no primeiro dia — *quem instalou o
+quê, quando, e em qual versão* — e produzir, de quebra, o número que decide se o payload sai do
+Postgres (gatilho declarado no ADR 0005).
+
+**Definition of done:**
+
+- [ ] Cada install/update registra evento com bundle, skill, revisão resolvida, token (por id, **nunca** o valor) e timestamp; retenção declarada e finita.
+- [ ] `GET /v1/bundles/{id}/adoption` devolve, para o **dono do bundle**, instalações por skill e por versão numa janela — e para mais ninguém: consumidor não enxerga a adoção de nenhum bundle, nem do próprio.
+- [ ] Métricas operacionais no padrão do `theo-memory`: bytes servidos, p95 do download, taxa de erro por publisher — instrumentadas no caminho de install, não inferidas depois.
+- [ ] Um número publicado no relatório do milestone: **bytes servidos/dia e p90 do payload**, comparados aos gatilhos de object storage do ADR 0005. Se o gatilho for atingido, o milestone **abre a ADR de migração** em vez de deixar a decisão implícita.
+- [ ] Nenhum dado de adoção de um publisher é derivável por outro, inclusive por diferença de contagem agregada.
+
+**Dependencies:** M20, M17.
+
+**Top risks:**
+
+1. **Telemetria de instalação é dado de negócio de terceiro.** Saber que o cliente X do publisher A instalou a skill Y é informação competitivamente sensível. Mitigação: escopo por dono do bundle, sem agregados cross-publisher, e retenção finita declarada — privacidade por desenho, não por política.
+2. **Instrumentar o caminho quente adiciona latência ao download.** Mitigação: evento assíncrono via pg-boss (já em uso), nunca no caminho síncrono da resposta; e o p95 do download entra no próprio DoD, então a regressão apareceria na medição do milestone.
+
+---
+
 ## State-of-the-art references
 
 ### Referência normativa interna (não é peer clonado)
