@@ -28,6 +28,7 @@ ao [Semantic Versioning](https://semver.org/).
 ### Removed
 
 ### Fixed
+- **O verificador de qualidade reprovava o projeto inteiro por engano.** A auditoria acusava todo import entre pacotes do próprio monorepo (`@usetheo/skills`, `@usetheo/skills-api`, `@usetheo/skills-cli`) como "pacote inexistente", porque procurava cada um no registro público do npm — onde eles nunca estiveram, por serem resolvidos internamente. Eram 39 reprovações sobre código correto, o bastante para travar qualquer release. A auditoria agora reconhece os pacotes do próprio repositório. Um alarme falso que bloqueia entrega é pior que alarme nenhum: ensina o time a ignorar o verificador.
 - **O serviço subia sem as tabelas do banco.** Contra um banco novo, o container ficava de pé e respondia `200` em `/v1/health`, mas qualquer operação real — listar skills, publicar, buscar — falhava com erro interno, porque nenhum passo criava o schema. Agora a imagem aplica as próprias migrations ao iniciar: subir o container é tudo o que você precisa fazer. Aplicações simultâneas são serializadas, então várias réplicas podem iniciar juntas contra um banco vazio sem corromper o schema nem entrar em ciclo de reinício. `/v1/health` continua deliberadamente independente do banco — ele responde "o processo está vivo", não "o banco está de pé", para que uma indisponibilidade momentânea do Postgres não derrube o container.
 
 ### Security
