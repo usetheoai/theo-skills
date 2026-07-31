@@ -25,11 +25,23 @@ import { describeIntegration } from './_helpers/env.js';
 const WS_OWNER = 'ws_owner';
 const WS_INTRUDER = 'ws_intruder';
 
+/**
+ * O intruso é DELIBERADAMENTE plenipotente — `admin` com escopo total.
+ *
+ * O fixture carregava `scopes: []`, e passava. Quando o escopo passou a ser exigido nas rotas
+ * de escrita, o PATCH do intruso começou a receber 403 (falta de capacidade) em vez de 404
+ * (não é seu) — e o teste, que existe para provar o ISOLAMENTO, deixaria de alcançá-lo.
+ *
+ * Um 403 por escopo não vaza existência: depende só da credencial e é idêntico para qualquer
+ * id, inclusive inventado. Mas ele **encobre** o guard que este arquivo audita. Dando ao
+ * intruso capacidade máxima, a única coisa entre ele e o recurso alheio passa a ser a
+ * fronteira de inquilino — que é exatamente o que se quer medir. O teste fica mais forte.
+ */
 const principalFor = (workspaceId: string): Principal => ({
   workspaceId,
   userId: `user_${workspaceId}`,
   role: 'admin',
-  scopes: [],
+  scopes: ['skills:admin'],
 });
 
 describeIntegration('M11 — cross-tenant devolve 404 em toda rota por id (DoD #4)', () => {

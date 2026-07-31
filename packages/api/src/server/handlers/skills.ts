@@ -13,6 +13,7 @@ import type PgBoss from 'pg-boss';
 
 import { type Logger } from '../logger.js';
 import { resolveTraceId } from '../observability/trace-context.js';
+import { requireScope } from '../auth/middleware.js';
 import { type AppEnv, workspaceOf } from '../principal-context.js';
 import { JOB_NAMES, SKILL_SEND_OPTIONS } from '../queue/queue.js';
 import { type OperationsStore } from '../store/operations-store.js';
@@ -168,8 +169,16 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
     onError: (c) => c.json({ error: 'payload_too_large' }, 413),
   });
 
+  // ESCOPO NA ESCRITA (M12 DoD).
+  //
+  // `requireScope` existia, era testado, e não estava aplicado a NENHUMA rota — os escopos
+  // eram decorativos: uma chave `skills:read` publicava e apagava como qualquer outra. Papel
+  // governa PERTENCIMENTO (quem é do workspace); escopo governa CAPACIDADE (o que a chave
+  // pode fazer). Sem isto, a segunda dimensão não existia.
+  const escreve = requireScope('skills:write');
+
   // POST /v1/skills — validate payload at the boundary, enqueue, 202.
-  app.post('/v1/skills', limit, async (c) => {
+  app.post('/v1/skills', escreve, limit, async (c) => {
     let skillId: string;
     let ingest: IngestResult;
     try {
@@ -225,7 +234,7 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
   });
 
   // PATCH /v1/skills/:id — updateMask-driven; LRO when a payload is present.
-  app.patch('/v1/skills/:id', limit, async (c) => {
+  app.patch('/v1/skills/:id', escreve, limit, async (c) => {
     const skillId = c.req.param('id');
     if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
@@ -278,7 +287,7 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
   });
 
   // DELETE /v1/skills/:id — LRO (DELETING). Soft-delete + id reservation in the worker.
-  app.delete('/v1/skills/:id', async (c) => {
+  app.delete('/v1/skills/:id', escreve, async (c) => {
     const skillId = c.req.param('id');
     if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
