@@ -1,5 +1,5 @@
 import { skills } from '@usetheo/skills/db';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { type Hono } from 'hono';
 
 import { requireRole } from '../auth/require-role.js';
@@ -73,6 +73,19 @@ export function registerVisibilityRoutes(app: Hono<AppEnv>, deps: VisibilityRout
   app.get('/v1/skills/:id/provenance', async (c) => {
     const actor = getPrincipal(c);
     const skillId = c.req.param('id');
+    // A identidade de uma skill é o par (workspace_id, skill_id) — a PK é composta, e é de
+    // propósito: como PK global, o primeiro inquilino a registrar `deploy-helper` bloquearia
+    // o nome para todos os outros para sempre.
+    //
+    // Esta consulta filtrava SÓ por `skill_id`, com `limit(1)` e sem `ORDER BY`. Duas linhas
+    // com o mesmo id em workspaces distintos são o caso NORMAL aqui, e a devolvida era
+    // arbitrária (ordem de heap). Media dois modos de falha, e o segundo é o grave:
+    //   1. 404 sobre a PRÓPRIA skill privada, sombreada por uma homônima alheia;
+    //   2. devolver o `published_by` de OUTRA organização — um identificador de usuário
+    //      dela — como se fosse a proveniência da skill perguntada.
+    //
+    // O predicado agora admite exatamente as duas linhas legítimas (a do ator e a pública) e
+    // a ordenação dá precedência determinística à do próprio workspace.
     const rows = await deps.db
       .select({
         workspaceId: skills.workspaceId,
@@ -81,7 +94,13 @@ export function registerVisibilityRoutes(app: Hono<AppEnv>, deps: VisibilityRout
         publishedAt: skills.publishedAt,
       })
       .from(skills)
-      .where(eq(skills.skillId, skillId))
+      .where(
+        and(
+          eq(skills.skillId, skillId),
+          or(eq(skills.workspaceId, actor.workspaceId), eq(skills.visibility, 'public')),
+        ),
+      )
+      .orderBy(desc(eq(skills.workspaceId, actor.workspaceId)))
       .limit(1);
 
     const r = rows[0];
