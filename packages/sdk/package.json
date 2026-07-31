@@ -1,0 +1,20 @@
+{
+  "name": "@usetheo/skills-sdk",
+  "version": "0.1.0",
+  "description": "SDK do theo-skills — descoberta e obtenção de skills, com binding de workspace.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "publishConfig": { "access": "public" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' --no-error-on-unmatched-pattern",
+    "test": "vitest run --config vitest.contract.config.ts"
+  },
+  "dependencies": { "@usetheo/skills": "workspace:*" },
+  "engines": { "node": ">=20" }
+}

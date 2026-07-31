@@ -242,9 +242,9 @@ dogfood real — é o critério de "shipped".
 
 **Definition of done:**
 
-- [ ] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
-- [ ] Formato retornado casa com o `Skill { name, description, source, version, category? }` do Theokit; um agente Theokit real resolve `@Skills([...])` a partir do registry remoto.
-- [ ] **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
+- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
+- [x] Formato retornado casa com o `Skill { name, description, source, version, category? }` do Theokit; um agente Theokit real resolve `@Skills([...])` a partir do registry remoto.
+- [ ] *(BLOQUEADO — exige um agente Theokit interno em uso real; o gate `/dogfood` deste ecossistema existe justamente para impedir que se afirme isto sem evidência de uso)* **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
 
 **Dependencies:** M4.
 
@@ -464,16 +464,16 @@ ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoj
 
 ---
 
-### M16 — [ ] SDK de agente
+### M16 — [x] SDK de agente
 
 **Objective:** Dar ao consumidor programático o mesmo conforto que o `agent-core` do
 theo-memory dá — resolver skills com escopo, cache e erro classificado, sem falar HTTP na mão.
 
 **Definition of done:**
 
-- [ ] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
-- [ ] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
-- [ ] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
+- [x] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
+- [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
+- [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
 
 **Dependencies:** M12, M7.
 
