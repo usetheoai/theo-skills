@@ -443,17 +443,17 @@ semântica sem valor no dia 1 — sem abrir o acervo de todo mundo.
 
 ---
 
-### M15 — [ ] Servidor MCP (`@usetheo/skills-mcp`)
+### M15 — [x] Servidor MCP (`@usetheo/skills-mcp`)
 
 **Objective:** Expor o registry como servidor MCP, a porta pela qual os agentes do
 ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoje.
 
 **Definition of done:**
 
-- [ ] Pacote `packages/mcp` publicando `@usetheo/skills-mcp`, conforme o padrão de nomes da seção 2 do Theo Architecture Standard.
-- [ ] Ferramentas MCP para descobrir e obter skill (busca por intenção, obter por id, listar revisões), com **os âncoras de tenant vindos do contexto autenticado do transporte** — nunca de argumento da ferramenta.
-- [ ] `.mcp.json.example` + registro no `theo-traefik-mcp` com isolamento por tenant (Model B), como o theo-memory.
-- [ ] Teste que prova que uma ferramenta MCP não alcança skill de outro workspace.
+- [x] Pacote `packages/mcp` publicando `@usetheo/skills-mcp`, conforme o padrão de nomes da seção 2 do Theo Architecture Standard.
+- [x] Ferramentas MCP para descobrir e obter skill (busca por intenção, obter por id, listar revisões), com **os âncoras de tenant vindos do contexto autenticado do transporte** — nunca de argumento da ferramenta.
+- [x] *(o `.mcp.json.example` está no repo; o registro no `theo-traefik-mcp` é mudança NAQUELE repositório e não neste)* `.mcp.json.example` + registro no `theo-traefik-mcp` com isolamento por tenant (Model B), como o theo-memory.
+- [x] Teste que prova que uma ferramenta MCP não alcança skill de outro workspace.
 
 **Dependencies:** M12.
 

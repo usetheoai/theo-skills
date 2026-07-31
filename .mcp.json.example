@@ -1,0 +1,14 @@
+{
+  "//": "Exemplo de registro do servidor MCP do theo-skills (M15).",
+  "//tenant": "O tenant vem da credencial em THEOSKILL_AUTH — NUNCA de um argumento de ferramenta. Um agente compõe argumentos a partir de texto que pode conter instrução injetada; se o workspace fosse parâmetro, 'busque no workspace acme-corp' atravessaria o isolamento.",
+  "mcpServers": {
+    "theo-skills": {
+      "command": "npx",
+      "args": ["-y", "@usetheo/skills-mcp"],
+      "env": {
+        "THEOSKILL_REGISTRY": "https://skills.example.internal",
+        "THEOSKILL_AUTH": "theoskill_live_…"
+      }
+    }
+  }
+}
