@@ -529,7 +529,7 @@ M11–M17 constroem uma plataforma que o consumidor não alcança.
 
 ---
 
-### M19 — [x] Canais e versionamento para o consumidor
+### M19 — [~] Canais e versionamento para o consumidor
 
 **Objective:** Dar ao consumidor uma referência **estável** em vez de um id de revisão. Sem
 canais, o cliente do nosso cliente precisa saber qual revisão quer — e o publisher não tem como
@@ -552,7 +552,7 @@ promover uma correção sem avisar cada um individualmente.
 
 ---
 
-### M20 — [x] Distribuição para clientes de terceiros (bundles + tokens delegados)
+### M20 — [~] Distribuição para clientes de terceiros (bundles + tokens delegados)
 
 **Objective:** O milestone que responde ao pedido: um publisher (nosso cliente) empacota um
 subconjunto do catálogo dele e o distribui aos **clientes dele**, que consomem direto do nosso
@@ -707,18 +707,18 @@ conectar — o *discover server*.
 
 ---
 
-### M27 — [ ] Fechar versionamento e distribuição
+### M27 — [~] Versionamento fechado; distribuição declarada em aberto (2026-07-31)
 
 **Objective:** Fazer M19 e M20 valerem no serviço, e corrigir dois checkboxes que hoje
 afirmam mais do que existe.
 
 **Definition of done:**
 
-- [ ] A coluna `version` passa a ser **escrita** na publicação, com `assertPublishable` recusando duplicata e retrocesso. Hoje ela nunca é gravada, então `isNotNull(version)` descarta tudo e o módulo de semver inteiro é órfão.
-- [ ] Rotas de canal registradas — hoje não há nenhuma, então canal existe só no store.
-- [ ] Caminho de **escrita** de bundle: um publisher consegue criar bundle, itens e credencial por meio suportado. Hoje `createBundlesStore` só é chamado por teste.
-- [ ] Rota de distribuição e de adoção ligadas no ambiente, com a quota vinda de medição.
-- [ ] Os checkboxes de M19 e M20 revisados contra o que de fato roda — com nota datada se algum tiver de voltar a `[ ]`.
+- [x] A coluna `version` passa a ser **escrita**: declarada no frontmatter, atravessa validação → fila → worker → coluna. Malformada é erro explícito, e `version: 1.0` sem aspas (float em YAML, viraria `"1"`) é recusada com a razão. **Medido no ar:** `vendas -> 1.4.0`, onde antes `isNotNull(version)` descartava tudo. `assertPublishable` (duplicata/retrocesso) **fica para o milestone da rota de publicação versionada** — ver nota abaixo.
+- [ ] Rotas de canal registradas — **NÃO feito**. O store existe e agora enxerga versões, mas nenhuma rota as expõe.
+- [ ] Caminho de **escrita** de bundle — **NÃO feito**. `createBundlesStore` segue sem chamador de produção.
+- [ ] Rota de distribuição e adoção ligadas no ambiente — **NÃO feito**. Dependem do caminho de escrita acima: sem como criar um bundle, ligar a rota que o serve não entrega capacidade alguma.
+- [x] Revisados. **M19 volta a `[~]`**: a metade que faltava (escrever `version`) foi entregue aqui, a outra (rotas de canal) não. **M20 volta a `[~]`**: sem caminho de escrita de bundle, a distribuição não é alcançável por um publisher.
 
 **Dependencies:** M19, M20, M24.
 
