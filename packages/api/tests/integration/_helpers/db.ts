@@ -35,7 +35,7 @@ export async function truncateAll(): Promise<void> {
     // `api_keys`, `workspace_users` e `users` entram no M13. Esquecer uma tabela nova aqui
     // produz falha por chave duplicada no teste SEGUINTE, não no que a criou — o tipo de
     // erro que se persegue no arquivo errado.
-    'TRUNCATE TABLE embeddings, webhook_deliveries, webhook_endpoints, operations, skill_channels, skill_revisions, skills, api_keys, workspace_users, users RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE embeddings, webhook_deliveries, webhook_endpoints, operations, distribution_tokens, bundle_items, bundles, skill_channels, skill_revisions, skills, api_keys, workspace_users, users RESTART IDENTITY CASCADE',
   );
   // Remove APENAS jobs em estado terminal. `TRUNCATE pgboss.job` seria mais simples e está
   // ERRADO: os workers são registrados uma vez no `beforeAll` e seguem vivos entre os testes,

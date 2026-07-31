@@ -71,6 +71,13 @@
       "when": 1785502407406,
       "tag": "0009_demonic_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785502877327,
+      "tag": "0010_heavy_madrox",
+      "breakpoints": true
     }
   ]
 }
