@@ -12,6 +12,7 @@ import type PgBoss from 'pg-boss';
 
 import { createAuthMiddleware } from './auth/middleware.js';
 import { createDb } from './db.js';
+import { registerAdminKeysRoutes } from './handlers/admin-keys.js';
 import { registerHealthRoutes } from './handlers/health.js';
 import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
@@ -129,6 +130,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   });
   registerOperationsRoutes(app, { operationsStoreFor: (ws: string) => createOperationsStore(db, ws) });
   registerMembersRoutes(app, { membersStoreFor: (ws: string) => createMembersStore(db, ws) });
+  registerAdminKeysRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   registerWebhookEndpointRoutes(app, {
     endpointsStoreFor: (ws: string) => createWebhookEndpointsStore(db, ws),
     logger,
