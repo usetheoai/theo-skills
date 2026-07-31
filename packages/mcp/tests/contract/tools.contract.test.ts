@@ -15,6 +15,9 @@ const fakeRegistry = (over: Partial<RegistryPort> = {}): RegistryPort => ({
   retrieve: () => Promise.resolve([{ skill_id: 'sk_1', name: 'n', description: 'd', score: 0.9, origin: 'own' }]),
   get: (id: string) => Promise.resolve(id === 'sk_1' ? { skill_id: 'sk_1', name: 'n', description: 'd' } : null),
   revisions: () => Promise.resolve([{ revision_id: 'rev_1', version: '1.0.0' }]),
+  // O duplo implementa a porta INTEIRA — deixar `instructions` de fora seria verde sobre um
+  // registry que o compilador não aceita em produção.
+  instructions: () => Promise.resolve(null),
   ...over,
 });
 

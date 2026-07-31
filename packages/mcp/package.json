@@ -1,15 +1,22 @@
 {
   "name": "@usetheo/skills-mcp",
   "version": "0.1.0",
-  "description": "Servidor MCP do theo-skills — descoberta e obtenção de skills por agentes.",
+  "description": "Servidor MCP do theo-skills — descoberta e carga de skills por agentes (stdio).",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
-  "publishConfig": { "access": "public" },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -18,7 +25,13 @@
     "test": "vitest run --config vitest.contract.config.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@usetheo/skills": "workspace:*"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "theoskill-mcp": "./dist/bin.js"
+  }
 }

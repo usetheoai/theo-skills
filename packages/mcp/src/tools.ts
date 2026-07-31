@@ -17,13 +17,31 @@ export interface SkillSummary {
   readonly description: string;
   readonly score?: number;
   readonly origin?: 'own' | 'public';
+  /** Eixo de descoberta (M23), texto livre — `Sales`, `Shop`… */
+  readonly category?: string;
+  /**
+   * Onde a skill executa (M23). Vem na BUSCA, não só no detalhe: é o que decide se o agente
+   * pode carregar as instruções de onde ele está ou se aquela skill exige instalação na
+   * máquina do cliente. Descobrir isso depois é descobrir seguindo passos sem os arquivos.
+   */
+  readonly execution?: 'remote' | 'local';
+}
+
+/** O corpo de uma skill, carregado sob demanda (M24). */
+export interface SkillInstructions {
+  readonly skill_id: string;
+  readonly instructions: string;
+  readonly execution: 'remote' | 'local';
+  readonly origin: 'own' | 'public';
 }
 
 /** Porta de acesso ao registry — implementada por HTTP no servidor real. */
 export interface RegistryPort {
-  retrieve(query: string, topK: number): Promise<SkillSummary[]>;
+  retrieve(query: string, topK: number, category?: string): Promise<SkillSummary[]>;
   get(skillId: string): Promise<SkillSummary | null>;
   revisions(skillId: string): Promise<{ revision_id: string; version: string | null }[]>;
+  /** Carrega o corpo da skill escolhida (M24). `null` quando não existe ou não é sua. */
+  instructions(skillId: string): Promise<SkillInstructions | null>;
 }
 
 /** Descritor de ferramenta MCP — nome, descrição para o modelo, e o schema de entrada. */
@@ -67,13 +85,21 @@ export function createSkillTools(registry: RegistryPort): McpTool[] {
         properties: {
           query: { type: 'string', description: 'O que você quer fazer, em linguagem natural.' },
           top_k: { type: 'number', description: 'Quantos resultados (padrão 5, máximo 25).' },
+          category: { type: 'string', description: 'Restringe a uma categoria (ex.: Sales, Shop). Opcional.' },
         },
         required: ['query'],
       },
       async invoke(args) {
         const query = asString(args['query']);
         if (query === '') return { error: 'query é obrigatória' };
-        return { skills: await registry.retrieve(query, asTopK(args['top_k'])) };
+        const category = asString(args['category']);
+        return {
+          skills: await registry.retrieve(
+            query,
+            asTopK(args['top_k']),
+            ...(category !== '' ? ([category] as const) : ([] as const)),
+          ),
+        };
       },
     },
     {
@@ -94,6 +120,26 @@ export function createSkillTools(registry: RegistryPort): McpTool[] {
       },
     },
     {
+      name: 'load_skill',
+      // A descrição diz ao MODELO quando usar — e o "depois de escolher" não é estilo: é o
+      // que evita o agente carregar N corpos e encher a própria janela de contexto.
+      description:
+        'Carrega as instruções completas de UMA skill, para segui-las. Use depois de escolher a skill ' +
+        'em search_skills. Skills marcadas `local` não são carregáveis — elas precisam ser instaladas ' +
+        'na máquina do cliente.',
+      inputSchema: {
+        type: 'object',
+        properties: { skill_id: { type: 'string', description: 'Identificador da skill escolhida.' } },
+        required: ['skill_id'],
+      },
+      async invoke(args) {
+        const id = asString(args['skill_id']);
+        if (id === '') return { error: 'skill_id é obrigatório' };
+        const corpo = await registry.instructions(id);
+        return corpo ?? { error: 'not_found' };
+      },
+    },
+    {
       name: 'list_skill_revisions',
       description: 'Lista as revisões de uma skill, da mais antiga à mais recente, com a versão de cada uma.',
       inputSchema: {
@@ -111,4 +157,4 @@ export function createSkillTools(registry: RegistryPort): McpTool[] {
 }
 
 /** Nomes das ferramentas — o `.mcp.json.example` e os testes se apoiam nesta lista. */
-export const TOOL_NAMES = ['search_skills', 'get_skill', 'list_skill_revisions'] as const;
+export const TOOL_NAMES = ['search_skills', 'get_skill', 'load_skill', 'list_skill_revisions'] as const;

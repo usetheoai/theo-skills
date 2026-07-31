@@ -1,4 +1,4 @@
-import { type RegistryPort, type SkillSummary } from './tools.js';
+import { type RegistryPort, type SkillInstructions, type SkillSummary } from './tools.js';
 
 export interface HttpRegistryOptions {
   readonly baseUrl: string;
@@ -42,8 +42,11 @@ export function createHttpRegistry(opts: HttpRegistryOptions): RegistryPort {
   const headers = { authorization: `Bearer ${opts.auth}` };
 
   return {
-    async retrieve(query: string, topK: number): Promise<SkillSummary[]> {
-      const url = `${opts.baseUrl}/v1/skills:retrieve?query=${encodeURIComponent(query)}&top_k=${String(topK)}`;
+    async retrieve(query: string, topK: number, category?: string): Promise<SkillSummary[]> {
+      // A categoria é parametrizada na URL, escapada — é texto livre de terceiro, e
+      // concatená-la crua seria injeção pela porta da frente.
+      const filtro = category !== undefined && category !== '' ? `&category=${encodeURIComponent(category)}` : '';
+      const url = `${opts.baseUrl}/v1/skills:retrieve?query=${encodeURIComponent(query)}&top_k=${String(topK)}${filtro}`;
       const res = await doFetch(url, { headers });
       assertNaoEhFalha(res, 'retrieve');
       if (!res.ok) return [];
@@ -58,6 +61,16 @@ export function createHttpRegistry(opts: HttpRegistryOptions): RegistryPort {
       assertNaoEhFalha(res, 'get');
       if (!res.ok) return null;
       return (await res.json()) as SkillSummary;
+    },
+
+    async instructions(skillId: string): Promise<SkillInstructions | null> {
+      const res = await doFetch(`${opts.baseUrl}/v1/skills/${encodeURIComponent(skillId)}/instructions`, { headers });
+      // 404 é valor de domínio (não existe / não é sua). 422 (`local`) e o resto são FALHA:
+      // devolver `null` para um 422 diria "não existe" sobre uma skill que existe, e o
+      // agente desistiria de algo que ele poderia instalar.
+      assertNaoEhFalha(res, 'instructions');
+      if (!res.ok) return null;
+      return (await res.json()) as SkillInstructions;
     },
 
     async revisions(skillId: string): Promise<{ revision_id: string; version: string | null }[]> {
