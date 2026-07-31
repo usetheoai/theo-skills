@@ -20,6 +20,9 @@ import { registerHealthRoutes } from './handlers/health.js';
 import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
 import { registerPlatformKeysRoutes } from './handlers/platform-keys.js';
+import { registerPublishingRoutes } from './handlers/publishing.js';
+import { createBundlesStore } from './store/bundles-store.js';
+import { createChannelsStore } from './store/channels-store.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
@@ -188,6 +191,16 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   if (opts.rateLimit !== undefined) {
     app.use('*', createRateLimiter({ config: opts.rateLimit }));
   }
+
+  // Rotas de PUBLICAÇÃO (M27) — canais e bundles. Depois do middleware de auth, porque o
+  // ator é um publisher autenticado, e sob escopo `skills:publish`: mover um canal aponta
+  // todos os consumidores para outro conteúdo, e cunhar credencial de bundle dá acesso ao
+  // catálogo a um terceiro. Nenhuma das duas é escrita comum.
+  registerPublishingRoutes(app, {
+    channelsStoreFor: (ws) => createChannelsStore(db, ws),
+    bundlesStoreFor: (ws) => createBundlesStore(db, ws),
+    skillsStoreFor: (ws) => createSkillsStore(db, ws),
+  });
 
   registerSkillsRoutes(app, {
     skillsStoreFor: (ws: string) => createSkillsStore(db, ws),
