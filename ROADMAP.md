@@ -357,18 +357,18 @@ theo-memory.
 
 ---
 
-### M11 — [ ] Isolamento por workspace (multi-tenancy)
+### M11 — [x] Isolamento por workspace (multi-tenancy)
 
 **Objective:** Tornar o registry multi-tenant no dado, adotando o `Principal` e o
 `workspace_id` denormalizado do theo-memory.
 
 **Definition of done:**
 
-- [ ] `Principal { workspaceId, userId, role, scopes }` resolvido na fronteira; nenhum handler lê tenant do corpo.
-- [ ] `workspace_id` em `skills`, `skill_revisions`, `embeddings`, `operations`, `webhook_endpoints`, `webhook_deliveries`, primeiro em todo `WHERE`.
-- [ ] **`skillId` deixa de ser PK global** (`schema.ts:59`) e vira PK composta `(workspace_id, skill_id)`; a reserva pós-delete passa a ser por workspace. Migration com dados existentes colapsados no workspace `default`.
-- [ ] Acesso cross-tenant devolve `404` em todas as rotas por id — incluindo revisões e operações.
-- [ ] Teste de integração contra `ankane/pgvector` real prova que o workspace B não lê nada do A, nem por id direto, nem pelo retrieve.
+- [x] `Principal { workspaceId, userId, role, scopes }` resolvido na fronteira; nenhum handler lê tenant do corpo.
+- [x] `workspace_id` em `skills`, `skill_revisions`, `embeddings`, `operations`, `webhook_endpoints`, `webhook_deliveries`, primeiro em todo `WHERE`.
+- [x] **`skillId` deixa de ser PK global** (`schema.ts:59`) e vira PK composta `(workspace_id, skill_id)`; a reserva pós-delete passa a ser por workspace. Migration com dados existentes colapsados no workspace `default`.
+- [x] Acesso cross-tenant devolve `404` em todas as rotas por id — incluindo revisões e operações.
+- [x] Teste de integração contra `ankane/pgvector` real prova que o workspace B não lê nada do A, nem por id direto, nem pelo retrieve.
 
 **Dependencies:** M10.
 
