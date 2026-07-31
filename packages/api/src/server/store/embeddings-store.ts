@@ -77,7 +77,17 @@ export function createEmbeddingsStore(db: Db, workspaceId: string): EmbeddingsSt
           skillMd: skillRevisions.skillMd,
         })
         .from(skillRevisions)
-        .innerJoin(skills, eq(skills.skillId, skillRevisions.skillId))
+        // O JOIN precisa casar o PAR (workspace, skill), não só o id: a PK de `skills` é
+        // composta, e por `skill_id` sozinho a revisão de um cliente casava com a linha de
+        // OUTRO — o `name`/`description` do vizinho entrava no texto embeddado deste, e o
+        // `isNull(deletedAt)` passava a ser lido da skill errada.
+        .innerJoin(
+          skills,
+          and(
+            eq(skills.skillId, skillRevisions.skillId),
+            eq(skills.workspaceId, skillRevisions.workspaceId),
+          ),
+        )
         .where(
           and(
             eq(skillRevisions.workspaceId, workspaceId),
@@ -95,6 +105,10 @@ export function createEmbeddingsStore(db: Db, workspaceId: string): EmbeddingsSt
         .insert(embeddings)
         .values({
           id: input.id,
+          // Sem o inquilino a coluna cai no default e o vector-retriever — que junta por
+          // `s.workspace_id = e.workspace_id`, corretamente — nunca casa: a busca semântica
+          // de todo cliente real ficava CEGA. Não é vazamento; é a feature não funcionando.
+          workspaceId,
           revisionId: input.revisionId,
           skillId: input.skillId,
           provider: input.provider,
