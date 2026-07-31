@@ -130,7 +130,11 @@ async function main(): Promise<void> {
 
   const db = createDb(pool);
   const endpointsStore = createWebhookEndpointsStore(db, DEFAULT_WORKSPACE_ID);
-  const embeddingsStore = createEmbeddingsStore(db, DEFAULT_WORKSPACE_ID);
+  // FÁBRICA por inquilino, não instância fixa. Um store construído no boot obriga a
+  // escolher um workspace ali — e a única escolha possível era o legado, o que fazia o
+  // embedding de todo cliente real desaparecer em silêncio (nem job, nem log, nem erro).
+  const embeddingsStoreFor = (ws: string): ReturnType<typeof createEmbeddingsStore> =>
+    createEmbeddingsStore(db, ws);
 
   // Select the embedding provider. Probe the dimension at boot ONLY for the
   // deterministic stub (free, instant). For network providers a live boot probe
@@ -145,7 +149,7 @@ async function main(): Promise<void> {
 
   // onTerminal composes the webhook fan-out + the embed enqueue (ACTIVE only).
   const webhookEnqueuer = createWebhookEnqueuer({ endpointsStore, queue, logger });
-  const embedEnqueuer = createEmbedEnqueuer({ queue, embeddingsStore, logger });
+  const embedEnqueuer = createEmbedEnqueuer({ queue, embeddingsStoreFor, logger });
   const handlers = buildWorkerHandlers(pool, logger, composeTerminalHooks(webhookEnqueuer, embedEnqueuer));
   await registerWorker({
     queue,
@@ -157,7 +161,7 @@ async function main(): Promise<void> {
   // Embed worker — generates + indexes the vector for the skill's current revision.
   await registerEmbedWorker({
     queue,
-    handler: createEmbedSkillHandler({ embeddingsStore, embedder, logger }),
+    handler: createEmbedSkillHandler({ embeddingsStoreFor, embedder, logger }),
     logger,
   });
 
