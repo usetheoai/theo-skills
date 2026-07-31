@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+
 import type { SkillsRuntime } from './commands/install.js';
 
 export type CliCommand =
