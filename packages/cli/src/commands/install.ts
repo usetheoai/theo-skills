@@ -63,11 +63,17 @@ const RUNTIME_DIR: Record<SkillsRuntime, string> = {
  * `openskills` não tem cliente HTTP e não é nosso para mudar.
  *
  * O QUE FALTAVA, e é o motivo deste parâmetro existir: os dois layouts servem consumidores
- * DIFERENTES, e a decisão original só cobria um. MEDIDO em `@theokit/agents` 6.0.0 — o
- * pacote descobre skills exclusivamente em `.theokit/skills/<name>/SKILL.md` e não tem uma
- * única referência a `.claude` no `dist`. No `agent-builder` (agente Theokit real) as duas
- * pastas coexistem: dezenas de skills em `.claude/skills/` para o Claude Code, e a única
- * que o agente Theokit carrega em `.theokit/skills/daily-briefing/`.
+ * DIFERENTES, e a decisão original só cobria um. MEDIDO em `@theokit/sdk` — a descoberta é
+ * `discoverSkills(join(cwd, '.theokit', 'skills'))`, lendo `<name>/SKILL.md`, sem uma única
+ * referência a `.claude`. (Uma versão anterior deste comentário atribuía a descoberta a
+ * `@theokit/agents`; quem lê o `dist` desse pacote não encontra `SKILL.md` algum — o leitor
+ * é o `sdk`, e apontar o pacote errado manda o próximo leitor procurar no lugar errado.)
+ *
+ * VERIFICADO ponta a ponta em 2026-07-31 no `agent-builder`, um agente Theokit real: uma
+ * skill publicada pelo registry e instalada com `--runtime theokit` é devolvida por
+ * `discoverSkills` ao lado da que o próprio projeto já mantinha ali. As duas pastas
+ * coexistem no repositório — dezenas de skills em `.claude/skills/` para o Claude Code, e
+ * as do agente Theokit em `.theokit/skills/`.
  *
  * Enquanto só existia o default, uma skill vinda do registry era INVISÍVEL para todo agente
  * Theokit — que é justamente o consumidor que o M7 exige. Isto não revoga o ADR 0005; ele

@@ -44,21 +44,32 @@ export async function runPublish(args: ParsedCli, deps: PublishDeps): Promise<nu
 
   const zippedFilesystem = buffer.toString('base64');
   const skillId = args.skillId;
+  // A CREDENCIAL ATRAVESSA AS TRÊS CHAMADAS — inclusive a de existência.
+  //
+  // O comando aceitava `--auth`, guardava no config e usava em `get`/`list`/`install`, mas
+  // omitia aqui: contra um registry com autenticação ligada (isto é, qualquer um implantado)
+  // publicar pela CLI era impossível. E a checagem de existência sem credencial recebe `401`,
+  // nunca `200` — o comando concluiria "não existe" para toda skill que existe.
+  //
+  // Ausente é ausente: sem `--auth` nenhum header é enviado. Um `Bearer undefined` seria pior
+  // que a omissão, porque parece credencial e o servidor o rejeita como se fosse uma errada.
+  const auth: Record<string, string> =
+    args.auth !== undefined ? { authorization: `Bearer ${args.auth}` } : {};
   const post = (): Promise<Response> =>
     deps.fetch(`${base}/v1/skills`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...auth },
       body: JSON.stringify({ skill_id: skillId, zippedFilesystem }),
     });
   const patch = (): Promise<Response> =>
     deps.fetch(`${base}/v1/skills/${skillId}?updateMask=zippedFilesystem`, {
       method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...auth },
       body: JSON.stringify({ zippedFilesystem }),
     });
 
   try {
-    let isUpdate = await skillExists(deps.fetch, base, skillId);
+    let isUpdate = await skillExists(deps.fetch, base, skillId, auth);
     let res = isUpdate ? await patch() : await post();
     // Collapse the GET→POST race: if the skill was created in between, POST 409s →
     // transparently fall back to an update.
@@ -81,7 +92,12 @@ export async function runPublish(args: ParsedCli, deps: PublishDeps): Promise<nu
   }
 }
 
-async function skillExists(doFetch: typeof globalThis.fetch, base: string, skillId: string): Promise<boolean> {
-  const res = await doFetch(`${base}/v1/skills/${skillId}`, { method: 'GET' });
+async function skillExists(
+  doFetch: typeof globalThis.fetch,
+  base: string,
+  skillId: string,
+  auth: Record<string, string>,
+): Promise<boolean> {
+  const res = await doFetch(`${base}/v1/skills/${skillId}`, { method: 'GET', headers: { ...auth } });
   return res.status === 200;
 }

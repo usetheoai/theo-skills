@@ -58,6 +58,14 @@ export function createOperationsStore(db: Db, workspaceId: string): OperationsSt
   return {
     async create(input) {
       const values = {
+        // O INQUILINO ENTRA NA ESCRITA, não só nas consultas.
+        //
+        // Sem esta linha o `default 'default'` da coluna preenchia, e toda operação de
+        // qualquer cliente caía em `default`: quem publicava recebia um `operation_id`
+        // que a leitura — essa sim escopada — devolvia `404`, e o inquilino `default`
+        // enxergava as operações de todos. Nenhum teste pegava porque todos rodavam em
+        // `default`, onde o valor errado coincide com o certo.
+        workspaceId,
         operationId: input.operationId,
         skillId: input.skillId,
         type: input.type,
