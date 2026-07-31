@@ -42,7 +42,7 @@ describeIntegration('M3 embed worker: generate + guard + idempotent upsert (T3.3
 
   it('writes a queryable embedding for the current revision', async () => {
     const rev = await seedSkill('embed-ok');
-    const handler = createEmbedSkillHandler({ embeddingsStore: store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
+    const handler = createEmbedSkillHandler({ embeddingsStoreFor: () => store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
     await handler({ skill_id: 'embed-ok', revision_id: rev });
 
     const rows = await store().listByRevision(rev);
@@ -64,14 +64,14 @@ describeIntegration('M3 embed worker: generate + guard + idempotent upsert (T3.3
 
   it('rejects a dimension mismatch (fail-fast, no row written)', async () => {
     const revBad = await seedSkill('embed-bad');
-    const handler = createEmbedSkillHandler({ embeddingsStore: store(), embedder: badDimEmbedder, logger: createNoopLogger() });
+    const handler = createEmbedSkillHandler({ embeddingsStoreFor: () => store(), embedder: badDimEmbedder, logger: createNoopLogger() });
     await expect(handler({ skill_id: 'embed-bad', revision_id: revBad })).rejects.toThrow();
     const count = await getPool().query<{ count: string }>("SELECT count(*)::text AS count FROM embeddings");
     expect(count.rows[0]?.count).toBe('0'); // nothing corrupt persisted
   });
 
   it('is a no-op for a missing / soft-deleted skill', async () => {
-    const handler = createEmbedSkillHandler({ embeddingsStore: store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
+    const handler = createEmbedSkillHandler({ embeddingsStoreFor: () => store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
     await handler({ skill_id: 'does-not-exist', revision_id: 'rev_nope' }); // must not throw
     const count = await getPool().query<{ count: string }>("SELECT count(*)::text AS count FROM embeddings");
     expect(count.rows[0]?.count).toBe('0');
@@ -79,7 +79,7 @@ describeIntegration('M3 embed worker: generate + guard + idempotent upsert (T3.3
 
   it('re-embedding the same revision is idempotent (one row)', async () => {
     const rev = await seedSkill('embed-idem');
-    const handler = createEmbedSkillHandler({ embeddingsStore: store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
+    const handler = createEmbedSkillHandler({ embeddingsStoreFor: () => store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
     await handler({ skill_id: 'embed-idem', revision_id: rev });
     await handler({ skill_id: 'embed-idem', revision_id: rev });
     expect(await store().listByRevision(rev)).toHaveLength(1);
@@ -87,7 +87,7 @@ describeIntegration('M3 embed worker: generate + guard + idempotent upsert (T3.3
 
   it('Concurrent test: two parallel embed jobs for the same revision resolve to one row', async () => {
     const rev = await seedSkill('embed-race');
-    const handler = createEmbedSkillHandler({ embeddingsStore: store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
+    const handler = createEmbedSkillHandler({ embeddingsStoreFor: () => store(), embedder: createStubEmbedder(), logger: createNoopLogger() });
     await Promise.all([handler({ skill_id: 'embed-race', revision_id: rev }), handler({ skill_id: 'embed-race', revision_id: rev })]);
     expect(await store().listByRevision(rev)).toHaveLength(1); // unique + ON CONFLICT
   });

@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { assertEmbeddingDim, type EmbeddingProvider } from '@usetheo/skills';
+import { assertEmbeddingDim, DEFAULT_WORKSPACE_ID, type EmbeddingProvider } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from '../logger.js';
@@ -14,7 +14,15 @@ import { type EmbeddingsStore, embedSourceText } from '../store/embeddings-store
 import { type OnOperationTerminal } from '../worker.js';
 
 export interface EmbedWorkerDeps {
-  readonly embeddingsStore: EmbeddingsStore;
+  /**
+   * Fábrica POR INQUILINO, não uma instância pronta.
+   *
+   * Receber um store já construído obrigava o ponto de montagem a escolher um workspace
+   * no boot — e a escolha era `DEFAULT_WORKSPACE_ID`. Para uma skill de qualquer outro
+   * cliente a consulta não achava nada e o enfileirador retornava em silêncio: sem job,
+   * sem log, sem erro. Medido no ar: 1 embedding para 8 skills.
+   */
+  readonly embeddingsStoreFor: (workspaceId: string) => EmbeddingsStore;
   readonly embedder: EmbeddingProvider;
   readonly logger: Logger;
 }
@@ -29,14 +37,17 @@ export type EmbedSkillHandler = (data: EmbedSkillJobData) => Promise<void>;
  */
 export function createEmbedSkillHandler(deps: EmbedWorkerDeps): EmbedSkillHandler {
   return async (data) => {
-    const source = await deps.embeddingsStore.getEmbedSourceByRevision(data.revision_id);
+    // O inquilino vem do JOB, não de um contexto — o worker roda fora da requisição.
+    // Ausente = job enfileirado antes do M11, que pertence à ponte legada.
+    const store = deps.embeddingsStoreFor(data.workspaceId ?? DEFAULT_WORKSPACE_ID);
+    const source = await store.getEmbedSourceByRevision(data.revision_id);
     if (source === undefined) {
       return; // revision/skill gone / soft-deleted — nothing to embed
     }
     const vector = await deps.embedder.embed(embedSourceText(source));
     assertEmbeddingDim(vector); // fail-fast: a provider that diverges throws, no write
 
-    await deps.embeddingsStore.upsert({
+    await store.upsert({
       id: `emb_${createId()}`,
       revisionId: source.revisionId,
       skillId: source.skillId,
@@ -62,18 +73,19 @@ export function createEmbedSkillHandler(deps: EmbedWorkerDeps): EmbedSkillHandle
  */
 export function createEmbedEnqueuer(deps: {
   queue: PgBoss;
-  embeddingsStore: EmbeddingsStore;
+  embeddingsStoreFor: (workspaceId: string) => EmbeddingsStore;
   logger: Logger;
 }): OnOperationTerminal {
-  return async ({ skillId, eventType, state }) => {
+  return async ({ skillId, eventType, state, workspaceId }) => {
     if (state !== 'ACTIVE' || eventType === 'skill.deleted') {
       return;
     }
-    const source = await deps.embeddingsStore.getEmbedSourceBySkill(skillId);
+    const source = await deps.embeddingsStoreFor(workspaceId).getEmbedSourceBySkill(skillId);
     if (source === undefined) {
       return; // no current revision to embed
     }
-    const jobData: EmbedSkillJobData = { skill_id: skillId, revision_id: source.revisionId };
+    // O inquilino viaja NO JOB: o worker não tem contexto de requisição para redescobri-lo.
+    const jobData: EmbedSkillJobData = { workspaceId, skill_id: skillId, revision_id: source.revisionId };
     await deps.queue.send(JOB_NAMES.EMBED_SKILL, jobData, {
       ...EMBED_SKILL_SEND_OPTIONS,
       singletonKey: source.revisionId,

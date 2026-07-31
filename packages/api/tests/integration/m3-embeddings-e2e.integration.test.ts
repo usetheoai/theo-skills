@@ -68,10 +68,10 @@ describeIntegration('M3 E2E: create skill → embedding present + queryable; pro
   beforeAll(async () => {
     boss = await startBoss();
     const embeddingsStore = createEmbeddingsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
-    const embedEnqueuer = createEmbedEnqueuer({ queue: boss, embeddingsStore, logger: createNoopLogger() });
+    const embedEnqueuer = createEmbedEnqueuer({ queue: boss, embeddingsStoreFor: () => embeddingsStore, logger: createNoopLogger() });
     const h = buildWorkerHandlers(getPool(), createNoopLogger(), embedEnqueuer);
     await registerWorker({ queue: boss, createHandler: h.createHandler, updateHandler: h.updateHandler, deleteHandler: h.deleteHandler });
-    await registerEmbedWorker({ queue: boss, handler: createEmbedSkillHandler({ embeddingsStore, embedder: proxyEmbedder, logger: createNoopLogger() }), logger: createNoopLogger() });
+    await registerEmbedWorker({ queue: boss, handler: createEmbedSkillHandler({ embeddingsStoreFor: () => embeddingsStore, embedder: proxyEmbedder, logger: createNoopLogger() }), logger: createNoopLogger() });
   });
   beforeEach(async () => {
     await truncateAll();
