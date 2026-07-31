@@ -23,6 +23,7 @@ import { registerVersionRoutes } from './handlers/version.js';
 import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
 import { createRateLimiter, type RateLimitConfig } from './middleware/rate-limit.js';
+import { createObservabilityMiddleware, MetricsRegistry } from './observability/metrics.js';
 import { createSecretlintScanner } from './payload/secretlint-scanner.js';
 import { createYauzlPayloadValidator } from './payload/yauzl-validator.js';
 import { type AppEnv } from './principal-context.js';
@@ -80,6 +81,11 @@ export interface CreateAppOptions {
   readonly rateLimit?: RateLimitConfig;
   /** Quota das rotas de distribuição (M20). Ausente = distribuição desligada. */
   readonly distribution?: { readonly defaultQuota: number; readonly windowMs: number };
+  /**
+   * Registro de métricas (M17). Injetável para que o operador — e os testes — leiam os
+   * agregados sem depender de um backend externo. Ausente = um registro interno é criado.
+   */
+  readonly metrics?: MetricsRegistry;
 }
 
 /** Build the Hono app with injected dependencies (DIP, ADR-3). */
@@ -88,6 +94,13 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const logger = opts.logger ?? createJsonLogger();
 
   const app = new Hono<AppEnv>();
+
+  // PRIMEIRO middleware de todos: a latência medida precisa incluir tudo o que vem depois —
+  // auth, rate limit, handler. Instrumentar depois do auth mediria só o trecho barato e
+  // esconderia justamente a lentidão que importa investigar.
+  const metrics = opts.metrics ?? new MetricsRegistry();
+  app.use('*', createObservabilityMiddleware({ registry: metrics, logger: opts.logger ?? createJsonLogger() }));
+
   app.onError((err, c) => {
     logger.error({ err: err instanceof Error ? err.message : String(err) }, 'unhandled error');
     return c.json({ error: 'internal_error' }, 500);
