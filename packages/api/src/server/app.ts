@@ -19,6 +19,7 @@ import { registerDistributionRoutes } from './handlers/distribution.js';
 import { registerHealthRoutes } from './handlers/health.js';
 import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
+import { registerPlatformKeysRoutes } from './handlers/platform-keys.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
@@ -88,6 +89,13 @@ export interface CreateAppOptions {
    * agregados sem depender de um backend externo. Ausente = um registro interno é criado.
    */
   readonly metrics?: MetricsRegistry;
+  /**
+   * Credencial de PLATAFORMA (M22). Ausente = a rota de cunhagem não é registrada.
+   *
+   * Fail-closed de propósito: um serviço que expõe provisionamento por omissão é pior que um
+   * que não o expõe — o operador acredita que está desligado. Ela vive só no control plane.
+   */
+  readonly platformAdminKey?: string;
 }
 
 /** Build the Hono app with injected dependencies (DIP, ADR-3). */
@@ -138,6 +146,18 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // construidos JA ESCOPADOS a ele. Nenhum handler recebe um store global.
   // Com verificador, a fronteira é o middleware de auth — ele resolve o Principal a partir
   // da CREDENCIAL, que é a única origem admissível do tenant (M11 DoD #1 + M12 DoD #3).
+  // A cunhagem de plataforma é registrada ANTES do middleware de auth: ela tem credencial
+  // PRÓPRIA (control plane), e submetê-la ao verificador de chave de usuário a tornaria
+  // alcançável por credencial de caminho de dados — o oposto da separação que ela existe para
+  // manter. Ausente a credencial, a rota não é registrada e responde 404.
+  if (opts.platformAdminKey !== undefined && opts.platformAdminKey !== '') {
+    registerPlatformKeysRoutes(app, {
+      db,
+      logger: opts.logger ?? createJsonLogger(),
+      platformAdminKey: opts.platformAdminKey,
+    });
+  }
+
   if (opts.authVerifier !== undefined) {
     app.use('*', createAuthMiddleware({ verifier: opts.authVerifier, authRequired: true }));
   }
