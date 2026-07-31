@@ -25,6 +25,14 @@ export interface InstallDeps {
   readonly global?: boolean;
   /** Runtime que vai LER a skill. Default `claude` (ADR 0005); `theokit` para agentes Theokit. */
   readonly runtime?: SkillsRuntime;
+  /**
+   * Instala mesmo uma skill `remote` (M26).
+   *
+   * Escape hatch explícito: inspecionar o conteúdo de uma skill remota é caso legítimo, e
+   * negar sem saída faria a pessoa contornar por fora — `curl` + `unzip`, sem verificação
+   * de integridade nenhuma. Melhor uma porta com placa do que um muro que se contorna.
+   */
+  readonly force?: boolean;
   /** Extrai o zip para o diretório. Injetado para o teste não depender de zip real. */
   readonly extract: (zip: Buffer, destDir: string) => Promise<void>;
   readonly now?: () => Date;
@@ -98,6 +106,8 @@ interface SkillResponse {
   readonly skill_id: string;
   readonly name: string;
   readonly latest_revision_id: string;
+  /** M26 — `remote` (carregada do servidor) ou `local` (instalada aqui). Ausente = legado. */
+  readonly execution?: string;
 }
 
 /**
@@ -115,6 +125,24 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
     return 1;
   }
   const skill = (await skillRes.json()) as SkillResponse;
+
+  // MODO DE EXECUÇÃO (M26) — o comando serve só ao que precisa de disco.
+  //
+  // Instalar uma skill `remote` coloca em disco algo que o agente deveria carregar do
+  // servidor: passam a existir duas cópias, elas divergem na primeira publicação, e a de
+  // disco vence em silêncio. A recusa aponta o caminho certo em vez de só negar.
+  //
+  // Ausente é PERMITIDO: skills publicadas antes do campo existir não o declaram, e
+  // recusá-las quebraria instalação que hoje funciona. A guarda de verdade está na
+  // publicação — um pacote com script não consegue se declarar remoto.
+  if (skill.execution === 'remote' && deps.force !== true) {
+    deps.out(
+      `erro: "${skill.name}" é uma skill \`remote\` — ela é CARREGADA do registry pelo agente, ` +
+        `não instalada em disco. Use a descoberta (\`load_skill\` no MCP, ou ` +
+        `GET /v1/skills/${skillId}/instructions). Para inspecionar o conteúdo mesmo assim: --force.`,
+    );
+    return 1;
+  }
 
   const revRes = await deps.fetch(`${deps.registry}/v1/skills/${skillId}/revisions/${skill.latest_revision_id}`, {
     headers,

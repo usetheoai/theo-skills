@@ -26,6 +26,8 @@ export interface ParsedCli {
   readonly global?: boolean;
   /** `--runtime` → qual agente vai LER a skill do disco. Ausente = default de `resolveSkillsDir`. */
   readonly runtime?: SkillsRuntime;
+  /** `install --force` → instala mesmo uma skill `remote` (M26). */
+  readonly force?: boolean;
   /** `update --apply` → aplica de fato; sem ele o comando só mostra o que mudaria. */
   readonly apply?: boolean;
 }
@@ -75,6 +77,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCli {
       global: { type: 'boolean' },
       apply: { type: 'boolean' },
       runtime: { type: 'string' },
+      force: { type: 'boolean' },
     },
   });
   // Validado AQUI, na fronteira, e não lá na frente: um `--runtime theokti` que caísse no
@@ -94,6 +97,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCli {
     ...(values.global === true ? { global: true } : {}),
     ...(values.apply === true ? { apply: true } : {}),
     ...(values.runtime !== undefined ? { runtime: values.runtime as SkillsRuntime } : {}),
+    ...(values.force === true ? { force: true } : {}),
   };
 }
 

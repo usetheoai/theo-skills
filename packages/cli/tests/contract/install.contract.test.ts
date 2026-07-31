@@ -203,3 +203,106 @@ describe('runInstall', () => {
     expect(resolveSkillsDir({ runtime: 'theokit', skillsDir: '/tmp/x' })).toBe('/tmp/x');
   });
 });
+
+describe('execution (M26) — o install serve só ao que precisa de disco', () => {
+  const extractStub = async (zip: Buffer, dest: string): Promise<void> => {
+    await writeFile(join(dest, 'SKILL.md'), zip.toString('utf8'), 'utf8');
+  };
+
+  const respostaCom = (execution: string) => ({
+    skill: { skill_id: 'sk_1', name: 'minha-skill', latest_revision_id: 'rev_1', execution },
+    revision: { revision_id: 'rev_1', skill_id: 'sk_1', content_hash: HASH, create_time: '2026-07-31T00:00:00Z' },
+  });
+
+  const fetchPara = (execution: string) =>
+    ((url: string) => {
+      if (url.endsWith('/payload')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          arrayBuffer: () => Promise.resolve(ZIP.buffer.slice(ZIP.byteOffset, ZIP.byteOffset + ZIP.byteLength)),
+        });
+      }
+      const r = respostaCom(execution);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(url.includes('/revisions/') ? r.revision : r.skill),
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+  it('RECUSA uma skill `remote` — ela é carregada, não instalada', async () => {
+    // Instalar uma skill remota coloca em disco algo que o agente deveria buscar do
+    // servidor: duas cópias que divergem na primeira publicação, e a de disco vence em
+    // silêncio. A recusa aponta o caminho certo em vez de só negar.
+    const root = await tmp();
+    const linhas: string[] = [];
+    const code = await runInstall('sk_1', {
+      out: (l) => linhas.push(l),
+      fetch: fetchPara('remote'),
+      registry: 'https://reg.test',
+      skillsDir: root,
+      extract: extractStub,
+    });
+    expect(code).toBe(1);
+    expect(linhas.join(' ')).toMatch(/remote/i);
+    expect(linhas.join(' '), 'a mensagem tem que dizer o que fazer').toMatch(/carreg|load/i);
+    expect(await readdir(root), 'nada foi escrito').toEqual([]);
+  });
+
+  it('INSTALA uma skill `local` — é para isso que o comando existe', async () => {
+    const root = await tmp();
+    const code = await runInstall('sk_1', {
+      out: () => undefined,
+      fetch: fetchPara('local'),
+      registry: 'https://reg.test',
+      skillsDir: root,
+      extract: extractStub,
+    });
+    expect(code).toBe(0);
+    expect(await readdir(join(root, 'minha-skill'))).toContain('SKILL.md');
+  });
+
+  it('sem o campo, instala — compatível com o que foi publicado antes do M23', async () => {
+    // Skills publicadas antes do campo existir não declaram nada. Recusá-las quebraria
+    // instalação que hoje funciona, e a guarda de verdade já está na publicação: um pacote
+    // com script não consegue se declarar remoto.
+    const root = await tmp();
+    const semCampo = ((url: string) => {
+      if (url.endsWith('/payload')) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          arrayBuffer: () => Promise.resolve(ZIP.buffer.slice(ZIP.byteOffset, ZIP.byteOffset + ZIP.byteLength)),
+        });
+      }
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve(
+          url.includes('/revisions/')
+            ? { revision_id: 'rev_1', skill_id: 'sk_1', content_hash: HASH }
+            : { skill_id: 'sk_1', name: 'minha-skill', latest_revision_id: 'rev_1' },
+        ),
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const code = await runInstall('sk_1', {
+      out: () => undefined, fetch: semCampo, registry: 'https://reg.test', skillsDir: root, extract: extractStub,
+    });
+    expect(code).toBe(0);
+  });
+
+  it('`--force` instala uma `remote` mesmo assim, para quem sabe o que faz', async () => {
+    // Escape hatch explícito: inspecionar o conteúdo de uma skill remota é um caso legítimo,
+    // e negar sem saída faria a pessoa contornar por fora (curl + unzip), sem verificação
+    // de integridade nenhuma.
+    const root = await tmp();
+    const code = await runInstall('sk_1', {
+      out: () => undefined,
+      fetch: fetchPara('remote'),
+      registry: 'https://reg.test',
+      skillsDir: root,
+      extract: extractStub,
+      force: true,
+    });
+    expect(code).toBe(0);
+  });
+});
