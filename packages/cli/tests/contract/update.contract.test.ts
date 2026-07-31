@@ -23,18 +23,29 @@ async function instalada(root: string, nome: string, prov: Record<string, string
   return dir;
 }
 
+// Espelha a API REAL: metadado SEM bytes, e os bytes na rota `…/payload`. O duplo anterior
+// devolvia `payload_base64` no metadado — campo que o servidor nunca produziu (ver o
+// comentário longo em `install.contract.test.ts`).
 const fetchOf = (latest: string, version?: string) =>
-  ((url: string) =>
-    Promise.resolve({
+  ((url: string) => {
+    if (url.endsWith('/payload')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(ZIP.buffer.slice(ZIP.byteOffset, ZIP.byteOffset + ZIP.byteLength)),
+      });
+    }
+    return Promise.resolve({
       ok: true,
       status: 200,
       json: () =>
         Promise.resolve(
           url.includes('/revisions/')
-            ? { revision_id: latest, content_hash: HASH, payload_base64: ZIP.toString('base64'), version }
+            ? { revision_id: latest, skill_id: 'sk_1', content_hash: HASH, version }
             : { skill_id: 'sk_1', name: 'minha-skill', latest_revision_id: latest },
         ),
-    })) as unknown as typeof globalThis.fetch;
+    });
+  }) as unknown as typeof globalThis.fetch;
 
 const extractStub = async (zip: Buffer, dest: string): Promise<void> => {
   await writeFile(join(dest, 'SKILL.md'), zip.toString('utf8'), 'utf8');

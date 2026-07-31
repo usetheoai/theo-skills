@@ -35,6 +35,7 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
   const root = resolveSkillsDir({
     ...(deps.global !== undefined ? { global: deps.global } : {}),
     ...(deps.skillsDir !== undefined ? { skillsDir: deps.skillsDir } : {}),
+    ...(deps.runtime !== undefined ? { runtime: deps.runtime } : {}),
   });
 
   let dir: string;
