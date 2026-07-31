@@ -128,7 +128,22 @@ async function enqueueOperation(
   try {
     await deps.queue.send(
       args.jobName,
-      { operation_id: operationId, skill_id: args.skillId, trace_id: traceId, ...args.jobData },
+      {
+        operation_id: operationId,
+        skill_id: args.skillId,
+        trace_id: traceId,
+        // O INQUILINO ATRAVESSA A FILA. Sem este campo o worker caía em
+        // `data.workspaceId ?? DEFAULT_WORKSPACE_ID` e gravava TODA skill em `default`: o
+        // autor publicava, recebia 202, e não a encontrava depois — o `GET` dele filtra pelo
+        // próprio workspace.
+        //
+        // Todo o isolamento provado até aqui era do plano de LEITURA; o de ESCRITA é
+        // assíncrono e não propagava nada. Passou despercebido porque os testes de isolamento
+        // semeiam por SQL cru, já com o `workspace_id` certo — provam que a leitura respeita
+        // o escopo, sobre linhas que nunca passaram pelo caminho de escrita.
+        workspaceId: workspaceOf(c),
+        ...args.jobData,
+      },
       SKILL_SEND_OPTIONS,
     );
   } catch (err) {
