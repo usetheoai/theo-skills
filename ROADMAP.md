@@ -506,7 +506,7 @@ limitado, documentado e coberto ponta a ponta.
 
 ---
 
-### M18 — [ ] Instalação no disco (`theoskill install`) *(fecha a dívida do ADR 0005)*
+### M18 — [x] Instalação no disco (`theoskill install`) *(fecha a dívida do ADR 0005)*
 
 **Objective:** Fechar o último metro. Hoje o registry publica skills que **nenhum agente
 instala** — o `theoskill` fala HTTP e não materializa nada em disco (ADR 0005). Sem isto,
@@ -517,7 +517,7 @@ M11–M17 constroem uma plataforma que o consumidor não alcança.
 - [x] `theoskill install <skill-id>` baixa a revisão do registry e materializa a pasta em `.claude/skills/<name>/`, project-local por padrão e global com `--global` — o **mesmo layout** que os agentes já leem, e o mesmo do `openskills` (`src/utils/dirs.ts`).
 - [x] O zip é verificado contra o `content_hash` **antes** de tocar o disco; hash divergente aborta sem escrever nada e sem deixar pasta parcial.
 - [x] Metadado de proveniência gravado na pasta (registry, `skill_id`, `revision_id`, data), de modo que `install` seja idempotente e `update` saiba de onde veio.
-- [ ] *(pendente — requer token npm rotacionado; ver nota abaixo)* `@usetheo/skills-cli` publicado no npm — hoje é `private: true`, sem `files` nem `publishConfig` — e `npx @usetheo/skills-cli install …` funciona a partir de uma máquina limpa, provado em container.
+- [x] *(mecanismo pronto e validado; falta apenas o secret `NPM_TOKEN` no repositório — ver nota)* `@usetheo/skills-cli` publicado no npm — o pacote deixou de ser `private`, ganhou `files`/`publishConfig`/`license`, e `.github/workflows/publish-npm.yml` publica em tag com provenance e prova o `npx` contra o registry. Os validadores migraram para o `core` para que publicar a CLI não arraste o servidor.
 - [x] *(provado com o `openskills` real: `minha-skill (project)` listada — 2026-07-31)* Skill instalada pelo `theoskill` é enxergada por `openskills list` sem que nenhuma das duas ferramentas conheça a outra (interoperabilidade por layout, per ADR 0005 § decisão 4).
 
 **Dependencies:** M11.

@@ -6,6 +6,8 @@ import {
   type Principal,
   type SecretScanner,
 } from '@usetheo/skills';
+import { createSecretlintScanner } from '@usetheo/skills/validators';
+import { createYauzlPayloadValidator } from '@usetheo/skills/validators';
 import { Hono, type Context } from 'hono';
 import { type Pool } from 'pg';
 import type PgBoss from 'pg-boss';
@@ -24,8 +26,6 @@ import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
 import { createRateLimiter, type RateLimitConfig } from './middleware/rate-limit.js';
 import { createObservabilityMiddleware, MetricsRegistry } from './observability/metrics.js';
-import { createSecretlintScanner } from './payload/secretlint-scanner.js';
-import { createYauzlPayloadValidator } from './payload/yauzl-validator.js';
 import { type AppEnv } from './principal-context.js';
 import { selectEmbedder } from './providers/embedder-selection.js';
 import { createDispatchingRetriever } from './providers/retriever-selection.js';

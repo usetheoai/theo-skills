@@ -1,6 +1,6 @@
+import { createSecretlintScanner } from '@usetheo/skills/validators';
 import { describe, expect, it } from 'vitest';
 
-import { createSecretlintScanner } from '../../src/server/payload/secretlint-scanner.js';
 
 const scanner = createSecretlintScanner();
 

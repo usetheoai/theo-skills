@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 
+import yauzl, { type Entry } from 'yauzl';
+
 import {
   type PayloadErrorCode,
   type PayloadFile,
   PayloadValidationError,
   type PayloadValidator,
   type ValidatedPayload,
-} from '@usetheo/skills';
-import yauzl, { type Entry } from 'yauzl';
+} from '../index.js';
 
 import { checkEntry, newGuardState } from './zip-guards.js';
 

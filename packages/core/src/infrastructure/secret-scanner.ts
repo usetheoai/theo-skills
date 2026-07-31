@@ -3,11 +3,12 @@ import { extname } from 'node:path';
 import { lintSource } from '@secretlint/core';
 import { rules as presetRecommendRules } from '@secretlint/secretlint-rule-preset-recommend';
 import type { SecretLintCoreConfig } from '@secretlint/types';
+
 import {
   type PayloadFile,
   type SecretFinding,
   type SecretScanner,
-} from '@usetheo/skills';
+} from '../index.js';
 
 // @secretlint/core expects flat rule descriptors `{ id, rule: <creator> }` in
 // config.rules (preset expansion is the config-loader's job, which we bypass).

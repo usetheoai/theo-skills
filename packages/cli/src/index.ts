@@ -3,7 +3,7 @@ import { argv } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
 import { type SkillValidationDeps } from '@usetheo/skills';
-import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills-api/validators';
+import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills/validators';
 
 import { CliUsageError, HELP_TEXT, parseCliArgs, resolveArgs } from './args.js';
 import { runInit } from './commands/init.js';

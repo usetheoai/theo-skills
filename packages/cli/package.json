@@ -1,7 +1,6 @@
 {
   "name": "@usetheo/skills-cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "bin": {
     "theoskill": "./dist/index.js"
@@ -25,5 +24,21 @@
     "typescript": "^5.4.0",
     "vitest": "^4.0.0",
     "@types/yauzl": "^2.10.3"
+  },
+  "description": "CLI do theo-skills \u2014 publicar, instalar e atualizar skills de agentes.",
+  "license": "Apache-2.0",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheoai/theo-skills.git",
+    "directory": "packages/cli"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
