@@ -422,17 +422,17 @@ porque publicar injeta código executável no runtime de outros agentes.
 
 ---
 
-### M14 — [ ] Visibilidade e catálogo público curado
+### M14 — [x] Visibilidade e catálogo público curado
 
 **Objective:** Resolver o cold start — um tenant novo com catálogo vazio tem busca
 semântica sem valor no dia 1 — sem abrir o acervo de todo mundo.
 
 **Definition of done:**
 
-- [ ] Campo de visibilidade por skill: `private` (workspace) · `shared` (organização) · `public` (catálogo curado).
-- [ ] `GET /v1/skills:retrieve` busca na **união** `minhas + públicas`, e cada resultado declara sua origem; nenhuma skill `private` de outro workspace aparece jamais.
-- [ ] Skill `public` carrega **proveniência** (workspace e principal que publicou) e integridade verificável (`content_hash` já existe); há caminho de **revogação** que remove a skill do retrieve de todos os tenants.
-- [ ] Promover a `public` é ação de `admin`, auditada, e reversível.
+- [x] Campo de visibilidade por skill: `private` (workspace) · `shared` (organização) · `public` (catálogo curado).
+- [x] `GET /v1/skills:retrieve` busca na **união** `minhas + públicas`, e cada resultado declara sua origem; nenhuma skill `private` de outro workspace aparece jamais.
+- [x] Skill `public` carrega **proveniência** (workspace e principal que publicou) e integridade verificável (`content_hash` já existe); há caminho de **revogação** que remove a skill do retrieve de todos os tenants.
+- [x] Promover a `public` é ação de `admin`, auditada, e reversível.
 
 **Dependencies:** M11, M4.
 

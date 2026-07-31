@@ -17,6 +17,14 @@ export interface RetrievedSkill {
   readonly score: number;
   readonly name: string;
   readonly description: string;
+  /**
+   * De onde veio (M14): `own` = do próprio workspace; `public` = do catálogo curado.
+   *
+   * Declarar a origem não é enfeite: uma skill pública é CÓDIGO DE TERCEIRO que o agente
+   * vai carregar. Sem esta marca o consumidor não tem como distinguir o que o próprio time
+   * publicou do que veio de fora — e essa é a decisão que ele precisa tomar.
+   */
+  readonly origin?: 'own' | 'public';
 }
 
 /** Strategy-agnostic retriever. */

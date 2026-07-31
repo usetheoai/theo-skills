@@ -75,6 +75,15 @@ export const skills = pgTable(
     // M4: denormalized lexical text (name + description + current SKILL.md body),
     // maintained synchronously by skills-store on every write path.
     searchText: text('search_text').notNull().default(''),
+    /**
+     * Visibilidade (M14): `private` (só o workspace) · `shared` (organização) · `public`
+     * (catálogo curado). Default `private` — a visibilidade só aumenta por ação explícita,
+     * nunca por omissão de configuração.
+     */
+    visibility: text('visibility').notNull().default('private'),
+    /** Quem promoveu a `public`, e quando — proveniência exigida pelo DoD. */
+    publishedBy: text('published_by'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
     // M4: generated FTS vector over search_text; GIN-indexed for hybrid retrieve.
     searchTsv: tsvector('search_tsv').generatedAlwaysAs(sql`to_tsvector('english', search_text)`),
     createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
