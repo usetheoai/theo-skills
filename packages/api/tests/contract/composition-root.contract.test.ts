@@ -75,3 +75,20 @@ describe('resolveAppOptionsFromEnv', () => {
     expect(o.distribution).toEqual({ defaultQuota: 500, windowMs: 60000 });
   });
 });
+
+describe('resolveAppOptionsFromEnv — credencial de plataforma (M22)', () => {
+  it('ausente = rota de cunhagem NÃO registrada', () => {
+    expect(resolveAppOptionsFromEnv({}).platformAdminKey).toBeUndefined();
+  });
+
+  it('vazia ou só espaços também NÃO registra — fail-closed contra env mal preenchida', () => {
+    // `THEOSKILL_PLATFORM_ADMIN_KEY=` num arquivo de env é o caso comum de "ia configurar e
+    // esqueci". Tratá-la como presente registraria a rota com segredo vazio.
+    expect(resolveAppOptionsFromEnv({ THEOSKILL_PLATFORM_ADMIN_KEY: '' }).platformAdminKey).toBeUndefined();
+    expect(resolveAppOptionsFromEnv({ THEOSKILL_PLATFORM_ADMIN_KEY: '   ' }).platformAdminKey).toBeUndefined();
+  });
+
+  it('presente = registra, com o segredo já sem espaços nas pontas', () => {
+    expect(resolveAppOptionsFromEnv({ THEOSKILL_PLATFORM_ADMIN_KEY: ' seg-redo ' }).platformAdminKey).toBe('seg-redo');
+  });
+});

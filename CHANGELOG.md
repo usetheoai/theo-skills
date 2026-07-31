@@ -7,6 +7,9 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **O control plane passa a poder emitir credenciais do registry para qualquer cliente.** A rota de administração deriva o cliente do próprio chamador e exige que o alvo seja membro dele — é a rota de um humano administrando o próprio time, e o teto de privilégio nasce ali. Não havia caminho para o plano de controle emitir em nome de um cliente qualquer, que é o que o modelo de credencial por cliente exige. Agora existe uma **rota separada**, com **credencial própria**: colapsar os dois casos num só enfraqueceria as checagens de associação e de escalada para um dos caminhos, e uma verificação de segurança com um "a menos que" é a que ninguém audita depois. A credencial de plataforma vive só no plano de controle e **uma chave de usuário comum não a substitui** — se substituísse, qualquer credencial vazada viraria um emissor. Sem a credencial configurada a rota **não existe** (404), porque um serviço que expõe provisionamento por omissão é pior que um que não o expõe: o operador acredita que está desligado. (#M22)
+
 ### Changed
 - **A montagem do servidor passou a resolver os escopos pelo tipo do domínio, sem conversão manual.** O fixture de teste declarava a lista de escopos como texto livre e a convertia na fronteira; agora usa o tipo do contrato diretamente, e o compilador recusa um escopo que não exista. Uma conversão manual num teste de autorização é o ponto exato onde um escopo inventado passaria despercebido — e o teste continuaria verde. Sem mudança de comportamento. (#review-2026-07-31)
 

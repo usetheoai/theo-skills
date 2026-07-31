@@ -48,6 +48,8 @@ import { composeTerminalHooks, registerWorker } from './server/worker.js';
  */
 export interface EnvAppOptions {
   readonly authRequired: boolean;
+  /** Credencial de plataforma (M22). Vazia = rota de cunhagem NÃO registrada. */
+  readonly platformAdminKey?: string;
   readonly rateLimit?: { readonly read: number; readonly write: number; readonly windowMs: number };
   readonly distribution?: { readonly defaultQuota: number; readonly windowMs: number };
 }
@@ -73,8 +75,14 @@ export function resolveAppOptionsFromEnv(env: Record<string, string | undefined>
       ? { defaultQuota: quota, windowMs: Number(env['THEOSKILL_DISTRIBUTION_WINDOW_MS'] ?? '60000') }
       : undefined;
 
+  // A credencial de plataforma NÃO tem default: ou o operador a provisiona, ou a rota
+  // de cunhagem não existe. Um valor embutido seria um segredo compartilhado por toda
+  // instalação — o pior tipo, porque parece configurado.
+  const platformAdminKey = (env['THEOSKILL_PLATFORM_ADMIN_KEY'] ?? '').trim();
+
   return {
     authRequired,
+    ...(platformAdminKey !== '' ? { platformAdminKey } : {}),
     ...(rateLimit !== undefined ? { rateLimit } : {}),
     ...(distribution !== undefined ? { distribution } : {}),
   };
@@ -174,6 +182,7 @@ async function main(): Promise<void> {
       auth_required: envOpts.authRequired,
       rate_limit: envOpts.rateLimit !== undefined,
       distribution: envOpts.distribution !== undefined,
+      platform_mint: envOpts.platformAdminKey !== undefined,
     },
     envOpts.authRequired
       ? 'auth ATIVA — credencial obrigatória em toda rota exceto /v1/health e /v1/version'
@@ -187,6 +196,7 @@ async function main(): Promise<void> {
     ...(authVerifier !== undefined ? { authVerifier } : {}),
     ...(envOpts.rateLimit !== undefined ? { rateLimit: envOpts.rateLimit } : {}),
     ...(envOpts.distribution !== undefined ? { distribution: envOpts.distribution } : {}),
+    ...(envOpts.platformAdminKey !== undefined ? { platformAdminKey: envOpts.platformAdminKey } : {}),
   });
   const server = serve({ fetch: app.fetch, port }, (info) => {
     logger.info({ port: info.port }, '@usetheo/skills-api listening');
