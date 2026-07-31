@@ -1,3 +1,4 @@
+import { type AuthVerifier } from '@usetheo/skills';
 import {
   DEFAULT_PRINCIPAL,
   type EmbeddingProvider,
@@ -9,6 +10,7 @@ import { Hono, type Context } from 'hono';
 import { type Pool } from 'pg';
 import type PgBoss from 'pg-boss';
 
+import { createAuthMiddleware } from './auth/middleware.js';
 import { createDb } from './db.js';
 import { registerHealthRoutes } from './handlers/health.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
@@ -55,6 +57,16 @@ export interface CreateAppOptions {
    * Os testes injetam resolvers distintos para provar isolamento SEM abrir essa porta.
    */
   readonly principalResolver?: (c: Context<AppEnv>) => Principal;
+  /**
+   * Verificador de credencial (M12). Quando presente, o middleware de auth substitui o
+   * `principalResolver` e passa a governar a fronteira: `401` sem credencial válida,
+   * `403` com scope insuficiente, `503` quando o backend cai.
+   *
+   * Ausente = BRIDGE LEGADO: toda requisição colapsa no workspace `default`. É o estado
+   * de hoje, preservado de propósito para o M12 entrar sem quebrar quem já consome a API
+   * — e o `SECURITY.md` continua declarando que o serviço não deve ser exposto assim.
+   */
+  readonly authVerifier?: AuthVerifier;
 }
 
 /** Build the Hono app with injected dependencies (DIP, ADR-3). */
@@ -68,10 +80,33 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     return c.json({ error: 'internal_error' }, 500);
   });
 
+  // ROTAS PÚBLICAS — registradas ANTES do middleware de auth de propósito.
+  //
+  // No Hono um middleware só alcança as rotas registradas DEPOIS dele, então a ordem aqui
+  // É o mecanismo, não convenção. `/v1/health` e `/v1/version` ficam abertos porque atrás
+  // de credencial "o serviço caiu" e "minha credencial está errada" produzem a mesma
+  // resposta, e quem monitora não consegue separar os dois. O painel /status do TheoCloud e
+  // o reconciliador do dev host leem exatamente `/v1/version` sem credencial alguma —
+  // fechá-los quebraria a observabilidade da frota inteira, e foi o que um teste de wiring
+  // pegou antes de virar incidente.
+  registerHealthRoutes(app);
+  registerVersionRoutes(app);
+
   // O Principal e resolvido UMA vez por requisicao e carregado no contexto; os stores sao
   // construidos JA ESCOPADOS a ele. Nenhum handler recebe um store global.
+  // Com verificador, a fronteira é o middleware de auth — ele resolve o Principal a partir
+  // da CREDENCIAL, que é a única origem admissível do tenant (M11 DoD #1 + M12 DoD #3).
+  if (opts.authVerifier !== undefined) {
+    app.use('*', createAuthMiddleware({ verifier: opts.authVerifier, authRequired: true }));
+  }
+
   const resolvePrincipal = opts.principalResolver ?? ((): Principal => DEFAULT_PRINCIPAL);
   app.use('*', async (c, next) => {
+    // Já autenticado pelo middleware acima: não sobrescrever o Principal da credencial.
+    if (opts.authVerifier !== undefined) {
+      await next();
+      return;
+    }
     // O middleware `*` do Hono entrega um Context com path genérico; o resolver declara o
     // Context tipado do app. São o mesmo objeto em runtime — o estreitamento explícito evita
     // que a diferença de assinatura vire `any` implícito.
@@ -79,8 +114,6 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     await next();
   });
 
-  registerHealthRoutes(app);
-  registerVersionRoutes(app);
   registerSkillsRoutes(app, {
     skillsStoreFor: (ws: string) => createSkillsStore(db, ws),
     revisionsStoreFor: (ws: string) => createRevisionsStore(db, ws),
