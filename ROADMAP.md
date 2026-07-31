@@ -665,18 +665,18 @@ corpo dela do servidor, sem nada em disco.
 
 ---
 
-### M25 — [ ] Servidor de descoberta (MCP)
+### M25 — [x] Servidor de descoberta (MCP) (2026-07-31)
 
 **Objective:** Transformar os descritores de ferramenta numa coisa a que um agente consiga
 conectar — o *discover server*.
 
 **Definition of done:**
 
-- [ ] `packages/mcp` ganha `bin`, transporte e a dependência de MCP. Hoje se descreve como "Servidor MCP" e **não contém servidor**: sem `bin`, sem transporte, sem dependência — nenhum agente conecta.
-- [ ] Handshake MCP real exercitado em teste, não um duplo: um teste que só chama as funções internas provaria a biblioteca, não o servidor.
-- [ ] As três ferramentas expõem `category` e `execution` no resultado, e aceitam filtro por categoria.
-- [ ] O cliente **nunca** é argumento de ferramenta — vem da credencial do servidor. Já há teste que reprova quem adicionar esse parâmetro; ele passa a valer também no servidor.
-- [ ] Registrado no `theo-traefik-mcp` como endpoint por tenant, ou declarado explicitamente por que não.
+- [x] `packages/mcp` ganha `bin`, transporte stdio e a dependência de MCP. Hoje se descreve como "Servidor MCP" e **não contém servidor**: sem `bin`, sem transporte, sem dependência — nenhum agente conecta.
+- [x] Handshake MCP real exercitado em teste pelo cliente oficial, e com o binário em processo separado —, não um duplo: um teste que só chama as funções internas provaria a biblioteca, não o servidor.
+- [x] São QUATRO ferramentas — `load_skill` entrou junto (a carga do M24). Expõem `category` e `execution`, e `search_skills` aceita filtro por categoria.
+- [x] O cliente **nunca** é argumento de ferramenta — verificado no binário, não só no teste: — vem da credencial do servidor. Já há teste que reprova quem adicionar esse parâmetro; ele passa a valer também no servidor.
+- [~] **NÃO registrado no `theo-traefik-mcp`, e declarado como tal**: o transporte entregue é stdio, que o agente hospeda como processo local — o edge MCP serve transporte HTTP por tenant, que é outra decisão de produto. Fica para um milestone próprio, com o modelo de autenticação que ele exige.
 
 **Dependencies:** M24.
 
