@@ -24,6 +24,18 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
       const b = new ParamBuilder();
       const vecPh = b.bind(`[${vec.join(',')}]`);
       const wsPh = b.bind(deps.workspaceId);
+      // O ESPAÇO VETORIAL É PARTE DA CHAVE DE BUSCA.
+      //
+      // A consulta foi embutida pelo provider ATIVO; comparar o vetor resultante com um
+      // gravado por outro modelo não é aproximação ruim, é operação sem significado — as
+      // dimensões não representam as mesmas coisas.
+      //
+      // O upsert é chaveado por `(revisão, provider, model)`, então trocar de provider NÃO
+      // substitui o vetor antigo: ele fica na tabela. Sem este filtro a mesma skill entra
+      // duas vezes na busca, e a linha sem sentido pode ganhar da certa com um score que
+      // parece legítimo. Medido ao ligar o provider real: as linhas de `stub` permaneceram.
+      const providerPh = b.bind(deps.embedder.provider);
+      const modelPh = b.bind(deps.embedder.model);
       const limitPh = b.bind(params.topK);
       // O JOIN carrega `workspace_id` por NECESSIDADE, não por simetria: desde que a PK
       // de `skills` virou composta `(workspace_id, skill_id)`, o `skill_id` deixou de ser
@@ -38,6 +50,8 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
           ON s.workspace_id = e.workspace_id
          AND s.skill_id = e.skill_id
          AND e.revision_id = s.latest_revision_id
+         AND e.provider = ${providerPh}
+         AND e.model = ${modelPh}
         WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public') AND s.deleted_at IS NULL
         ORDER BY e.vector <=> ${vecPh}::vector ASC, s.skill_id ASC
         LIMIT ${limitPh}
