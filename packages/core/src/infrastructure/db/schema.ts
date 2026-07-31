@@ -384,3 +384,30 @@ export const distributionTokens = pgTable(
 export type BundleRow = typeof bundles.$inferSelect;
 export type BundleItemRow = typeof bundleItems.$inferSelect;
 export type DistributionTokenRow = typeof distributionTokens.$inferSelect;
+
+/**
+ * Eventos de instalação (M21) — a telemetria que o publisher pede no primeiro dia.
+ *
+ * Guarda o token por **id**, NUNCA o valor: um evento com o segredo dentro transformaria a
+ * tabela de telemetria numa segunda cópia do cofre de credenciais, e telemetria costuma ter
+ * retenção mais longa e acesso mais amplo que credencial.
+ */
+export const installEvents = pgTable(
+  'install_events',
+  {
+    eventId: text('event_id').primaryKey(),
+    /** Publisher dono do bundle — o único que pode ler estes eventos. */
+    workspaceId: text('workspace_id').notNull(),
+    bundleId: text('bundle_id').notNull(),
+    tokenId: text('token_id').notNull(),
+    skillId: text('skill_id').notNull(),
+    revisionId: text('revision_id').notNull(),
+    version: text('version'),
+    createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('install_events_bundle_idx').on(t.workspaceId, t.bundleId, t.createTime),
+  ],
+);
+
+export type InstallEventRow = typeof installEvents.$inferSelect;

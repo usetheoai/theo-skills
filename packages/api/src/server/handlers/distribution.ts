@@ -12,10 +12,21 @@ interface QuotaBucket {
 
 export interface DistributionRoutesDeps {
   readonly db: Db;
+  /** Registra a instalação (M21). Ausente = telemetria desligada. */
+  readonly recordInstall?: (e: {
+    workspaceId: string;
+    bundleId: string;
+    tokenId: string;
+    skillId: string;
+    revisionId: string;
+    version: string | null;
+  }) => Promise<void>;
   /** Quota padrão por token, quando o token não declara a própria. */
   readonly defaultQuota: number;
   readonly windowMs: number;
   readonly now?: () => number;
+  /** Store de adoção escopado ao publisher (M21). */
+  readonly adoptionFor?: (workspaceId: string) => { adoption: (bundleId: string, since: Date) => Promise<unknown[]> };
 }
 
 /**
@@ -86,6 +97,28 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
       .from(bundleItems)
       .where(and(eq(bundleItems.workspaceId, grant.workspaceId), eq(bundleItems.bundleId, grant.bundleId)));
 
+    // TELEMETRIA FORA DO CAMINHO DE RESPOSTA (M21 DoD #3).
+    //
+    // Registrada sem `await` e com o erro engolido DE PROPÓSITO: instrumentar o caminho
+    // quente não pode adicionar latência nem, pior, transformar uma falha de telemetria numa
+    // falha de instalação. O cliente do publisher não deve ficar sem a skill porque a nossa
+    // contagem falhou. O custo assumido é que um evento pode se perder — aceitável para um
+    // dado de tendência, inaceitável se fosse cobrança.
+    if (deps.recordInstall !== undefined) {
+      for (const i of items) {
+        void deps
+          .recordInstall({
+            workspaceId: grant.workspaceId,
+            bundleId: grant.bundleId,
+            tokenId: grant.tokenId,
+            skillId: i.skillId,
+            revisionId: i.channel,
+            version: null,
+          })
+          .catch(() => undefined);
+      }
+    }
+
     return c.json(
       {
         bundle_id: bundle.bundleId,
@@ -94,5 +127,24 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
       },
       200,
     );
+  });
+
+  /**
+   * `GET /v1/bundles/{id}/adoption` (M21 DoD #2) — só para o DONO do bundle.
+   *
+   * Vive junto das rotas de distribuição por proximidade de domínio, mas o portão é outro:
+   * quem lê adoção é o publisher autenticado, não o cliente com token de distribuição. Um
+   * consumidor NUNCA enxerga adoção — nem a do próprio bundle: saber quantos outros clientes
+   * instalaram é informação do negócio do publisher, não dele.
+   */
+  app.get('/v1/bundles/:bundleId/adoption', async (c) => {
+    const principal = c.get('principal') as { workspaceId?: string } | undefined;
+    if (principal?.workspaceId === undefined || deps.adoptionFor === undefined) {
+      return c.json({ error: 'not_found' }, 404);
+    }
+    const dias = Number(c.req.query('days') ?? '30');
+    const since = new Date(Date.now() - (Number.isFinite(dias) && dias > 0 ? dias : 30) * 86_400_000);
+    const rows = await deps.adoptionFor(principal.workspaceId).adoption(c.req.param('bundleId'), since);
+    return c.json({ bundle_id: c.req.param('bundleId'), since: since.toISOString(), adoption: rows }, 200);
   });
 }

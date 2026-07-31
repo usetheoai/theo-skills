@@ -30,6 +30,7 @@ import { type AppEnv } from './principal-context.js';
 import { selectEmbedder } from './providers/embedder-selection.js';
 import { createDispatchingRetriever } from './providers/retriever-selection.js';
 import { createPgExecutor } from './retrieve/pg-executor.js';
+import { createAdoptionStore } from './store/adoption-store.js';
 import { createMembersStore } from './store/members-store.js';
 import { createOperationsStore } from './store/operations-store.js';
 import { createRevisionsStore } from './store/revisions-store.js';
@@ -127,6 +128,8 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
       db,
       defaultQuota: opts.distribution.defaultQuota,
       windowMs: opts.distribution.windowMs,
+      recordInstall: (e) => createAdoptionStore(db, e.workspaceId).record(e),
+      adoptionFor: (ws: string) => createAdoptionStore(db, ws),
     });
   }
 

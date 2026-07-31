@@ -46,3 +46,27 @@ Alvo: **p95 < 200 ms** (`RETRIEVE_SLO_P95_MS` em `packages/api/src/server/observ
 Verificável em runtime via `checkRetrieveSlo(registry)`, que devolve a violação com o número
 medido — ou `null`. O alarme exige um mínimo de amostras: alarmar sobre três requisições
 produz ruído que treina o time a ignorar o alarme.
+
+## Gatilho de object storage (M21 DoD #4)
+
+O ADR 0005 manteve o payload em `bytea` no Postgres e declarou **gatilhos mensuráveis** para
+revisitar a decisão. Este é o instrumento que os mede:
+
+```bash
+THEOSKILL_PG_URI=… pnpm -C packages/api eval:storage
+```
+
+Ele reporta p90 do payload, acervo total, instalações/dia e bytes servidos/dia — e sai com
+código 1 quando o gatilho de **p90 > 10 MB** é atingido, para que o CI possa transformar isso
+num alarme em vez de numa leitura que alguém talvez faça.
+
+### Estado em 2026-07-31
+
+**Não mensurável ainda.** O serviço não tem acervo de produção, e o script **se recusa a
+projetar um número** nessa condição — inventar uma estimativa aqui seria exatamente a
+"estimativa apresentada como medição" que o ADR proíbe.
+
+O que se sabe hoje vem de fora, e está declarado como tal: as skills públicas de referência
+(`anthropic-skills`, `cat-agent-skills`, 78 skills medidas) têm **p50 de 32–72 KB e p90 de
+140 KB–1.2 MB**. Isso sugere, sem provar, que o gatilho de 10 MB está longe. A decisão será
+revisitada com o número do próprio acervo quando ele existir — não com este.

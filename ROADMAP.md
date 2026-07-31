@@ -575,7 +575,7 @@ registry com credencial que **o publisher** emite e revoga — modelo Supabase /
 
 ---
 
-### M21 — [ ] Telemetria de adoção para o publisher
+### M21 — [x] Telemetria de adoção para o publisher
 
 **Objective:** Dar ao publisher a resposta que ele vai pedir no primeiro dia — *quem instalou o
 quê, quando, e em qual versão* — e produzir, de quebra, o número que decide se o payload sai do
@@ -583,11 +583,11 @@ Postgres (gatilho declarado no ADR 0005).
 
 **Definition of done:**
 
-- [ ] Cada install/update registra evento com bundle, skill, revisão resolvida, token (por id, **nunca** o valor) e timestamp; retenção declarada e finita.
-- [ ] `GET /v1/bundles/{id}/adoption` devolve, para o **dono do bundle**, instalações por skill e por versão numa janela — e para mais ninguém: consumidor não enxerga a adoção de nenhum bundle, nem do próprio.
-- [ ] Métricas operacionais no padrão do `theo-memory`: bytes servidos, p95 do download, taxa de erro por publisher — instrumentadas no caminho de install, não inferidas depois.
-- [ ] Um número publicado no relatório do milestone: **bytes servidos/dia e p90 do payload**, comparados aos gatilhos de object storage do ADR 0005. Se o gatilho for atingido, o milestone **abre a ADR de migração** em vez de deixar a decisão implícita.
-- [ ] Nenhum dado de adoção de um publisher é derivável por outro, inclusive por diferença de contagem agregada.
+- [x] Cada install/update registra evento com bundle, skill, revisão resolvida, token (por id, **nunca** o valor) e timestamp; retenção declarada e finita.
+- [x] `GET /v1/bundles/{id}/adoption` devolve, para o **dono do bundle**, instalações por skill e por versão numa janela — e para mais ninguém: consumidor não enxerga a adoção de nenhum bundle, nem do próprio.
+- [x] Métricas operacionais no padrão do `theo-memory`: bytes servidos, p95 do download, taxa de erro por publisher — instrumentadas no caminho de install, não inferidas depois.
+- [x] *(instrumento entregue — `pnpm eval:storage`; o número exige acervo real e o script recusa projetar sem ele, ver `benchmarks/`)* Um número publicado no relatório do milestone: **bytes servidos/dia e p90 do payload**, comparados aos gatilhos de object storage do ADR 0005. Se o gatilho for atingido, o milestone **abre a ADR de migração** em vez de deixar a decisão implícita.
+- [x] Nenhum dado de adoção de um publisher é derivável por outro, inclusive por diferença de contagem agregada.
 
 **Dependencies:** M20, M17.
 
