@@ -529,7 +529,7 @@ M11–M17 constroem uma plataforma que o consumidor não alcança.
 
 ---
 
-### M19 — [ ] Canais e versionamento para o consumidor
+### M19 — [x] Canais e versionamento para o consumidor
 
 **Objective:** Dar ao consumidor uma referência **estável** em vez de um id de revisão. Sem
 canais, o cliente do nosso cliente precisa saber qual revisão quer — e o publisher não tem como
@@ -537,11 +537,11 @@ promover uma correção sem avisar cada um individualmente.
 
 **Definition of done:**
 
-- [ ] Revisões ganham versão semântica declarada no `SKILL.md`; o registry recusa publicar versão que retroceda ou colida com uma já existente na mesma skill.
-- [ ] Canais mutáveis por skill (`stable`, `beta`, e nomeados pelo publisher) apontam para uma revisão; promover um canal é operação auditada e **reversível** para a revisão anterior.
-- [ ] `theoskill install <skill>@stable` e `@^1.2.0` resolvem no servidor, não no cliente — o cliente não escolhe entre revisões, ele declara intenção.
-- [ ] `theoskill update` respeita o canal declarado no metadado de instalação e mostra o diff de versão antes de sobrescrever.
-- [ ] Revisão referenciada por um canal **não pode ser apagada** enquanto o canal apontar para ela.
+- [x] Revisões ganham versão semântica declarada no `SKILL.md`; o registry recusa publicar versão que retroceda ou colida com uma já existente na mesma skill.
+- [x] Canais mutáveis por skill (`stable`, `beta`, e nomeados pelo publisher) apontam para uma revisão; promover um canal é operação auditada e **reversível** para a revisão anterior.
+- [x] `theoskill install <skill>@stable` e `@^1.2.0` resolvem no servidor, não no cliente — o cliente não escolhe entre revisões, ele declara intenção.
+- [x] `theoskill update` respeita o canal declarado no metadado de instalação e mostra o diff de versão antes de sobrescrever.
+- [x] Revisão referenciada por um canal **não pode ser apagada** enquanto o canal apontar para ela.
 
 **Dependencies:** M18.
 

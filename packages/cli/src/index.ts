@@ -10,6 +10,7 @@ import { runInit } from './commands/init.js';
 import { runInstall } from './commands/install.js';
 import { runPublish } from './commands/publish.js';
 import { runRead } from './commands/read.js';
+import { runUpdate } from './commands/update.js';
 import { runValidate } from './commands/validate.js';
 import { loadConfig } from './config.js';
 
@@ -53,7 +54,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         return 2;
       }
       if (args.path === undefined) {
-        out('usage: theoskill install <skill-id> [--global]');
+        out('usage: theoskill install <skill-id> [--global]\n  theoskill update <nome> [--apply] [--global]');
         return 2;
       }
       // O extrator real usa `yauzl`, que já é dependência do produto (validador de payload) —
@@ -66,6 +67,23 @@ export async function main(argv: readonly string[]): Promise<number> {
         extract: extractZipTo,
         ...(args.auth !== undefined ? { auth: args.auth } : {}),
         ...(args.global === true ? { global: true } : {}),
+      });
+    }
+    case 'update': {
+      if (args.path === undefined) {
+        out('usage: theoskill update <nome> [--apply] [--global]');
+        return 2;
+      }
+      const { extractZipTo } = await import('./commands/extract-zip.js');
+      return runUpdate(args.path, {
+        out,
+        fetch: globalThis.fetch,
+        // O registry efetivo vem da PROCEDÊNCIA da instalação; este é só o fallback do tipo.
+        registry: args.registry ?? '',
+        extract: extractZipTo,
+        ...(args.auth !== undefined ? { auth: args.auth } : {}),
+        ...(args.global === true ? { global: true } : {}),
+        ...(args.apply === true ? { apply: true } : {}),
       });
     }
     case 'get':
