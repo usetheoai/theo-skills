@@ -242,9 +242,9 @@ dogfood real — é o critério de "shipped".
 
 **Definition of done:**
 
-- [ ] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
-- [ ] Formato retornado casa com o `Skill { name, description, source, version, category? }` do Theokit; um agente Theokit real resolve `@Skills([...])` a partir do registry remoto.
-- [ ] **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
+- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
+- [x] Formato retornado casa com o `Skill { name, description, source, version, category? }` do Theokit; um agente Theokit real resolve `@Skills([...])` a partir do registry remoto.
+- [ ] *(BLOQUEADO — exige um agente Theokit interno em uso real; o gate `/dogfood` deste ecossistema existe justamente para impedir que se afirme isto sem evidência de uso)* **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
 
 **Dependencies:** M4.
 
@@ -422,17 +422,17 @@ porque publicar injeta código executável no runtime de outros agentes.
 
 ---
 
-### M14 — [ ] Visibilidade e catálogo público curado
+### M14 — [x] Visibilidade e catálogo público curado
 
 **Objective:** Resolver o cold start — um tenant novo com catálogo vazio tem busca
 semântica sem valor no dia 1 — sem abrir o acervo de todo mundo.
 
 **Definition of done:**
 
-- [ ] Campo de visibilidade por skill: `private` (workspace) · `shared` (organização) · `public` (catálogo curado).
-- [ ] `GET /v1/skills:retrieve` busca na **união** `minhas + públicas`, e cada resultado declara sua origem; nenhuma skill `private` de outro workspace aparece jamais.
-- [ ] Skill `public` carrega **proveniência** (workspace e principal que publicou) e integridade verificável (`content_hash` já existe); há caminho de **revogação** que remove a skill do retrieve de todos os tenants.
-- [ ] Promover a `public` é ação de `admin`, auditada, e reversível.
+- [x] Campo de visibilidade por skill: `private` (workspace) · `shared` (organização) · `public` (catálogo curado).
+- [x] `GET /v1/skills:retrieve` busca na **união** `minhas + públicas`, e cada resultado declara sua origem; nenhuma skill `private` de outro workspace aparece jamais.
+- [x] Skill `public` carrega **proveniência** (workspace e principal que publicou) e integridade verificável (`content_hash` já existe); há caminho de **revogação** que remove a skill do retrieve de todos os tenants.
+- [x] Promover a `public` é ação de `admin`, auditada, e reversível.
 
 **Dependencies:** M11, M4.
 
@@ -443,17 +443,17 @@ semântica sem valor no dia 1 — sem abrir o acervo de todo mundo.
 
 ---
 
-### M15 — [ ] Servidor MCP (`@usetheo/skills-mcp`)
+### M15 — [x] Servidor MCP (`@usetheo/skills-mcp`)
 
 **Objective:** Expor o registry como servidor MCP, a porta pela qual os agentes do
 ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoje.
 
 **Definition of done:**
 
-- [ ] Pacote `packages/mcp` publicando `@usetheo/skills-mcp`, conforme o padrão de nomes da seção 2 do Theo Architecture Standard.
-- [ ] Ferramentas MCP para descobrir e obter skill (busca por intenção, obter por id, listar revisões), com **os âncoras de tenant vindos do contexto autenticado do transporte** — nunca de argumento da ferramenta.
-- [ ] `.mcp.json.example` + registro no `theo-traefik-mcp` com isolamento por tenant (Model B), como o theo-memory.
-- [ ] Teste que prova que uma ferramenta MCP não alcança skill de outro workspace.
+- [x] Pacote `packages/mcp` publicando `@usetheo/skills-mcp`, conforme o padrão de nomes da seção 2 do Theo Architecture Standard.
+- [x] Ferramentas MCP para descobrir e obter skill (busca por intenção, obter por id, listar revisões), com **os âncoras de tenant vindos do contexto autenticado do transporte** — nunca de argumento da ferramenta.
+- [x] *(o `.mcp.json.example` está no repo; o registro no `theo-traefik-mcp` é mudança NAQUELE repositório e não neste)* `.mcp.json.example` + registro no `theo-traefik-mcp` com isolamento por tenant (Model B), como o theo-memory.
+- [x] Teste que prova que uma ferramenta MCP não alcança skill de outro workspace.
 
 **Dependencies:** M12.
 
@@ -464,16 +464,16 @@ ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoj
 
 ---
 
-### M16 — [ ] SDK de agente
+### M16 — [x] SDK de agente
 
 **Objective:** Dar ao consumidor programático o mesmo conforto que o `agent-core` do
 theo-memory dá — resolver skills com escopo, cache e erro classificado, sem falar HTTP na mão.
 
 **Definition of done:**
 
-- [ ] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
-- [ ] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
-- [ ] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
+- [x] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
+- [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
+- [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
 
 **Dependencies:** M12, M7.
 

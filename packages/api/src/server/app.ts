@@ -22,6 +22,7 @@ import { registerOperationsRoutes } from './handlers/operations.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
+import { registerVisibilityRoutes } from './handlers/visibility.js';
 import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
 import { createRateLimiter, type RateLimitConfig } from './middleware/rate-limit.js';
@@ -182,6 +183,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   registerOperationsRoutes(app, { operationsStoreFor: (ws: string) => createOperationsStore(db, ws) });
   registerMembersRoutes(app, { membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   registerAdminKeysRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
+  registerVisibilityRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   registerWebhookEndpointRoutes(app, {
     endpointsStoreFor: (ws: string) => createWebhookEndpointsStore(db, ws),
     logger,

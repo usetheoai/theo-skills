@@ -5,6 +5,8 @@ interface Row {
   name: string;
   description: string;
   score: number | string;
+  /** `own` | `public` (M14) — ausente nos retrievers que ainda não a projetam. */
+  origin?: string;
 }
 
 /**
@@ -28,6 +30,10 @@ export async function runRetrieveQuery(
     skill_id: r.skill_id,
     name: r.name,
     description: r.description,
+    // A origem só entra quando a consulta a projeta — o híbrido combina resultados de dois
+    // retrievers, e forçar um default aqui inventaria procedência para uma linha que não a
+    // declarou.
+    ...(r.origin === 'own' || r.origin === 'public' ? { origin: r.origin } : {}),
     score: Number(r.score),
   }));
 }

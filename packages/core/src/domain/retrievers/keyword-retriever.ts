@@ -29,13 +29,19 @@ export function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriev
       const wsPh = b.bind(deps.workspaceId);
       const limitPh = b.bind(params.topK);
       const tsQuery = `to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', ${queryPh})), ' | '))`;
-      // `workspace_id` PRIMEIRO no WHERE — mesma convenção dos stores e do theo-memory:
-      // o predicado mais seletivo à frente, e o isolamento visível na primeira linha
-      // em vez de escondido no fim de uma cláusula longa.
+      // UNIÃO `minhas + públicas` (M14 DoD #2), e nada mais.
+      //
+      // A cláusula é `workspace_id = $ws OR visibility = 'public'` — repare no que ELA NÃO
+      // permite: uma skill `private` de outro workspace não satisfaz nenhum dos dois lados,
+      // e `shared` também não (organização é escopo que ainda não existe no dado). O
+      // resultado declara a ORIGEM de cada linha, porque sem isso o consumidor não sabe se
+      // está prestes a instalar código do próprio time ou de um terceiro.
       const sql = `
-        SELECT s.skill_id, s.name, s.description, ts_rank(s.search_tsv, ${tsQuery}) AS score
+        SELECT s.skill_id, s.name, s.description, ts_rank(s.search_tsv, ${tsQuery}) AS score,
+               CASE WHEN s.workspace_id = ${wsPh} THEN 'own' ELSE 'public' END AS origin
         FROM skills s
-        WHERE s.workspace_id = ${wsPh} AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}
+        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public')
+          AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}
         ORDER BY score DESC, s.skill_id ASC
         LIMIT ${limitPh}
       `;
