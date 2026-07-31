@@ -1,0 +1,44 @@
+/* Entrada canônica do design system.
+ *
+ * O dashboard (cloud/dashboard/src/index.css) VENDORIZA estes token layers porque
+ * `@usetheo/ui@0.22+` deixou de publicá-los. Aqui eles vêm direto do pacote irmão
+ * `@theokit/ui@1.3.2`, que os exporta — verificado por diff em 2026-07-30:
+ *   - tokens-v4.css  idêntico ao vendorizado
+ *   - tokens.css     idêntico exceto `--input: oklch(0.34)` (borda perceptível),
+ *                    que é justamente a correção que o dashboard aplicou à mão
+ * Sem cópia, portanto, e um layer a menos para envelhecer.
+ *
+ * `fonts.css` é o entrypoint SELF-HOSTED (default do design system). O
+ * `fonts-cdn.css` puxaria o Geist do Google — request de terceiro em toda carga
+ * e, num arquivo importado depois de regras, o `@import url()` é descartado.
+ *
+ * Ordem obrigatória: todo @import precede qualquer regra (spec CSS).
+ * `@source` faz o Tailwind varrer os componentes compilados do pacote atrás das
+ * utilities que eles usam — sem isso os composites renderizam sem CSS.
+ */
+@import 'tailwindcss';
+@import '@theokit/ui/fonts.css';
+@import '@theokit/ui/tokens.css';
+@import '@theokit/ui/tokens-v4.css';
+@source '../node_modules/@usetheo/ui/dist';
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  body {
+    /* Tokens são oklch — referenciar direto (hsl(var(--…)) é inválido e derruba
+     * a declaração). Mesmo motivo documentado no index.css do dashboard. */
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings:
+      'liga' 1,
+      'ss01' 1;
+  }
+
+  /* Tailwind v4 removeu a regra de preflight do v3: sem isto todo <button>
+   * nativo fica com cursor de seta e parece morto. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}

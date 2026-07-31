@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { type WebhookPayload } from '@usetheo/skillregistry/contract';
+import { type WebhookPayload } from '@usetheo/skills/contract';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from '../logger.js';

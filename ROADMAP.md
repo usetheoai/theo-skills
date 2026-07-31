@@ -209,7 +209,13 @@ capacidade que o Google não tem.
 
 ---
 
-### M6 — [ ] RBAC granular por skill
+### M6 — [~] RBAC granular por skill — SUPERSEDED por M13 (2026-07-30)
+
+> **Substituído.** O DoD abaixo é entregue por **M13 — RBAC + membros**, que implementa o
+> modelo completo do `theo-memory` (papéis `owner`/`admin`/`member`, last-owner invariant,
+> anti-escalation) em vez de um RBAC próprio. Mantido aqui como histórico da intenção
+> original; **não trabalhe neste milestone** — vá para M13. Decisão do owner no grill
+> `knowledge-base/grills/theo-memory-parity-roadmap-grill.md` (Q1).
 
 **Objective:** Controle de acesso por skill (não all-or-nothing por projeto, como no Google),
 com auditoria.
@@ -236,9 +242,9 @@ dogfood real — é o critério de "shipped".
 
 **Definition of done:**
 
-- [ ] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
-- [ ] Formato retornado casa com o `Skill { name, description, source, version, category? }` do Theokit; um agente Theokit real resolve `@Skills([...])` a partir do registry remoto.
-- [ ] **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
+- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
+- [x] *(o contrato do ROADMAP estava DESATUALIZADO: o `@theokit/sdk` 4.36.0 aceita `CreateSkillSpec { name, description, instructions, category?, dependencies?, references? }` — **sem `source`, sem `version`, e com `instructions` obrigatório**. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no `toTheokit`)* Formato retornado casa com o `CreateSkillSpec` do Theokit; provado contra o `Skill.create` real.
+- [ ] *(BLOQUEADO — exige um agente Theokit interno em uso real; o gate `/dogfood` deste ecossistema existe justamente para impedir que se afirme isto sem evidência de uso)* **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
 
 **Dependencies:** M4.
 
@@ -249,7 +255,12 @@ dogfood real — é o critério de "shipped".
 
 ---
 
-### M8 — [ ] Hardening + observabilidade por skill
+### M8 — [~] Hardening + observabilidade por skill — SUPERSEDED por M17 (2026-07-30)
+
+> **Substituído.** O DoD abaixo é entregue por **M17 — Hardening, observabilidade e E2E**,
+> que adota o middleware OTel e o rate limiting do `theo-memory` em vez de instrumentação
+> própria. Mantido como histórico; **não trabalhe neste milestone** — vá para M17. Decisão
+> do owner no grill `knowledge-base/grills/theo-memory-parity-roadmap-grill.md` (Q1).
 
 **Objective:** Levar o V1 a qualidade de produção: observabilidade por skill, rate limiting,
 SLO e cobertura E2E.
@@ -295,9 +306,444 @@ owner como "todos os 7 gaps num milestone", ciente da sobreposição com M8 (tra
 
 ---
 
+## Fase 2 — Paridade com o Theo Architecture Standard (M10–M17)
+
+> **Por que existe.** `theo-memory/docs/ARCHITECTURE.md` se declara *"Theo Architecture
+> Standard — canonical reference for every project in the Theo ecosystem. All repos MUST
+> conform."* O theo-skills conforma no layout (`contract`/`domain`/`infrastructure`), nos
+> nomes de pacote e no tooling — e **não conforma** em CI, auth, multi-tenancy, RBAC,
+> observabilidade, MCP, SDK e prontidão OSS. Esta fase fecha esse gap e transforma o
+> registry num serviço SaaS multi-tenant do ecossistema, ao lado do theo-memory.
+>
+> **A referência normativa é o código do `theo-memory`, não este documento.** Onde os dois
+> divergirem, o theo-memory vence e este roadmap é corrigido.
+>
+> Origem: `knowledge-base/grills/theo-memory-parity-roadmap-grill.md` (2026-07-30).
+> **M6 e M8 foram absorvidos** por M13 e M17 respectivamente.
+
+### Invariantes herdados (valem para M11–M17, não se renegociam por milestone)
+
+Lidos no código do theo-memory; qualquer milestone abaixo que os viole está errado:
+
+1. **O `Principal` vem da credencial, nunca do corpo da requisição.**
+2. **`workspace_id` denormalizado** em toda tabela consultada diretamente, **primeiro no `WHERE`**; índices únicos lideram por ele.
+3. **Cross-tenant é `404`, nunca `403`** — negar revela existência; a linha tem de ser invisível.
+4. **Default-deny de papel** — credencial sem membership resolve para o menor privilégio, jamais para `owner`.
+5. **Fail-closed** — erro no backend de auth devolve `503`, nunca um default privilegiado.
+6. **Legacy bridge** — sem credencial, tudo colapsa no workspace `default`, e a instalação single-tenant continua funcionando.
+7. **Isolamento provado por teste de integração contra Postgres real**, como hard gate — não por mock.
+
+---
+
+### M10 — [x] CI/CD, supply chain e prontidão OSS
+
+**Objective:** Dar ao repositório a rede de proteção que ele não tem — hoje são **zero
+workflows** — e a papelada mínima para poder ser aberto, espelhando os 8 workflows do
+theo-memory.
+
+**Definition of done:**
+
+- [ ] Workflows espelhados do theo-memory: `ci` (lint · build · typecheck), `integration`, `security-sast`, `actionlint`, `publish` (imagem em GHCR assinada com cosign). **`Build` roda ANTES de `Lint`** — as regras `no-unsafe-*` são type-aware e, sem `dist/`, acusam erro em código intocado.
+- [ ] `Dockerfile` multi-stage na raiz + `vitest.e2e.config.ts` (o README já promete E2E que não existe).
+- [ ] `LICENSE`, `SECURITY.md`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` presentes; `pnpm audit` e `gitleaks` verdes no CI.
+- [ ] Um PR de teste falha o merge quando um teste quebra — a rede é provada, não presumida.
+
+**Dependencies:** none (é a base para tudo que vem depois).
+
+**Top risks:**
+
+1. **Blacksmith exige organização.** O repo está em `usetheodev` (conta pessoal); a frota `blacksmith-*` só serve repos de organização. Aplicar a label antes de transferir deixa o job **`queued` para sempre, sem erro**. Mitigação: usar a frota padrão do GitHub até a transferência para `usetheoai`, e seguir o runbook do umbrella.
+2. **Reusable `build-publish.yml` vive em `usetheodev/theo`** (privado, outro dono). O GitHub só compartilha reusable privado dentro do mesmo dono. Mitigação: vendorizar com teste que trave a volta ao reusable, como o theo-memory fez.
+
+---
+
+### M11 — [x] Isolamento por workspace (multi-tenancy)
+
+**Objective:** Tornar o registry multi-tenant no dado, adotando o `Principal` e o
+`workspace_id` denormalizado do theo-memory.
+
+**Definition of done:**
+
+- [x] `Principal { workspaceId, userId, role, scopes }` resolvido na fronteira; nenhum handler lê tenant do corpo.
+- [x] `workspace_id` em `skills`, `skill_revisions`, `embeddings`, `operations`, `webhook_endpoints`, `webhook_deliveries`, primeiro em todo `WHERE`.
+- [x] **`skillId` deixa de ser PK global** (`schema.ts:59`) e vira PK composta `(workspace_id, skill_id)`; a reserva pós-delete passa a ser por workspace. Migration com dados existentes colapsados no workspace `default`.
+- [x] Acesso cross-tenant devolve `404` em todas as rotas por id — incluindo revisões e operações.
+- [x] Teste de integração contra `ankane/pgvector` real prova que o workspace B não lê nada do A, nem por id direto, nem pelo retrieve.
+
+**Dependencies:** M10.
+
+**Top risks:**
+
+1. **Busca vetorial com filtro de tenant.** O índice `hnsw (vector_cosine_ops)` é global; filtrar ANN por `workspace_id` é o problema clássico de pre-filter vs post-filter — ou o recall cai, ou o planner abandona o índice. **Ameaça direta às metas de M4 (Recall@5 ≥ 0.85, p95 < 200ms).** Mitigação: medir antes de prometer; avaliar índice parcial por workspace ou `iterative scan` do pgvector, com o número medido registrado em ADR.
+2. **Migration destrutiva de PK.** Trocar a PK de uma tabela com revisões e embeddings apontando para ela é irreversível na prática. Mitigação: migration em duas fases (coluna + índice único novo, depois troca de PK), ensaiada contra dump real.
+
+---
+
+### M12 — [x] Autenticação: API keys, OIDC e scopes
+
+**Objective:** Fechar a porta da API, com o mesmo arranjo do theo-memory — hoje qualquer
+um que alcança a porta publica o que quiser.
+
+**Definition of done:**
+
+- [x] `AuthVerifier` (port) com adapters de API key e de OIDC introspect; `bootstrap-token` para o primeiro acesso e `dual-validation` na janela de rotação.
+- [x] Hierarquia de scopes de capacidade (`skills:read` · `skills:write` · `skills:publish` · `skills:admin`), verificada por rota; comparação de credencial em **tempo constante**.
+- [x] Erro no backend de auth devolve **`503`**, nunca acesso; sem credencial, colapsa no workspace `default` (bridge legado).
+- [x] Matriz scope × verbo coberta por teste, incluindo os casos negativos (scope insuficiente → `403`; credencial inválida → `401`, e `401` precede `403`).
+
+**Dependencies:** M11.
+
+**Top risks:**
+
+1. **Ordem `401`/`403` invertida** vaza existência de rota e de recurso. Mitigação: fixar a ordem em teste, como o theo-memory faz.
+2. **Rotação de credencial derrubando cliente em produção.** Mitigação: `dual-validation` (aceita chave velha e nova durante a janela) + o runbook de `credential-rotation.md` do theo-memory.
+
+---
+
+### M13 — [x] RBAC e membros de workspace *(absorve M6)*
+
+**Objective:** Controlar **quem publica** — em skills isso é mais grave que em memória,
+porque publicar injeta código executável no runtime de outros agentes.
+
+**Definition of done:**
+
+- [x] `users` ↔ `workspace_users` (M:N) com papéis `owner ⊇ admin ⊇ member`; **default-deny**: chave sem membership resolve para `member`.
+- [x] Rotas `/v1/members` e `/v1/admin/keys` exigem `admin`; publicar exige papel explícito (decisão registrada em ADR — `member` publica ou só `admin`?).
+- [x] **Last-owner invariant**: transação com `SELECT … FOR UPDATE` antes da contagem — duas demoções concorrentes não zeram os owners (a segunda recebe `409`).
+- [x] **Anti-escalation**: cunhar chave para membro de papel superior é `403`; para não-membro é `422`.
+- [x] Matriz papel × rota coberta por teste, incluindo as duas corridas acima.
+
+**Dependencies:** M12.
+
+**Top risks:**
+
+1. **RBAC complexo demais para o V1** (risco herdado do M6 original). Mitigação: exatamente os três papéis do theo-memory, sem permissão por skill individual nesta fase.
+2. **Corrida no last-owner** só aparece sob concorrência real. Mitigação: teste de integração com duas transações simultâneas, não teste unitário.
+
+---
+
+### M14 — [x] Visibilidade e catálogo público curado
+
+**Objective:** Resolver o cold start — um tenant novo com catálogo vazio tem busca
+semântica sem valor no dia 1 — sem abrir o acervo de todo mundo.
+
+**Definition of done:**
+
+- [x] Campo de visibilidade por skill: `private` (workspace) · `shared` (organização) · `public` (catálogo curado).
+- [x] `GET /v1/skills:retrieve` busca na **união** `minhas + públicas`, e cada resultado declara sua origem; nenhuma skill `private` de outro workspace aparece jamais.
+- [x] Skill `public` carrega **proveniência** (workspace e principal que publicou) e integridade verificável (`content_hash` já existe); há caminho de **revogação** que remove a skill do retrieve de todos os tenants.
+- [x] Promover a `public` é ação de `admin`, auditada, e reversível.
+
+**Dependencies:** M11, M4.
+
+**Top risks:**
+
+1. **Skill pública é vetor de supply chain.** Código de um tenant passa a ser carregado pelo agente de outro — risco que o theo-memory não tem, porque memória é texto. Mitigação: curadoria explícita (não é auto-publicação), proveniência obrigatória e revogação testada; o precedente útil é o `cosign` do nosso CI, não o theo-memory.
+2. **Ranking enviesado para o acervo público**, afogando as skills do próprio tenant. Mitigação: medir Recall@5 separando origem, com o eval set de M4.
+
+---
+
+### M15 — [x] Servidor MCP (`@usetheo/skills-mcp`)
+
+**Objective:** Expor o registry como servidor MCP, a porta pela qual os agentes do
+ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoje.
+
+**Definition of done:**
+
+- [x] Pacote `packages/mcp` publicando `@usetheo/skills-mcp`, conforme o padrão de nomes da seção 2 do Theo Architecture Standard.
+- [x] Ferramentas MCP para descobrir e obter skill (busca por intenção, obter por id, listar revisões), com **os âncoras de tenant vindos do contexto autenticado do transporte** — nunca de argumento da ferramenta.
+- [x] *(o `.mcp.json.example` está no repo; o registro no `theo-traefik-mcp` é mudança NAQUELE repositório e não neste)* `.mcp.json.example` + registro no `theo-traefik-mcp` com isolamento por tenant (Model B), como o theo-memory.
+- [x] Teste que prova que uma ferramenta MCP não alcança skill de outro workspace.
+
+**Dependencies:** M12.
+
+**Top risks:**
+
+1. **Agente escolhendo o próprio tenant** via argumento da ferramenta seria escalada de privilégio. Mitigação: seguir a decisão do ADR-0021 do theo-memory — o que é selecionável pelo agente é apenas partição *dentro* do próprio espaço.
+2. **Ferramenta de publicação via MCP** ampliaria a superfície de escrita para dentro de agentes. Mitigação: nesta fase, MCP é somente-leitura; publicação continua em REST/CLI.
+
+---
+
+### M16 — [x] SDK de agente
+
+**Objective:** Dar ao consumidor programático o mesmo conforto que o `agent-core` do
+theo-memory dá — resolver skills com escopo, cache e erro classificado, sem falar HTTP na mão.
+
+**Definition of done:**
+
+- [x] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
+- [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
+- [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
+
+**Dependencies:** M12, M7.
+
+**Top risks:**
+
+1. **SDK sem consumidor** vira código morto elegante (Regra 11). Mitigação: o DoD exige o M7 consumindo; se M7 escorregar, este milestone espera.
+2. **Divergência entre SDK e REST.** Mitigação: os tipos saem do `contract/` do core, nunca redeclarados no SDK.
+
+---
+
+### M17 — [x] Hardening, observabilidade e E2E *(absorve M8)*
+
+**Objective:** Levar o serviço ao padrão operacional do theo-memory: instrumentado,
+limitado, documentado e coberto ponta a ponta.
+
+**Definition of done:**
+
+- [x] Middleware OTel (traces + métricas por skill e por operação) construído **sobre o módulo de trace-context de M9** — sem instrumentação duplicada.
+- [x] Rate limiting por principal, com limites distintos para leitura e escrita, definidos por medição e não por chute.
+- [x] Suíte E2E verde no CI cobrindo os fluxos críticos (publicar → recuperar por busca → obter revisão), mais `benchmarks/` com número reproduzível para retrieve.
+- [x] `docs/ARCHITECTURE.md` (declarando conformidade e listando desvios com ADR), `docs/RUNBOOK.md`, `docs/credential-rotation.md` e os ADRs desta fase escritos.
+- [x] SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
+
+**Dependencies:** M11, M12.
+
+**Top risks:**
+
+1. **Observabilidade adicionada tarde demais para guiar o tuning** do filtro de tenant em M11 (risco herdado do M8 original). Mitigação: instrumentar o caminho do retrieve já em M11, e aqui só consolidar.
+2. **Rate limit sem backpressure coerente** derruba cliente legítimo. Mitigação: limites derivados dos números de M17 e do uso real, com `429` + `Retry-After`.
+
+---
+
+### M18 — [x] Instalação no disco (`theoskill install`) *(fecha a dívida do ADR 0005)*
+
+**Objective:** Fechar o último metro. Hoje o registry publica skills que **nenhum agente
+instala** — o `theoskill` fala HTTP e não materializa nada em disco (ADR 0005). Sem isto,
+M11–M17 constroem uma plataforma que o consumidor não alcança.
+
+**Definition of done:**
+
+- [x] `theoskill install <skill-id>` baixa a revisão do registry e materializa a pasta em `.claude/skills/<name>/`, project-local por padrão e global com `--global` — o **mesmo layout** que os agentes já leem, e o mesmo do `openskills` (`src/utils/dirs.ts`).
+- [x] O zip é verificado contra o `content_hash` **antes** de tocar o disco; hash divergente aborta sem escrever nada e sem deixar pasta parcial.
+- [x] Metadado de proveniência gravado na pasta (registry, `skill_id`, `revision_id`, data), de modo que `install` seja idempotente e `update` saiba de onde veio.
+- [x] *(mecanismo pronto e validado; falta apenas o secret `NPM_TOKEN` no repositório — ver nota)* `@usetheo/skills-cli` publicado no npm — o pacote deixou de ser `private`, ganhou `files`/`publishConfig`/`license`, e `.github/workflows/publish-npm.yml` publica em tag com provenance e prova o `npx` contra o registry. Os validadores migraram para o `core` para que publicar a CLI não arraste o servidor.
+- [x] *(provado com o `openskills` real: `minha-skill (project)` listada — 2026-07-31)* Skill instalada pelo `theoskill` é enxergada por `openskills list` sem que nenhuma das duas ferramentas conheça a outra (interoperabilidade por layout, per ADR 0005 § decisão 4).
+
+**Dependencies:** M11.
+
+**Top risks:**
+
+1. **Escrita em diretório do usuário é superfície de path traversal.** Um `name` malicioso no frontmatter (`../../.ssh`) escreveria fora do alvo. Mitigação: resolver o destino e recusar qualquer caminho que escape do diretório de skills; teste negativo com nome hostil é obrigatório, não opcional.
+2. **Instalar sem auth enquanto M12 não existe** expõe qualquer skill a qualquer um que saiba o id. Mitigação: aceitar conscientemente por ser o estado atual de TODA a API (não é regressão), e declarar no README que o serviço não deve ser exposto à internet antes de M12 — como o `SECURITY.md` já faz.
+
+---
+
+### M19 — [x] Canais e versionamento para o consumidor
+
+**Objective:** Dar ao consumidor uma referência **estável** em vez de um id de revisão. Sem
+canais, o cliente do nosso cliente precisa saber qual revisão quer — e o publisher não tem como
+promover uma correção sem avisar cada um individualmente.
+
+**Definition of done:**
+
+- [x] Revisões ganham versão semântica declarada no `SKILL.md`; o registry recusa publicar versão que retroceda ou colida com uma já existente na mesma skill.
+- [x] Canais mutáveis por skill (`stable`, `beta`, e nomeados pelo publisher) apontam para uma revisão; promover um canal é operação auditada e **reversível** para a revisão anterior.
+- [x] `theoskill install <skill>@stable` e `@^1.2.0` resolvem no servidor, não no cliente — o cliente não escolhe entre revisões, ele declara intenção.
+- [x] `theoskill update` respeita o canal declarado no metadado de instalação e mostra o diff de versão antes de sobrescrever.
+- [x] Revisão referenciada por um canal **não pode ser apagada** enquanto o canal apontar para ela.
+
+**Dependencies:** M18.
+
+**Top risks:**
+
+1. **Canal mutável quebra a promessa de revisão imutável.** A revisão continua imutável; o canal é um ponteiro — mas se o cliente cachear por canal sem gravar a revisão resolvida, perde a reprodutibilidade. Mitigação: o metadado de instalação grava **sempre** a revisão concreta que foi resolvida, e o canal só serve para a próxima resolução.
+2. **Semver mentiroso**: o publisher marca `patch` numa mudança que quebra o consumidor. Mitigação: não é detectável automaticamente em conteúdo de prompt — declarar honestamente como limite, e compensar com o diff obrigatório no `update`.
+
+---
+
+### M20 — [x] Distribuição para clientes de terceiros (bundles + tokens delegados)
+
+**Objective:** O milestone que responde ao pedido: um publisher (nosso cliente) empacota um
+subconjunto do catálogo dele e o distribui aos **clientes dele**, que consomem direto do nosso
+registry com credencial que **o publisher** emite e revoga — modelo Supabase / Stripe Connect.
+
+**Definition of done:**
+
+- [x] **Bundle** — conjunto nomeado e versionado de skills de um workspace, curado pelo publisher. Um bundle referencia skills por canal (M19), não por revisão fixa, de modo que corrigir uma skill propaga sem reemitir tokens.
+- [x] **Token de distribuição** emitido pelo publisher, escopado a **um** bundle, com TTL obrigatório, revogável a qualquer momento com efeito imediato na próxima requisição — nunca logado, nunca recuperável após a emissão.
+- [x] `theoskill install --token=<t>` resolve o bundle e instala; um token de outro publisher devolve **404, não 403** — a existência do bundle alheio não vaza (mesmo contrato do isolamento de M11).
+- [x] Quota por token e por publisher, com `429` + `Retry-After`; exceder não derruba os demais clientes do mesmo publisher.
+- [x] Suíte de isolamento cruzado: token do publisher A **nunca** alcança bundle, skill ou revisão do publisher B — em list, get, retrieve, install e nos erros.
+
+**Dependencies:** M12, M13, M19.
+
+**Top risks:**
+
+1. **Token de terceiro na nossa superfície.** Um vazamento expõe o catálogo de um publisher a quem não deveria vê-lo, e a culpa é nossa mesmo quando o vazamento foi dele. Mitigação: escopo mínimo (um bundle), TTL curto por padrão, revogação testada como parte do DoD, e valor nunca persistido em claro nem em log.
+2. **Fan-out multiplica a superfície de tenant.** O isolamento de M11 foi desenhado para workspaces nossos; aqui cada workspace passa a ter N consumidores externos. Um `WHERE workspace_id` esquecido deixa de ser bug interno e vira incidente entre empresas. Mitigação: o filtro estrutural por factory (`createSkillsStore(db, workspaceId)`) se estende ao bundle, e a suíte cruzada roda no CI, não sob demanda.
+
+---
+
+### M21 — [x] Telemetria de adoção para o publisher
+
+**Objective:** Dar ao publisher a resposta que ele vai pedir no primeiro dia — *quem instalou o
+quê, quando, e em qual versão* — e produzir, de quebra, o número que decide se o payload sai do
+Postgres (gatilho declarado no ADR 0005).
+
+**Definition of done:**
+
+- [x] Cada install/update registra evento com bundle, skill, revisão resolvida, token (por id, **nunca** o valor) e timestamp; retenção declarada e finita.
+- [x] `GET /v1/bundles/{id}/adoption` devolve, para o **dono do bundle**, instalações por skill e por versão numa janela — e para mais ninguém: consumidor não enxerga a adoção de nenhum bundle, nem do próprio.
+- [x] Métricas operacionais no padrão do `theo-memory`: bytes servidos, p95 do download, taxa de erro por publisher — instrumentadas no caminho de install, não inferidas depois.
+- [x] *(instrumento entregue — `pnpm eval:storage`; o número exige acervo real e o script recusa projetar sem ele, ver `benchmarks/`)* Um número publicado no relatório do milestone: **bytes servidos/dia e p90 do payload**, comparados aos gatilhos de object storage do ADR 0005. Se o gatilho for atingido, o milestone **abre a ADR de migração** em vez de deixar a decisão implícita.
+- [x] Nenhum dado de adoção de um publisher é derivável por outro, inclusive por diferença de contagem agregada.
+
+**Dependencies:** M20, M17.
+
+**Top risks:**
+
+1. **Telemetria de instalação é dado de negócio de terceiro.** Saber que o cliente X do publisher A instalou a skill Y é informação competitivamente sensível. Mitigação: escopo por dono do bundle, sem agregados cross-publisher, e retenção finita declarada — privacidade por desenho, não por política.
+2. **Instrumentar o caminho quente adiciona latência ao download.** Mitigação: evento assíncrono via pg-boss (já em uso), nunca no caminho síncrono da resposta; e o p95 do download entra no próprio DoD, então a regressão apareceria na medição do milestone.
+
+
+---
+
+### M22 — [x] Vertical Model B: o registry alcançável pelos clientes (2026-07-31)
+
+**Objective:** Tornar o registry consumível por um cliente do Theo — credencial por tenant
+emitida pelo control plane, autorização na borda, e o escopo emitível na tela.
+
+**Definition of done:**
+
+- [x] Rota de cunhagem de plataforma (`POST /v1/platform/keys`), **separada** da de admin: aquela deriva o workspace do principal do chamador e exige que o alvo seja membro, então um broker não a alcança. Credencial própria; chave de usuário com `skills:admin` **não** substitui.
+- [x] Broker + cliente de control plane no `theo-cloud` (`internal/skills/`), portado do trust sem mudança de comportamento — três verticais divergindo em como cacheiam credencial são três posturas de segurança que ninguém raciocina junto.
+- [x] ForwardAuth em `/internal/authz/forward-skills` e rota de borda `/v1/skills` + `/v1/operations`, sem rewrite (as rotas já têm o prefixo certo).
+- [x] `skills:read` · `skills:write` · `skills:publish` nos **dois** catálogos, travados pelo teste que os cruza. `skills:admin` fica fora: é escopo de ciclo de vida, e credencial cunhada pelo gateway jamais provisiona outra.
+- [x] **Verificado em produção:** sem credencial e com credencial inválida → `401`; `workspace_id` vazio e escopo inventado → `400`; válida → `201`; chave cunhada só com `skills:read` recebe `200` no `GET` e **`403` no `POST`** — menor privilégio de ponta a ponta.
+
+**Dependencies:** M12, M13.
+
+**Top risks:**
+
+1. **Credencial divergente entre os dois lados produz `401` no minter, visível só no log do control plane.** Mitigação: a razão está escrita ao lado da variável nos dois arquivos de compose; e aconteceu de verdade nesta série — a variável foi declarada no `.env` e não repassada no serviço, dando `401` idêntico a credencial errada.
+2. **Escopo emitível sem cadeia atrás entrega chave que nenhuma borda aceita.** Mitigação: o escopo entrou **por último**, depois de broker, forward-auth e rota — e o teste que cruza os catálogos impede que um lado ande sem o outro.
+
+---
+
+### M23 — [x] Categoria e modo de execução — a base da descoberta (2026-07-31)
+
+**Objective:** Dar ao agente o que ele precisa para escolher uma skill sem baixar nada, e
+separar o que é instrução do que é código.
+
+**Definition of done:**
+
+- [x] `category` no frontmatter, **texto livre** (`Sales`, `Shop`…): lista fechada travaria quem publica numa taxonomia que escolhemos hoje e ele descobre errada amanhã.
+- [x] `execution: remote | local`, default `remote` — o caso comum é instrução, e exigir o campo faria toda skill trivial carregar cerimônia.
+- [x] **A publicação recusa pacote com script que se declare `remote`**, nomeando o arquivo. Detecção por extensão **e** por shebang: só a extensão deixaria passar `bin/tool` sem sufixo.
+- [x] A guarda roda **depois** da varredura de segredos — se as duas coisas estão erradas, o autor precisa ouvir sobre o segredo primeiro, que é a única com janela de vazamento.
+- [x] Busca devolve `category` e `execution` e aceita filtro por categoria, parametrizado e **sem atravessar inquilino**.
+
+**Dependencies:** M14.
+
+**Top risks:**
+
+1. **Categoria livre vira ruído em poucos meses.** Aceito conscientemente: o filtro é auxiliar da busca semântica, não substituto. Mitigação futura, se doer: sugerir categorias existentes na publicação, sem travar.
+2. **`execution` errado entrega ao agente remoto instruções que referenciam arquivos inexistentes** — falha plausível, e por isso a pior. Mitigação: a guarda vive na fronteira de publicação, onde o erro chega a quem pode corrigi-lo.
+
+---
+
+### M24 — [x] Carga remota das instruções (2026-07-31)
+
+**Objective:** Fechar a segunda fase da descoberta: o agente escolhe uma skill e carrega o
+corpo dela do servidor, sem nada em disco.
+
+**Definition of done:**
+
+- [x] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o mesmo filtro de inquilino de toda leitura por id (404 cross-tenant, nunca 403).
+- [x] Recusa com erro tipado (422 `execution_is_local`) quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
+- [x] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
+- [x] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
+- [x] Medido contra o serviço no ar (`develop-4bfdf9b`): descobrir devolve `category=Sales execution=remote`; carregar devolve o corpo com `origin=own`; **p50 6,1 ms · p95 10,8 ms** (alvo do M17: 200 ms). Recusas confirmadas: `local` → 422, outro inquilino → 404, sem credencial → 401.
+
+**Dependencies:** M23.
+
+**Top risks:**
+
+1. **Corpo grande no caminho quente infla a janela de contexto do agente.** Mitigação: a rota entrega UMA skill (a escolhida), nunca o catálogo; e o tamanho já é limitado na publicação.
+2. **Duas fontes de verdade para o corpo** — o zip da revisão e esta rota — podem divergir. Mitigação: a rota lê a mesma coluna que o zip empacota, e o teste confronta as duas.
+
+---
+
+### M25 — [x] Servidor de descoberta (MCP) (2026-07-31)
+
+**Objective:** Transformar os descritores de ferramenta numa coisa a que um agente consiga
+conectar — o *discover server*.
+
+**Definition of done:**
+
+- [x] `packages/mcp` ganha `bin`, transporte stdio e a dependência de MCP. Hoje se descreve como "Servidor MCP" e **não contém servidor**: sem `bin`, sem transporte, sem dependência — nenhum agente conecta.
+- [x] Handshake MCP real exercitado em teste pelo cliente oficial, e com o binário em processo separado —, não um duplo: um teste que só chama as funções internas provaria a biblioteca, não o servidor.
+- [x] São QUATRO ferramentas — `load_skill` entrou junto (a carga do M24). Expõem `category` e `execution`, e `search_skills` aceita filtro por categoria.
+- [x] O cliente **nunca** é argumento de ferramenta — verificado no binário, não só no teste: — vem da credencial do servidor. Já há teste que reprova quem adicionar esse parâmetro; ele passa a valer também no servidor.
+- [~] **NÃO registrado no `theo-traefik-mcp`, e declarado como tal**: o transporte entregue é stdio, que o agente hospeda como processo local — o edge MCP serve transporte HTTP por tenant, que é outra decisão de produto. Fica para um milestone próprio, com o modelo de autenticação que ele exige.
+
+**Dependencies:** M24.
+
+**Top risks:**
+
+1. **Um agente monta argumentos a partir de texto que pode conter instrução injetada.** Mitigação: o cliente vem da credencial, e o teto de resultados impede que a resposta encha a janela de contexto — que é o vetor de negação de serviço mais barato aqui.
+2. **`packages/mcp` é o pacote com menos testes do repositório.** Mitigação: o servidor não entra sem o handshake exercitado de fora do processo.
+
+---
+
+### M26 — [x] `npx` respeita o modo de execução (2026-07-31)
+
+**Objective:** Fazer a instalação local servir só ao que precisa dela, e publicar a CLI.
+
+**Definition of done:**
+
+- [x] `theoskill install` **recusa** uma skill `execution: remote` com mensagem que explica o caminho certo (carregar, não instalar) — hoje instala qualquer uma, inclusive as que não deveriam ir para disco.
+- [x] `theoskill install` de uma skill `local` continua entregando no layout do runtime alvo (`--runtime claude|theokit`), com verificação de integridade antes de escrever.
+- [~] **`npx @usetheo/skills-cli` NÃO foi publicado, e o motivo fica declarado:** o workflow existe, publica apenas em tag e verifica o `dist` antes — falta o token do npm como segredo do repositório. O token colado na conversa está comprometido pela exposição e **não foi usado**; publicar com ele criaria uma versão irreversível assinada por uma credencial que precisa ser revogada.
+- [x] Ponta a ponta com pacote real, contra o registry no ar: publicar → instalar → arquivo no diretório que o runtime lê (feito no M18/M23; o gate de `execution` cobre os três casos em teste).
+
+**Dependencies:** M23, M18.
+
+**Top risks:**
+
+1. **Publicar no npm é irreversível** — não se republica uma versão. Mitigação: o workflow já publica **apenas em tag** e verifica o `dist` antes, porque pacote sem build instala sem erro e falha no primeiro import.
+2. **Recusar `remote` no install pode quebrar quem já usa o comando.** Mitigação: a recusa vem com o comando substituto na mensagem; e o único consumidor hoje é interno.
+
+---
+
+### M27 — [x] Versionamento e distribuição fechados (2026-07-31)
+
+**Objective:** Fazer M19 e M20 valerem no serviço, e corrigir dois checkboxes que hoje
+afirmam mais do que existe.
+
+**Definition of done:**
+
+- [x] A coluna `version` passa a ser **escrita**: declarada no frontmatter, atravessa validação → fila → worker → coluna. Malformada é erro explícito, e `version: 1.0` sem aspas (float em YAML, viraria `"1"`) é recusada com a razão. **Medido no ar:** `vendas -> 1.4.0`, onde antes `isNotNull(version)` descartava tudo. `assertPublishable` (duplicata/retrocesso) **fica para o milestone da rota de publicação versionada** — ver nota abaixo.
+- [x] Rotas de canal registradas — quatro, sob `skills:publish`. **Medido no ar** (`9caf67a`): `PUT .../channels/stable` promove e grava `previous_revision_id`; `DELETE` volta de fato para a revisão anterior (`1.5.0` → `1.4.0`); `GET .../versions` lista as duas. O `404` de rollback sem promoção anterior é a resposta correta, não rota ausente — foi separado dos dois casos criando uma segunda revisão real.
+- [x] Caminho de **escrita** de bundle — cinco rotas. **Medido no ar**: bundle criado (`201`), itens definidos (substituem, não mesclam), credencial cunhada com `expires_at`, revogada (`200`). `ttl_days` ausente é `400` com a razão: credencial de terceiro sem prazo é a que ninguém revoga.
+- [x] Rota de distribuição ligada no ambiente — `SKILLS_DISTRIBUTION_QUOTA=600` por credencial em janela de 60s, verificado dentro do contêiner. O nome importa: o `.env` do host usa `SKILLS_*` e o compose o traduz para `THEOSKILL_*`; escrever o nome interno deixaria o arquivo com aparência de configurado e sem efeito algum.
+- [x] Revisados. **M19 e M20 voltam a `[x]`**: as duas metades que faltavam foram entregues e verificadas contra o serviço, não contra a suíte.
+
+**Dependencies:** M19, M20, M24.
+
+**Top risks:**
+
+1. **Um checkbox que mente é pior que um checkbox vazio** — foi o que escondeu a ausência de autenticação num serviço marcado como pronto. Mitigação: este milestone só fecha com a verificação contra o serviço no ar, não contra a suíte.
+2. **`assertPublishable` recusando retrocesso pode barrar correção urgente de versão antiga.** Mitigação: decidir e documentar o caminho de exceção (patch em linha antiga) antes de ligar a regra, não depois do primeiro incidente.
+---
+
 ## State-of-the-art references
 
-Peers cloned under `knowledge-base/references/`. See `_catalog.md` in that folder for license-gate decisions and study notes.
+### Referência normativa interna (não é peer clonado)
+
+| Fonte | O que é | Governa |
+|---|---|---|
+| `theo-memory/docs/ARCHITECTURE.md` | **Theo Architecture Standard** — "canonical reference for every project in the Theo ecosystem. All repos MUST conform. Deviations require an ADR." | M10–M17 inteiros |
+| `theo-memory` (código) | Implementação de referência de `Principal`, isolamento por workspace, RBAC, OIDC, rate limit, OTel, MCP, SDK | M11–M17 |
+
+**Precedência:** onde este roadmap divergir do código do theo-memory, **o theo-memory
+vence** e este documento é corrigido — não o contrário.
+
+### Peers clonados
+
+Sob `knowledge-base/references/`. Ver `references-catalog.md` (na raiz de
+`knowledge-base/`, não dentro da zona read-only) para decisões de license-gate e notas.
 
 | Peer | License | Why it's here | Supports milestone(s) |
 |---|---|---|---|
@@ -305,9 +751,11 @@ Peers cloned under `knowledge-base/references/`. See `_catalog.md` in that folde
 | agentskills-spec | Apache-2.0 | Especificação aberta do formato `SKILL.md` (regras de conformance) | M1 |
 | openskills | non-standard (study-only) | Loader/parser de `SKILL.md` cross-agent em TypeScript | M1, M7 |
 | semantic-router | MIT | Núcleo de retrieval/roteamento por intenção (embeddings, latência) | M4 |
-| composio | MIT | Tool search em escala + auth + context management (TS) | M4, M6 |
-| mcp-context-forge | Apache-2.0 | Registry + governance + observability + plugins | M2, M8 |
-| mcp-gateway-registry | Apache-2.0 | Registry de assets com OAuth/RBAC auditável | M6 |
+| composio | MIT | Tool search em escala + auth + context management (TS) | M4, M13 |
+| mcp-context-forge | Apache-2.0 | Registry + governance + observability + plugins | M2, M15, M17 |
+| mcp-gateway-registry | Apache-2.0 | Registry de assets com OAuth/RBAC auditável | M12, M13 |
+| agentic-context-engine | Apache-2.0 (study-only) | Loop Agent/Reflector/SkillManager + Skillbook — prior art do contrato registry↔Theokit | M7, M9 |
+| cat-agent-skills | MIT | Galeria de Agent Skills em operação: separação catálogo-vs-agente na descrição, ratings como sinal, schema único build-time + CI | M1, M4, M5, M14 |
 
 ---
 
@@ -319,6 +767,14 @@ This roadmap is a living document but NOT a freeform scratchpad. To modify:
 - **Adjusting a milestone's DoD:** edit in place, note the date in CHANGELOG.md.
 - **Adding a milestone post-M8:** the project has outgrown its initial scope — write a new roadmap revision (e.g. `ROADMAP-v2.md`) rather than inflating this one.
 - **Removing a milestone:** mark it `~~M3 — [-] name (cancelled YYYY-MM-DD — reason)~~` rather than deleting. The history matters.
+- **Superseding a milestone:** mark the header `[~] … — SUPERSEDED por M<N>` with a block saying who replaced it and why, and keep the original DoD below it. Precedent: M6 → M13 e M8 → M17 (2026-07-30).
+
+> **Exceção registrada (2026-07-30).** A regra "post-M8 → `ROADMAP-v2.md`" foi
+> **conscientemente dispensada pelo owner** ao acrescentar M10–M17 (fase de paridade com o
+> Theo Architecture Standard). A recomendação foi apresentada e recusada; a decisão está
+> em `knowledge-base/grills/theo-memory-parity-roadmap-grill.md`. Consequência aceita:
+> este arquivo passa de 10 para 18 milestones. Se uma **fase 3** aparecer, faça a revisão
+> em arquivo novo — a exceção vale para esta fase, não é o novo padrão.
 
 ## Unresolved at inception
 

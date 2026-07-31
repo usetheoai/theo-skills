@@ -6,13 +6,15 @@ import {
   type SecretScanner,
   type ValidatedPayload,
   validateSkillPayload,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 import { type Context, type Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type PgBoss from 'pg-boss';
 
+import { requireScope } from '../auth/middleware.js';
 import { type Logger } from '../logger.js';
 import { resolveTraceId } from '../observability/trace-context.js';
+import { type AppEnv, workspaceOf } from '../principal-context.js';
 import { JOB_NAMES, SKILL_SEND_OPTIONS } from '../queue/queue.js';
 import { type OperationsStore } from '../store/operations-store.js';
 import { type RevisionsStore } from '../store/revisions-store.js';
@@ -21,9 +23,9 @@ import { type SkillsStore } from '../store/skills-store.js';
 const UPDATE_MASK_FIELDS = new Set(['displayName', 'description', 'zippedFilesystem']);
 
 export interface SkillsRoutesDeps {
-  readonly skillsStore: SkillsStore;
-  readonly revisionsStore: RevisionsStore;
-  readonly operationsStore: OperationsStore;
+  readonly skillsStoreFor: (workspaceId: string) => SkillsStore;
+  readonly revisionsStoreFor: (workspaceId: string) => RevisionsStore;
+  readonly operationsStoreFor: (workspaceId: string) => OperationsStore;
   readonly queue: PgBoss;
   readonly payloadValidator: PayloadValidator;
   readonly secretScanner: SecretScanner;
@@ -39,6 +41,10 @@ interface IngestResult {
   readonly name: string;
   readonly description: string;
   readonly frontmatter: Record<string, unknown>;
+  /** M23/M27 — declarados pelo autor e propagados até a coluna. */
+  readonly category?: string;
+  readonly execution: string;
+  readonly version?: string;
 }
 
 /** A typed boundary error → HTTP 400/409. */
@@ -81,10 +87,13 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
     name: result.name,
     description: result.description,
     frontmatter: result.frontmatter,
+    ...(result.category !== undefined ? { category: result.category } : {}),
+    execution: result.execution,
+    ...(result.version !== undefined ? { version: result.version } : {}),
   };
 }
 
-function fail(c: Context, err: unknown): Response {
+function fail(c: Context<AppEnv>, err: unknown): Response {
   if (err instanceof BoundaryError) {
     return c.json({ error: err.code }, err.status);
   }
@@ -101,7 +110,7 @@ function fail(c: Context, err: unknown): Response {
  */
 async function enqueueOperation(
   deps: SkillsRoutesDeps,
-  c: Context,
+  c: Context<AppEnv>,
   args: {
     skillId: string;
     jobName: string;
@@ -113,7 +122,7 @@ async function enqueueOperation(
 ): Promise<Response> {
   const traceId = resolveTraceId(c.req.header('traceparent'));
   const newId = `op_${createId()}`;
-  const { operationId, created } = await deps.operationsStore.create({
+  const { operationId, created } = await deps.operationsStoreFor(workspaceOf(c)).create({
     operationId: newId,
     skillId: args.skillId,
     type: args.jobName,
@@ -127,11 +136,26 @@ async function enqueueOperation(
   try {
     await deps.queue.send(
       args.jobName,
-      { operation_id: operationId, skill_id: args.skillId, trace_id: traceId, ...args.jobData },
+      {
+        operation_id: operationId,
+        skill_id: args.skillId,
+        trace_id: traceId,
+        // O INQUILINO ATRAVESSA A FILA. Sem este campo o worker caía em
+        // `data.workspaceId ?? DEFAULT_WORKSPACE_ID` e gravava TODA skill em `default`: o
+        // autor publicava, recebia 202, e não a encontrava depois — o `GET` dele filtra pelo
+        // próprio workspace.
+        //
+        // Todo o isolamento provado até aqui era do plano de LEITURA; o de ESCRITA é
+        // assíncrono e não propagava nada. Passou despercebido porque os testes de isolamento
+        // semeiam por SQL cru, já com o `workspace_id` certo — provam que a leitura respeita
+        // o escopo, sobre linhas que nunca passaram pelo caminho de escrita.
+        workspaceId: workspaceOf(c),
+        ...args.jobData,
+      },
       SKILL_SEND_OPTIONS,
     );
   } catch (err) {
-    await deps.operationsStore.updateState(operationId, 'FAILED', `failed to enqueue ${args.jobName}`);
+    await deps.operationsStoreFor(workspaceOf(c)).updateState(operationId, 'FAILED', `failed to enqueue ${args.jobName}`);
     throw err;
   }
   deps.logger.info(
@@ -141,19 +165,27 @@ async function enqueueOperation(
   return c.json({ operation_id: operationId, skill_id: args.skillId }, 202);
 }
 
-function idempotencyKeyOf(c: Context): string | undefined {
+function idempotencyKeyOf(c: Context<AppEnv>): string | undefined {
   const key = c.req.header('Idempotency-Key');
   return key !== undefined && key.length > 0 ? key : undefined;
 }
 
-export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
+export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps): void {
   const limit = bodyLimit({
     maxSize: deps.maxBodyBytes,
     onError: (c) => c.json({ error: 'payload_too_large' }, 413),
   });
 
+  // ESCOPO NA ESCRITA (M12 DoD).
+  //
+  // `requireScope` existia, era testado, e não estava aplicado a NENHUMA rota — os escopos
+  // eram decorativos: uma chave `skills:read` publicava e apagava como qualquer outra. Papel
+  // governa PERTENCIMENTO (quem é do workspace); escopo governa CAPACIDADE (o que a chave
+  // pode fazer). Sem isto, a segunda dimensão não existia.
+  const escreve = requireScope('skills:write');
+
   // POST /v1/skills — validate payload at the boundary, enqueue, 202.
-  app.post('/v1/skills', limit, async (c) => {
+  app.post('/v1/skills', escreve, limit, async (c) => {
     let skillId: string;
     let ingest: IngestResult;
     try {
@@ -162,10 +194,10 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
         return c.json({ error: 'invalid_input' }, 400);
       }
       skillId = parseSkillId(typeof body.skill_id === 'string' ? body.skill_id : '');
-      if (await deps.skillsStore.isReserved(skillId)) {
+      if (await deps.skillsStoreFor(workspaceOf(c)).isReserved(skillId)) {
         return c.json({ error: 'reserved' }, 409);
       }
-      if ((await deps.skillsStore.getView(skillId)) !== undefined) {
+      if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) !== undefined) {
         return c.json({ error: 'already_exists' }, 409);
       }
       ingest = await ingestPayload(deps, body.zippedFilesystem);
@@ -181,6 +213,12 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
       jobData: {
         name: ingest.name,
         description: ingest.description,
+        // M23/M27 — o que o autor declarou tem que ATRAVESSAR a fila até a coluna. Parar no
+        // handler seria validar um campo e descartá-lo, que é a forma mais silenciosa de ele
+        // não existir.
+        ...(ingest.category !== undefined ? { category: ingest.category } : {}),
+        execution: ingest.execution,
+        ...(ingest.version !== undefined ? { version: ingest.version } : {}),
         content_hash: ingest.validated.contentHash,
         payload_b64: ingest.buffer.toString('base64'),
         frontmatter: ingest.frontmatter,
@@ -195,13 +233,13 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
     const rawSize = Number(c.req.query('page_size') ?? '50');
     const pageSize = Number.isFinite(rawSize) ? Math.min(Math.max(Math.trunc(rawSize), 1), 200) : 50;
     const pageToken = c.req.query('page_token') ?? null;
-    const page = await deps.skillsStore.listPaginated(pageSize, pageToken);
+    const page = await deps.skillsStoreFor(workspaceOf(c)).listPaginated(pageSize, pageToken);
     return c.json({ skills: page.skills, next_page_token: page.nextPageToken }, 200);
   });
 
   // GET /v1/skills/:id
   app.get('/v1/skills/:id', async (c) => {
-    const skill = await deps.skillsStore.getView(c.req.param('id'));
+    const skill = await deps.skillsStoreFor(workspaceOf(c)).getView(c.req.param('id'));
     if (skill === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
@@ -209,9 +247,9 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
   });
 
   // PATCH /v1/skills/:id — updateMask-driven; LRO when a payload is present.
-  app.patch('/v1/skills/:id', limit, async (c) => {
+  app.patch('/v1/skills/:id', escreve, limit, async (c) => {
     const skillId = c.req.param('id');
-    if ((await deps.skillsStore.getView(skillId)) === undefined) {
+    if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
     const mask = (c.req.query('updateMask') ?? '')
@@ -262,9 +300,9 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
   });
 
   // DELETE /v1/skills/:id — LRO (DELETING). Soft-delete + id reservation in the worker.
-  app.delete('/v1/skills/:id', async (c) => {
+  app.delete('/v1/skills/:id', escreve, async (c) => {
     const skillId = c.req.param('id');
-    if ((await deps.skillsStore.getView(skillId)) === undefined) {
+    if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
     const reservedUntil = new Date(Date.now() + deps.reservationHours * 3600_000).toISOString();
@@ -281,19 +319,79 @@ export function registerSkillsRoutes(app: Hono, deps: SkillsRoutesDeps): void {
   // GET /v1/skills/:id/revisions
   app.get('/v1/skills/:id/revisions', async (c) => {
     const skillId = c.req.param('id');
-    if ((await deps.skillsStore.getView(skillId)) === undefined) {
+    if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
-    const revisions = await deps.revisionsStore.listBySkill(skillId);
+    const revisions = await deps.revisionsStoreFor(workspaceOf(c)).listBySkill(skillId);
     return c.json({ revisions }, 200);
+  });
+
+  // GET /v1/skills/:id/instructions — a SEGUNDA FASE da descoberta (M24).
+  //
+  // O agente descobre (lista compacta que cabe no prompt), escolhe UMA, e carrega o corpo
+  // dela daqui. Nada vai para o disco — é o que distingue um registry de descoberta de um
+  // gerenciador de pacotes, e é o modelo que serve a um agente hospedado no Theo.
+  //
+  // Entrega UMA skill, nunca o catálogo: o custo de contexto é do agente, e uma rota que
+  // devolvesse vários corpos convidaria a enchê-lo com o que não vai ser lido.
+  app.get('/v1/skills/:id/instructions', async (c) => {
+    const found = await deps.skillsStoreFor(workspaceOf(c)).getInstructions(c.req.param('id'));
+    // 404 cobre inexistente, apagada e privada-de-outro-inquilino — indistinguíveis de
+    // propósito: um 403 confirmaria a existência de uma skill cujo nome é adivinhável.
+    if (found === undefined) return c.json({ error: 'not_found' }, 404);
+
+    // Uma skill `local` traz script, e as instruções dela referenciam arquivos que o agente
+    // remoto não tem. Devolvê-las produziria um agente seguindo passos que não existem —
+    // falha plausível, e por isso a pior. A recusa é tipada e aponta o caminho certo.
+    if (found.execution === 'local') {
+      return c.json(
+        {
+          error: 'execution_is_local',
+          details: `skill "${found.skill_id}" traz script e roda na máquina do cliente; use \`theoskill install\` em vez de carregar`,
+        },
+        422,
+      );
+    }
+
+    return c.json(found, 200);
   });
 
   // GET /v1/skills/:id/revisions/:revisionId
   app.get('/v1/skills/:id/revisions/:revisionId', async (c) => {
-    const revision = await deps.revisionsStore.getById(c.req.param('revisionId'));
+    const revision = await deps.revisionsStoreFor(workspaceOf(c)).getById(c.req.param('revisionId'));
     if (revision === undefined || revision.skill_id !== c.req.param('id')) {
       return c.json({ error: 'not_found' }, 404);
     }
     return c.json(revision, 200);
+  });
+
+  // GET /v1/skills/:id/revisions/:revisionId/payload — M7.
+  //
+  // A ROTA QUE FALTAVA. O `theoskill install` esperava um campo `payload_base64` no metadado
+  // acima; a API nunca o devolveu, e a CLI quebrava com `Buffer.from(undefined)` contra o
+  // registry real. Os bytes sempre estiveram no banco — não havia por onde lê-los.
+  //
+  // Binário, e não base64 dentro do JSON: base64 infla 33% e obrigaria toda listagem de
+  // revisões a carregar o zip inteiro. O consumidor confere o `content_hash` do metadado
+  // ANTES de escrever no disco — é o que torna a separação segura em vez de só econômica.
+  app.get('/v1/skills/:id/revisions/:revisionId/payload', async (c) => {
+    const store = deps.revisionsStoreFor(workspaceOf(c));
+    const revisionId = c.req.param('revisionId');
+
+    // O metadado primeiro, para amarrar a revisão ao skill da URL. Sem esta checagem,
+    // `/v1/skills/QUALQUER/revisions/rev_X/payload` serviria os bytes de `rev_X` — o id da
+    // revisão viraria a única credencial necessária.
+    const revision = await store.getById(revisionId);
+    if (revision === undefined || revision.skill_id !== c.req.param('id')) {
+      return c.json({ error: 'not_found' }, 404);
+    }
+
+    const payload = await store.getPayload(revisionId);
+    if (payload === undefined) return c.json({ error: 'not_found' }, 404);
+
+    c.header('content-type', 'application/zip');
+    // O hash viaja no cabeçalho para que quem baixa possa conferir sem uma segunda chamada.
+    c.header('x-content-hash', revision.content_hash);
+    return c.body(new Uint8Array(payload), 200);
   });
 }

@@ -1,4 +1,4 @@
-import { type QueryExecutor } from '@usetheo/skillregistry';
+import { type QueryExecutor } from '@usetheo/skills';
 import { type Pool } from 'pg';
 
 /** Wrap a pg Pool as the core `QueryExecutor` port (DIP boundary). */

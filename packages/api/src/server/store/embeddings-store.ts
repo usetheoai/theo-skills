@@ -1,4 +1,4 @@
-import { type EmbeddingRow, embeddings, skillRevisions, skills } from '@usetheo/skillregistry/db';
+import { type EmbeddingRow, embeddings, skillRevisions, skills } from '@usetheo/skills/db';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
@@ -43,7 +43,7 @@ export interface EmbeddingsStore {
   listByRevision(revisionId: string): Promise<EmbeddingRow[]>;
 }
 
-export function createEmbeddingsStore(db: Db): EmbeddingsStore {
+export function createEmbeddingsStore(db: Db, workspaceId: string): EmbeddingsStore {
   return {
     async getEmbedSourceBySkill(skillId) {
       const rows = await db
@@ -56,7 +56,13 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
         })
         .from(skills)
         .innerJoin(skillRevisions, eq(skillRevisions.revisionId, skills.latestRevisionId))
-        .where(and(eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+        .where(
+          and(
+            eq(skills.workspaceId, workspaceId),
+            eq(skills.skillId, skillId),
+            isNull(skills.deletedAt),
+          ),
+        )
         .limit(1);
       return rows[0];
     },
@@ -71,8 +77,24 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
           skillMd: skillRevisions.skillMd,
         })
         .from(skillRevisions)
-        .innerJoin(skills, eq(skills.skillId, skillRevisions.skillId))
-        .where(and(eq(skillRevisions.revisionId, revisionId), isNull(skills.deletedAt)))
+        // O JOIN precisa casar o PAR (workspace, skill), não só o id: a PK de `skills` é
+        // composta, e por `skill_id` sozinho a revisão de um cliente casava com a linha de
+        // OUTRO — o `name`/`description` do vizinho entrava no texto embeddado deste, e o
+        // `isNull(deletedAt)` passava a ser lido da skill errada.
+        .innerJoin(
+          skills,
+          and(
+            eq(skills.skillId, skillRevisions.skillId),
+            eq(skills.workspaceId, skillRevisions.workspaceId),
+          ),
+        )
+        .where(
+          and(
+            eq(skillRevisions.workspaceId, workspaceId),
+            eq(skillRevisions.revisionId, revisionId),
+            isNull(skills.deletedAt),
+          ),
+        )
         .limit(1);
       return rows[0];
     },
@@ -83,6 +105,10 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
         .insert(embeddings)
         .values({
           id: input.id,
+          // Sem o inquilino a coluna cai no default e o vector-retriever — que junta por
+          // `s.workspace_id = e.workspace_id`, corretamente — nunca casa: a busca semântica
+          // de todo cliente real ficava CEGA. Não é vazamento; é a feature não funcionando.
+          workspaceId,
           revisionId: input.revisionId,
           skillId: input.skillId,
           provider: input.provider,
@@ -96,7 +122,12 @@ export function createEmbeddingsStore(db: Db): EmbeddingsStore {
     },
 
     async listByRevision(revisionId) {
-      return db.select().from(embeddings).where(eq(embeddings.revisionId, revisionId));
+      return db
+        .select()
+        .from(embeddings)
+        .where(
+          and(eq(embeddings.workspaceId, workspaceId), eq(embeddings.revisionId, revisionId)),
+        );
     },
   } satisfies EmbeddingsStore;
 }

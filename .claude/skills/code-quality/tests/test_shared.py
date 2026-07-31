@@ -275,8 +275,11 @@ def test_sanitize_symbol_escapes_pipes() -> None:
 # --- DEFAULT_SKIP_DIRS (EC-10) ---
 
 
-def test_default_skip_dirs_includes_referencia() -> None:
-    assert "referencia" in DEFAULT_SKIP_DIRS
+def test_default_skip_dirs_includes_references() -> None:
+    # Issue #37: the real directory is `references` (EN, the convention used
+    # across .claude/rules/), NOT `referencia` (PT) — the latter never matched
+    # any real path and let the audit walk third-party reference repos.
+    assert "references" in DEFAULT_SKIP_DIRS
     assert ".git" in DEFAULT_SKIP_DIRS
     assert "node_modules" in DEFAULT_SKIP_DIRS
     assert "__pycache__" in DEFAULT_SKIP_DIRS
@@ -310,3 +313,19 @@ def test_emit_json_summary_includes_hard_caps_triggered() -> None:
     assert summary["verdict"] == "FAIL_HARD"
     assert "dead_code_unallowlisted_python" in summary["hard_caps_triggered"]
     assert summary["schema_version"]  # non-empty
+
+
+def test_emit_json_summary_invalid_caps_score_at_zero() -> None:
+    """INVALID (structural integrity broken) caps the score at 0 — Source of Truth is
+    code-quality-golden-rule.md § 1 (INVALID = 0), not 49."""
+    summary = emit_json_summary([], "INVALID", ["code_quality_golden_rule_missing"])
+    assert summary["score_cap"] == 0
+
+
+def test_emit_json_summary_score_caps_per_golden_rule() -> None:
+    """Regression guard: every verdict maps to its golden-rule § 1 score cap."""
+    assert emit_json_summary([], "PASS", [])["score_cap"] == 100
+    assert emit_json_summary([], "PASS_WITH_CAVEATS", [])["score_cap"] == 89
+    assert emit_json_summary([], "FAIL_SOFT", [])["score_cap"] == 70
+    assert emit_json_summary([], "FAIL_HARD", [])["score_cap"] == 49
+    assert emit_json_summary([], "INVALID", [])["score_cap"] == 0

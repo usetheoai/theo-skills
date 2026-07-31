@@ -81,35 +81,17 @@ def _resolve_thresholds(arg: Path | None, plan_path: Path) -> Path:
 
 
 def _parse_thresholds(path: Path) -> dict[str, int]:
-    """Parse verdict bands from the thresholds file.
-
-    Supports the documented `KEY = VALUE` format (the project file uses
-    `band.shippable = 90`; only `band.*` keys become verdict bands, mapped to the
-    upper-cased suffix → `SHIPPABLE`) AND the legacy `NAME | VALUE` format.
-    """
     bands: dict[str, int] = {}
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        if "=" in stripped:
-            key, _, raw_value = stripped.partition("=")
-            key = key.strip()
-            if not key.startswith("band."):
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 2:
+            try:
+                bands[parts[0]] = int(parts[1])
+            except ValueError:
                 continue
-            name = key[len("band.") :].strip().upper()
-            value = raw_value
-        elif "|" in stripped:
-            parts = [p.strip() for p in stripped.split("|")]
-            if len(parts) < 2:
-                continue
-            name, value = parts[0], parts[1]
-        else:
-            continue
-        try:
-            bands[name] = int(value.split("#")[0].strip())
-        except ValueError:
-            continue
     return bands
 
 

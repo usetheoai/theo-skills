@@ -209,3 +209,37 @@ def test_summary_buckets_account_for_every_check(fake_project: Path) -> None:
     for bucket in ("pass", "fail", "skip", "warn", "partial", "n_a"):
         assert bucket in s, f"summary missing bucket '{bucket}'"
     assert s["pass"] + s["fail"] + s["skip"] + s["warn"] + s["partial"] + s["n_a"] == s["total"]
+
+
+# T2.1 — patterns-consumption advisory (patterns-consumption-gate-plan, ADR D3)
+
+from run_validation import check_patterns_advisory  # noqa: E402
+
+
+def test_patterns_advisory_never_fails(tmp_path: Path) -> None:
+    plans = tmp_path / ".claude" / "knowledge-base" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "demo-plan.md").write_text(
+        "# Plan: demo\n## Prior Art & Related Work\n- Patterns skills: `foo-patterns` Pattern P1.\n"
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "impl.py").write_text("print('no skill mention here')\n")
+    impl = tmp_path / ".claude" / "knowledge-base" / "implementations"
+    impl.mkdir(parents=True)
+    (impl / ".progress-demo.json").write_text(json.dumps({
+        "slug": "demo",
+        "tasks": [{"id": "T1.1", "phase": "1", "status": "committed", "files": ["src/impl.py"]}],
+    }))
+    r = check_patterns_advisory(tmp_path, "demo")
+    assert r["status"] == "WARN"           # advisory, surfaced
+    assert r["status"] != "FAIL"           # never blocks handoff (ADR D3)
+    assert "foo-patterns" in r["not_found"]
+
+
+def test_patterns_advisory_absent_when_no_citation(tmp_path: Path) -> None:
+    plans = tmp_path / ".claude" / "knowledge-base" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "demo-plan.md").write_text("# Plan: demo\n## Goal\nNothing special here.\n")
+    r = check_patterns_advisory(tmp_path, "demo")
+    assert r["status"] == "N/A"

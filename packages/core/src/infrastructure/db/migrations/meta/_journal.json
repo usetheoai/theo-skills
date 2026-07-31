@@ -50,6 +50,55 @@
       "when": 1782256608613,
       "tag": "0006_secret_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785431648464,
+      "tag": "0007_wet_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785500769349,
+      "tag": "0008_rainy_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785502407406,
+      "tag": "0009_demonic_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785502877327,
+      "tag": "0010_heavy_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785504004945,
+      "tag": "0011_typical_blink",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785506049136,
+      "tag": "0012_peaceful_toxin",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785522464676,
+      "tag": "0013_wild_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

@@ -54,7 +54,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # - quality-init: one-shot rigorous initializer (same isolation contract as roadmap-init);
 #   walks a target codebase and emits calibrated quality-gate hooks. Leaves no state behind,
 #   is invoked BEFORE a coding session, and is intentionally absent from every cycle-*.md.
-AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "roadmap-init", "roadmap-feature", "plan-help", "quality-init"}
+# - skill-creator: standalone skill-authoring tool (the official Anthropic skill-creator);
+#   invoked on demand to create/improve any skill at skills/{purpose}/. Deliberately decoupled
+#   from every cycle (replaced the retired skill-writer/validator/register discover tail).
+AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "roadmap-init", "roadmap-feature", "plan-help", "quality-init", "skill-creator", "frontend-design"}
 
 # Patterns to detect file references in markdown
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
@@ -89,7 +92,7 @@ def _list_existing_skills(ecosystem_dir: Path) -> set[str]:
     return {
         d.name
         for d in skills_dir.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists() and d.name != "generated"
+        if d.is_dir() and (d / "SKILL.md").exists()
     }
 
 

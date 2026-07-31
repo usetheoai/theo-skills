@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { stubEmbed } from '@usetheo/skillregistry';
+import { stubEmbed } from '@usetheo/skills';
 import { type Pool } from 'pg';
 
 import { type DispatchingRetriever } from '../src/server/providers/retriever-selection.js';
@@ -28,24 +28,29 @@ export interface EvalReport {
 }
 
 /** Index every eval skill (search_text + current-revision stub embedding). */
-export async function seedDataset(pool: Pool, dataset: EvalDataset): Promise<void> {
+/**
+ * Semeia o dataset. `workspaceId` permite semear o MESMO acervo em vários tenants — é o que
+ * permite medir o recall sob filtro com o índice populado por dados de outros workspaces,
+ * que é a condição real do risco #1 do M11 (o índice HNSW é global; o filtro é por tenant).
+ */
+export async function seedDataset(pool: Pool, dataset: EvalDataset, workspaceId = 'default'): Promise<void> {
   for (const s of dataset.skills) {
     const revisionId = `rev_${createId()}`;
     const searchText = `${s.name} ${s.description} ${s.body}`;
     await pool.query(
-      `INSERT INTO skills (skill_id, name, description, latest_revision_id, search_text) VALUES ($1,$2,$3,$4,$5)`,
-      [s.skill_id, s.name, s.description, revisionId, searchText],
+      `INSERT INTO skills (workspace_id, skill_id, name, description, latest_revision_id, search_text) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [workspaceId, s.skill_id, s.name, s.description, revisionId, searchText],
     );
     await pool.query(
-      `INSERT INTO skill_revisions (revision_id, skill_id, payload, content_hash, frontmatter, skill_md)
-       VALUES ($1,$2,'\\x00','h','{}'::jsonb,$3)`,
-      [revisionId, s.skill_id, s.body],
+      `INSERT INTO skill_revisions (revision_id, workspace_id, skill_id, payload, content_hash, frontmatter, skill_md)
+       VALUES ($1,$2,$3,'\\x00',$4,'{}'::jsonb,$5)`,
+      [revisionId, workspaceId, s.skill_id, `h_${revisionId}`, s.body],
     );
     const v = stubEmbed(searchText);
     await pool.query(
-      `INSERT INTO embeddings (id, revision_id, skill_id, provider, model, dimensions, vector)
-       VALUES ($1,$2,$3,'stub','stub',1536,$4::vector)`,
-      [`emb_${createId()}`, revisionId, s.skill_id, `[${v.join(',')}]`],
+      `INSERT INTO embeddings (id, workspace_id, revision_id, skill_id, provider, model, dimensions, vector)
+       VALUES ($1,$2,$3,$4,'stub','stub',1536,$5::vector)`,
+      [`emb_${createId()}`, workspaceId, revisionId, s.skill_id, `[${v.join(',')}]`],
     );
   }
 }

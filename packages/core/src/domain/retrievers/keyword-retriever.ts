@@ -4,6 +4,13 @@ import { type QueryExecutor, type RetrievedSkill, type RetrieveParams, type Skil
 
 export interface KeywordRetrieverDeps {
   readonly executor: QueryExecutor;
+  /**
+   * Workspace que este retriever enxerga. Obrigatório e fixado na CONSTRUÇÃO, não
+   * passado por chamada: o mesmo desenho dos stores (`createSkillsStore(db, workspaceId)`),
+   * em que o filtro é ESTRUTURAL e não disciplinar — não existe caminho de código que
+   * construa um retriever sem tenant, então não existe consulta que esqueça o filtro.
+   */
+  readonly workspaceId: string;
 }
 
 /**
@@ -19,12 +26,27 @@ export function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriev
     async retrieve(params: RetrieveParams): Promise<RetrievedSkill[]> {
       const b = new ParamBuilder();
       const queryPh = b.bind(params.query);
+      const wsPh = b.bind(deps.workspaceId);
       const limitPh = b.bind(params.topK);
+      // O filtro por categoria é parametrizado, nunca interpolado: `category` é texto
+      // LIVRE vindo de quem publica e repassado por quem busca — concatená-lo no SQL seria
+      // injeção pela porta da frente.
+      const categoryClause = params.category !== undefined ? ` AND s.category = ${b.bind(params.category)}` : '';
       const tsQuery = `to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', ${queryPh})), ' | '))`;
+      // UNIÃO `minhas + públicas` (M14 DoD #2), e nada mais.
+      //
+      // A cláusula é `workspace_id = $ws OR visibility = 'public'` — repare no que ELA NÃO
+      // permite: uma skill `private` de outro workspace não satisfaz nenhum dos dois lados,
+      // e `shared` também não (organização é escopo que ainda não existe no dado). O
+      // resultado declara a ORIGEM de cada linha, porque sem isso o consumidor não sabe se
+      // está prestes a instalar código do próprio time ou de um terceiro.
       const sql = `
-        SELECT s.skill_id, s.name, s.description, ts_rank(s.search_tsv, ${tsQuery}) AS score
+        SELECT s.skill_id, s.name, s.description, ts_rank(s.search_tsv, ${tsQuery}) AS score,
+               CASE WHEN s.workspace_id = ${wsPh} THEN 'own' ELSE 'public' END AS origin,
+               s.category, s.execution
         FROM skills s
-        WHERE s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}
+        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public')
+          AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}${categoryClause}
         ORDER BY score DESC, s.skill_id ASC
         LIMIT ${limitPh}
       `;

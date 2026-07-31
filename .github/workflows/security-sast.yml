@@ -1,0 +1,92 @@
+# SAST + varredura de segredos.
+#
+# Este repositório vai abrir (M10 entrega LICENSE/SECURITY/NOTICE). Segredo commitado depois
+# de aberto é incidente, não bug — e o histórico não pode ser reescrito (Regra 4), então a
+# única defesa que funciona é preventiva.
+name: Security SAST
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sast-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: semgrep (TypeScript / OWASP) + gitleaks
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Medido no theo-memory: ~3 min para os dois scans. 15 cobre pull de imagem em runner frio.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Run semgrep
+        # `docker run`, NÃO `container:` no job. Um job com `container:` roda TODO step como
+        # root — inclusive o checkout — deixando arquivos root-owned que quebram o checkout do
+        # próximo job. Aqui o checkout roda no host e só o scan entra no container.
+        run: |
+          docker run --rm -v "$PWD:/src" \
+            semgrep/semgrep@sha256:98c2572fced2474539fd27cab3207ebd8e95e4e7aab4c3b381fdc5e2641d9941 \
+            semgrep scan \
+              --config p/typescript \
+              --config p/javascript \
+              --config p/owasp-top-ten \
+              --error \
+              --exclude node_modules \
+              --exclude dist \
+              --exclude '*.test.ts' \
+              --exclude '*.spec.ts' \
+              /src/packages
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
+        with:
+          version: 11.1.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # GATE DE DEPENDÊNCIA — restrito a PRODUÇÃO, e isso é uma decisão, não descuido.
+      #
+      # Medido em 2026-07-30: 5 vulnerabilidades HIGH na árvore completa, TODAS em
+      # devDependencies (brace-expansion via eslint, js-yaml, postcss). Nenhuma alcança o
+      # runtime: não entram na imagem, que instala com `--prod`.
+      #
+      # Bloquear o pipeline por CVE de linter treina o time a ignorar o gate — e um gate
+      # ignorado não protege nada. O que chega ao usuário é a árvore de produção, e É ELA
+      # que reprova o build aqui.
+      - name: Audit de dependências de produção (bloqueante)
+        run: pnpm audit --prod --audit-level=high
+
+      # A árvore completa fica visível sem derrubar o build: quem for atualizar o toolchain
+      # vê o débito no log em vez de descobrir por acaso.
+      - name: Audit da árvore completa (informativo)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high
+
+      - name: Secret scan (gitleaks)
+        # ESCOPO = A RAIZ, não `packages/`. O theo-memory aprendeu isso do jeito difícil: o
+        # scan dele lia só `/src/packages` enquanto a justificativa dizia que "prosa é onde
+        # credencial vaza por acidente" — README, docs e `.claude/` ficavam de fora. Gate cuja
+        # justificativa não corresponde ao que ele faz é PIOR que gate ausente: alguém lê a
+        # justificativa e para de procurar. Travado por `tests/workflows/gates.test.ts`.
+        #
+        # Varre a árvore de trabalho (não o histórico) com `.gitleaks.toml`. Regra 9: gitleaks
+        # é o scanner consagrado; não reinventado.
+        run: |
+          docker run --rm -v "$PWD:/src" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            dir /src --config /src/.gitleaks.toml --no-banner --exit-code 1

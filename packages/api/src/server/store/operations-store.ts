@@ -1,6 +1,6 @@
-import { type Operation, type OperationState, OperationStateSchema } from '@usetheo/skillregistry/contract';
-import { operations } from '@usetheo/skillregistry/db';
-import { eq } from 'drizzle-orm';
+import { type Operation, type OperationState, OperationStateSchema } from '@usetheo/skills/contract';
+import { operations } from '@usetheo/skills/db';
+import { and, eq } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 import { isUniqueViolation } from '../persistence/pg-errors.js';
@@ -48,9 +48,9 @@ function toOperation(row: {
   };
 }
 
-export function createOperationsStore(db: Db): OperationsStore {
+export function createOperationsStore(db: Db, workspaceId: string): OperationsStore {
   async function getByIdempotencyKey(key: string): Promise<Operation | undefined> {
-    const rows = await db.select().from(operations).where(eq(operations.idempotencyKey, key)).limit(1);
+    const rows = await db.select().from(operations).where(and(eq(operations.workspaceId, workspaceId), eq(operations.idempotencyKey, key))).limit(1);
     const row = rows[0];
     return row === undefined ? undefined : toOperation(row);
   }
@@ -87,7 +87,7 @@ export function createOperationsStore(db: Db): OperationsStore {
       const rows = await db
         .select()
         .from(operations)
-        .where(eq(operations.operationId, operationId))
+        .where(and(eq(operations.workspaceId, workspaceId), eq(operations.operationId, operationId)))
         .limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toOperation(row);
@@ -97,7 +97,7 @@ export function createOperationsStore(db: Db): OperationsStore {
       await db
         .update(operations)
         .set({ state, error: error ?? null, updateTime: new Date() })
-        .where(eq(operations.operationId, operationId));
+        .where(and(eq(operations.workspaceId, workspaceId), eq(operations.operationId, operationId)));
     },
   };
 }

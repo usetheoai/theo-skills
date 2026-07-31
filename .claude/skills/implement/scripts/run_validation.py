@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -352,6 +353,48 @@ def _find_plan(project_root: Path, slug: str) -> Path | None:
     return None
 
 
+_PATTERNS_SKILL_RE = re.compile(r"\b([A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*-patterns)\b")
+
+
+def check_patterns_advisory(project_root: Path, slug: str) -> dict[str, Any]:
+    """SOFT advisory (ADR D3) — never FAIL.
+
+    Surfaces plan-cited `*-patterns` skills that do NOT appear in the
+    implementation's changed files, so the implementer can confirm the pattern
+    was actually applied. The BINDING guarantee lives at the plan layer
+    (`check_patterns_consumption` hard cap); this gate is visibility only, so a
+    miss returns WARN (which `main` never folds into a FAIL) — verifying "the
+    code applied the pattern" semantically is not mechanizable.
+    """
+    name = "patterns_consumption"
+    plan = _find_plan(project_root, slug)
+    if plan is None:
+        return {"name": name, "status": "N/A", "reason": "plan not found"}
+    cited = sorted(set(_PATTERNS_SKILL_RE.findall(
+        plan.read_text(encoding="utf-8-sig", errors="ignore"))))
+    if not cited:
+        return {"name": name, "status": "N/A", "reason": "plan cites no *-patterns skill"}
+    progress = _read_progress(project_root, slug)
+    files: list[str] = []
+    if progress:
+        for task in progress.get("tasks", []):
+            files.extend(task.get("files", []) or [])
+    if not files:
+        return {"name": name, "status": "N/A", "cited": cited,
+                "reason": "no implementation files recorded yet — cannot verify consumption"}
+    blob = ""
+    for rel in files:
+        fpath = project_root / rel
+        if fpath.is_file():
+            blob += fpath.read_text(encoding="utf-8-sig", errors="ignore")
+    not_found = [c for c in cited if c not in blob]
+    if not_found:
+        return {"name": name, "status": "WARN", "cited": cited, "not_found": not_found,
+                "reason": (f"plan cites {not_found} but it does not appear in the changed "
+                           "implementation files — confirm the pattern was applied (advisory, non-blocking)")}
+    return {"name": name, "status": "PASS", "cited": cited}
+
+
 def check_progress_schema_gate(project_root: Path, slug: str) -> dict[str, Any]:
     """Fail-fast validation of the checkpoint itself, BEFORE the gates that read it.
 
@@ -478,6 +521,7 @@ def main() -> int:
         wiring_summary(project_root, args.slug),
         check_acceptance_criteria_gate(project_root, args.slug),
         check_test_obligations_gate(project_root, args.slug),
+        check_patterns_advisory(project_root, args.slug),
         check_code_quality(project_root, args.slug, skip=args.no_code_quality),
     ]
 

@@ -1,4 +1,4 @@
-import { NonRetriableOperationError, type WebhookEventType } from '@usetheo/skillregistry';
+import { NonRetriableOperationError, type WebhookEventType, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from './logger.js';
@@ -23,9 +23,27 @@ export type OnOperationTerminal = (args: {
   readonly state: 'ACTIVE' | 'FAILED';
 }) => Promise<void>;
 
+/**
+ * Inquilino dono do job.
+ *
+ * Jobs enfileirados ANTES do M11 não carregam o campo — pertencem ao workspace da ponte
+ * legada. Sem este fallback, um job em voo no momento do deploy morreria com o inquilino
+ * indefinido.
+ */
+function jobWorkspace(data: { readonly workspaceId?: string }): string {
+  return data.workspaceId ?? DEFAULT_WORKSPACE_ID;
+}
+
 export interface WorkerDeps {
-  readonly skillsStore: SkillsStore;
-  readonly operationsStore: OperationsStore;
+  /**
+   * Factories escopadas por inquilino (M11).
+   *
+   * O worker roda fora de uma requisicao: o inquilino vem do PROPRIO job
+   * (`job.data.workspaceId`), nao de um contexto HTTP. Receber uma instancia pronta faria
+   * todo job escrever no mesmo workspace — vazamento silencioso entre clientes.
+   */
+  readonly skillsStoreFor: (workspaceId: string) => SkillsStore;
+  readonly operationsStoreFor: (workspaceId: string) => OperationsStore;
   readonly logger: Logger;
   readonly onTerminal?: OnOperationTerminal;
 }
@@ -51,6 +69,8 @@ function isBusinessRule(err: unknown): boolean {
 async function runOperationJob(
   deps: WorkerDeps,
   jobName: string,
+  /** Inquilino dono do job — vem de `job.data.workspaceId` (M11). */
+  workspaceId: string,
   operationId: string,
   skillId: string,
   traceId: string,
@@ -58,7 +78,7 @@ async function runOperationJob(
   retryCount: number,
   action: () => Promise<void>,
 ): Promise<void> {
-  const op = await deps.operationsStore.get(operationId);
+  const op = await deps.operationsStoreFor(workspaceId).get(operationId);
   if (op === undefined) {
     return; // operation row gone — nothing to do
   }
@@ -68,14 +88,14 @@ async function runOperationJob(
 
   try {
     await action();
-    await deps.operationsStore.updateState(operationId, 'ACTIVE');
+    await deps.operationsStoreFor(workspaceId).updateState(operationId, 'ACTIVE');
     deps.logger.info({ operation_id: operationId, skill_id: skillId, trace_id: traceId, state: 'ACTIVE', job: jobName }, `${jobName} done`);
     await deps.onTerminal?.({ operationId, skillId, traceId, eventType, state: 'ACTIVE' });
   } catch (err) {
     const lastAttempt = retryCount >= MAX_SKILL_RETRY;
     if (isBusinessRule(err) || lastAttempt) {
       const message = err instanceof Error ? err.message : String(err);
-      await deps.operationsStore.updateState(operationId, 'FAILED', message);
+      await deps.operationsStoreFor(workspaceId).updateState(operationId, 'FAILED', message);
       deps.logger.error(
         { operation_id: operationId, skill_id: skillId, trace_id: traceId, state: 'FAILED', error: message, job: jobName },
         `${jobName} failed`,
@@ -91,11 +111,14 @@ export function createCreateSkillHandler(
   deps: WorkerDeps,
 ): (data: CreateSkillJobData, retryCount: number) => Promise<void> {
   return (data, retryCount) =>
-    runOperationJob(deps, JOB_NAMES.CREATE_SKILL, data.operation_id, data.skill_id, data.trace_id, 'skill.created', retryCount, async () => {
-      await deps.skillsStore.createWithRevision({
+    runOperationJob(deps, JOB_NAMES.CREATE_SKILL, jobWorkspace(data), data.operation_id, data.skill_id, data.trace_id, 'skill.created', retryCount, async () => {
+      await deps.skillsStoreFor(jobWorkspace(data)).createWithRevision({
         skillId: data.skill_id,
         name: data.name,
         description: data.description,
+        ...(data.category !== undefined ? { category: data.category } : {}),
+        ...(data.execution !== undefined ? { execution: data.execution } : {}),
+        ...(data.version !== undefined ? { version: data.version } : {}),
         payload: Buffer.from(data.payload_b64, 'base64'),
         contentHash: data.content_hash,
         frontmatter: data.frontmatter,
@@ -108,7 +131,7 @@ export function createUpdateSkillHandler(
   deps: WorkerDeps,
 ): (data: UpdateSkillJobData, retryCount: number) => Promise<void> {
   return (data, retryCount) =>
-    runOperationJob(deps, JOB_NAMES.UPDATE_SKILL, data.operation_id, data.skill_id, data.trace_id, 'skill.updated', retryCount, async () => {
+    runOperationJob(deps, JOB_NAMES.UPDATE_SKILL, jobWorkspace(data), data.operation_id, data.skill_id, data.trace_id, 'skill.updated', retryCount, async () => {
       const meta: { name?: string; description?: string } = {};
       if (data.mask.includes('displayName') && data.name !== undefined) {
         meta.name = data.name;
@@ -117,7 +140,7 @@ export function createUpdateSkillHandler(
         meta.description = data.description;
       }
       if (meta.name !== undefined || meta.description !== undefined) {
-        await deps.skillsStore.updateMetadata(data.skill_id, meta);
+        await deps.skillsStoreFor(jobWorkspace(data)).updateMetadata(data.skill_id, meta);
       }
       if (
         data.mask.includes('zippedFilesystem') &&
@@ -125,7 +148,7 @@ export function createUpdateSkillHandler(
         data.content_hash !== undefined &&
         data.frontmatter !== undefined
       ) {
-        await deps.skillsStore.addRevision(data.skill_id, {
+        await deps.skillsStoreFor(jobWorkspace(data)).addRevision(data.skill_id, {
           payload: Buffer.from(data.payload_b64, 'base64'),
           contentHash: data.content_hash,
           frontmatter: data.frontmatter,
@@ -139,9 +162,9 @@ export function createDeleteSkillHandler(
   deps: WorkerDeps,
 ): (data: DeleteSkillJobData, retryCount: number) => Promise<void> {
   return (data, retryCount) =>
-    runOperationJob(deps, JOB_NAMES.DELETE_SKILL, data.operation_id, data.skill_id, data.trace_id, 'skill.deleted', retryCount, async () => {
+    runOperationJob(deps, JOB_NAMES.DELETE_SKILL, jobWorkspace(data), data.operation_id, data.skill_id, data.trace_id, 'skill.deleted', retryCount, async () => {
       // Idempotent: softDelete returning false (already deleted) is success.
-      await deps.skillsStore.softDelete(data.skill_id, new Date(data.reserved_until));
+      await deps.skillsStoreFor(jobWorkspace(data)).softDelete(data.skill_id, new Date(data.reserved_until));
     });
 }
 

@@ -1,5 +1,5 @@
 {
-  "name": "@usetheo/skillregistry-monorepo",
+  "name": "@usetheo/skills-monorepo",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,12 +12,15 @@
     "test": "pnpm -r test",
     "test:integration": "pnpm -r test:integration",
     "build": "pnpm -r build",
-    "db:push": "pnpm --filter @usetheo/skillregistry db:push",
-    "db:generate": "pnpm --filter @usetheo/skillregistry db:generate",
+    "db:push": "pnpm --filter @usetheo/skills db:push",
+    "db:generate": "pnpm --filter @usetheo/skills db:generate",
     "compose:up": "docker compose up -d pgvector",
     "compose:down": "docker compose down",
-    "start": "pnpm --filter @usetheo/skillregistry-api start",
-    "test:fast": "pnpm -r exec vitest run -t '^(?!.*\\[slow\\])(?!.*\\[live\\]).*'"
+    "start": "pnpm --filter @usetheo/skills-api start",
+    "test:fast": "pnpm -r exec vitest run -t '^(?!.*\\[slow\\])(?!.*\\[live\\]).*'",
+    "test:workflows": "vitest run --config vitest.workflows.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "db:migrate": "pnpm --filter @usetheo/skills db:migrate"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -27,6 +30,8 @@
     "tsx": "^4.19.0",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.0.0",
-    "vitest": "^4.0.0"
-  }
+    "vitest": "^4.0.0",
+    "yaml": "^2.9.0"
+  },
+  "license": "Apache-2.0"
 }

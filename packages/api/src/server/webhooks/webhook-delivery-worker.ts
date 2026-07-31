@@ -1,4 +1,4 @@
-import { type WebhookSender } from '@usetheo/skillregistry';
+import { type WebhookSender } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from '../logger.js';

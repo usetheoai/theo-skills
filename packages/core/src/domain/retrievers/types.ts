@@ -9,6 +9,14 @@
 export interface RetrieveParams {
   readonly query: string;
   readonly topK: number;
+  /**
+   * Filtro por categoria (M23). Ausente = todas.
+   *
+   * É AUXILIAR da busca semântica, não substituto: estreita o espaço antes do ranqueamento
+   * para o agente não varrer o catálogo inteiro. E não atravessa inquilino — a cláusula de
+   * tenant continua sendo a primeira de toda consulta.
+   */
+  readonly category?: string;
 }
 
 /** A retrieved skill with its (strategy-dependent) relevance score. */
@@ -17,6 +25,25 @@ export interface RetrievedSkill {
   readonly score: number;
   readonly name: string;
   readonly description: string;
+  /**
+   * De onde veio (M14): `own` = do próprio workspace; `public` = do catálogo curado.
+   *
+   * Declarar a origem não é enfeite: uma skill pública é CÓDIGO DE TERCEIRO que o agente
+   * vai carregar. Sem esta marca o consumidor não tem como distinguir o que o próprio time
+   * publicou do que veio de fora — e essa é a decisão que ele precisa tomar.
+   */
+  readonly origin?: 'own' | 'public';
+  /** Eixo de descoberta declarado por quem publicou (M23). Texto livre. */
+  readonly category?: string;
+  /**
+   * Onde a skill executa (M23): `remote` = instrução, o agente CARREGA o corpo do servidor;
+   * `local` = traz script e precisa ser instalada na máquina do cliente.
+   *
+   * Vem na DESCOBERTA, e não só no detalhe, porque é o que decide se o agente pode usar a
+   * skill de onde ele está. Descobrir isso depois é descobrir seguindo passos que
+   * referenciam arquivos que não existem.
+   */
+  readonly execution?: 'remote' | 'local';
 }
 
 /** Strategy-agnostic retriever. */

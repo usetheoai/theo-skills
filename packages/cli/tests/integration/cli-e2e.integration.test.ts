@@ -2,8 +2,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { startTestRegistry, type TestRegistry } from '@usetheo/skillregistry-api/testkit';
-import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skillregistry-api/validators';
+import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills/validators';
+import { startTestRegistry, type TestRegistry } from '@usetheo/skills-api/testkit';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { runPublish } from '../../src/commands/publish.js';

@@ -8,7 +8,7 @@ import {
   type RetrievedSkill,
   type RetrieveStrategy,
   type SkillRetriever,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 
 /** A strategy-aware retriever: `retrieve` dispatches on `params.strategy`. */
 export interface DispatchingRetriever {
@@ -18,6 +18,8 @@ export interface DispatchingRetriever {
 export interface RetrieverSelectionOptions {
   readonly executor: QueryExecutor;
   readonly embedder: EmbeddingProvider;
+  /** Workspace que este dispatcher enxerga — propagado a cada estratégia. */
+  readonly workspaceId: string;
   /** Per-strategy overrides (test seam). */
   readonly overrides?: Partial<Record<RetrieveStrategy, SkillRetriever>>;
 }
@@ -28,8 +30,11 @@ export interface RetrieverSelectionOptions {
  * the handler or the domain.
  */
 export function createDispatchingRetriever(opts: RetrieverSelectionOptions): DispatchingRetriever {
-  const vector = opts.overrides?.vector ?? createVectorRetriever({ executor: opts.executor, embedder: opts.embedder });
-  const keyword = opts.overrides?.keyword ?? createKeywordRetriever({ executor: opts.executor });
+  const vector =
+    opts.overrides?.vector ??
+    createVectorRetriever({ executor: opts.executor, embedder: opts.embedder, workspaceId: opts.workspaceId });
+  const keyword =
+    opts.overrides?.keyword ?? createKeywordRetriever({ executor: opts.executor, workspaceId: opts.workspaceId });
   const hybrid = opts.overrides?.hybrid ?? createHybridRetriever({ vector, keyword });
   const byStrategy: Record<RetrieveStrategy, SkillRetriever> = { vector, keyword, hybrid };
   return {

@@ -1,0 +1,14 @@
+# Labels de runner que o actionlint deve aceitar em `runs-on`.
+#
+# ATIVADO em 2026-07-30, com a migração do repositório para a organização `usetheoai`.
+#
+# O actionlint valida `runs-on` contra a lista de labels GitHub-hosted que conhece e REJEITA
+# qualquer outra ("label ... is unknown"). Sem esta declaração, o gate de workflows falharia
+# em TODOS os arquivos — inclusive validando a si mesmo.
+#
+# `self-hosted-runner.labels` é a chave prevista para exatamente isto: labels servidas por uma
+# frota que não é a do GitHub. As da Blacksmith entram aqui apesar do nome da chave — do ponto
+# de vista do actionlint, qualquer runner não-GitHub-hosted é "self-hosted".
+self-hosted-runner:
+  labels:
+    - blacksmith-8vcpu-ubuntu-2404

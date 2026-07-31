@@ -1,5 +1,3 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   checkEntry,
   exceedsDepth,
@@ -7,7 +5,9 @@ import {
   isSymlink,
   newGuardState,
   type ZipEntryMeta,
-} from '../../src/server/payload/zip-guards.js';
+} from '@usetheo/skills/validators';
+import { describe, expect, it } from 'vitest';
+
 
 const SYMLINK_ATTRS = 0o120755 << 16;
 const FILE_ATTRS = 0o100644 << 16;

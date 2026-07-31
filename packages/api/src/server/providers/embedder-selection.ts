@@ -2,7 +2,7 @@ import {
   createOpenAIEmbedder,
   createStubEmbedder,
   type EmbeddingProvider,
-} from '@usetheo/skillregistry';
+} from '@usetheo/skills';
 
 export interface SelectEmbedderOptions {
   /** Explicit injection (test seam / advanced reuse) — wins over env. */

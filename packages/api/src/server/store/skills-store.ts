@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
-import { skillRevisions, skills } from '@usetheo/skillregistry/db';
-import { and, asc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { skillRevisions, skills } from '@usetheo/skills/db';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 import { isUniqueViolation, SkillAlreadyExistsError } from '../persistence/pg-errors.js';
@@ -12,14 +12,38 @@ export interface SkillView {
   readonly description: string;
   readonly state: string;
   readonly latest_revision_id: string | null;
+  /** Eixo de descoberta (M23), texto livre. Ausente = sem categoria. */
+  readonly category?: string;
+  /** Onde a skill executa (M23): `remote` (carregada) ou `local` (instalada). */
+  readonly execution?: string;
   readonly create_time: string;
   readonly update_time: string;
+}
+
+/**
+ * O corpo da skill + o que o consumidor precisa saber ANTES de injetá-lo no prompt (M24).
+ *
+ * `origin` não é enfeite: uma skill pública é instrução de TERCEIRO que o agente vai seguir.
+ * Sem a marca, o consumidor não distingue o que o próprio time publicou do que veio de fora
+ * — e essa é justamente a decisão dele.
+ */
+export interface SkillInstructions {
+  readonly skill_id: string;
+  readonly instructions: string;
+  readonly execution: string;
+  readonly origin: 'own' | 'public';
 }
 
 export interface NewSkillRevision {
   readonly skillId: string;
   readonly name: string;
   readonly description: string;
+  /** M23 — eixo de descoberta (texto livre). Ausente = sem categoria. */
+  readonly category?: string;
+  /** M23 — `remote` (instrução, carregada do servidor) ou `local` (script, via npx). */
+  readonly execution?: string;
+  /** M27 — versão semântica da revisão. Ausente = skill não versionada (canal não a vê). */
+  readonly version?: string;
   readonly payload: Buffer;
   readonly contentHash: string;
   readonly frontmatter: Record<string, unknown>;
@@ -29,6 +53,8 @@ export interface NewSkillRevision {
 
 export interface RevisionPayload {
   readonly payload: Buffer;
+  /** M27 — versão semântica desta revisão. */
+  readonly version?: string;
   readonly contentHash: string;
   readonly frontmatter: Record<string, unknown>;
   /** M3: SKILL.md markdown text — embedding source captured at ingest. */
@@ -49,6 +75,14 @@ export interface SkillsStore {
   updateMetadata(skillId: string, fields: { name?: string; description?: string }): Promise<void>;
   /** Fetch a live (non-deleted) skill view, or undefined. */
   getView(skillId: string): Promise<SkillView | undefined>;
+  /**
+   * Corpo da revisão CORRENTE, para a carga remota (M24).
+   *
+   * Cobre a união `minhas + públicas` — a mesma cláusula da busca, e nada além dela: uma
+   * skill `private` de outro inquilino não satisfaz nenhum dos dois lados. `undefined` para
+   * inexistente, apagada e alheia-privada, indistinguíveis de propósito.
+   */
+  getInstructions(skillId: string): Promise<SkillInstructions | undefined>;
   /** Keyset-paginated list of live skills (ordered by skill_id). */
   listPaginated(pageSize: number, pageToken: string | null): Promise<ListPage>;
   /** Soft-delete: mark DELETED + reserved_until. Returns whether it existed. */
@@ -63,6 +97,8 @@ function toView(row: {
   description: string;
   state: string;
   latestRevisionId: string | null;
+  category?: string | null;
+  execution?: string | null;
   createTime: Date;
   updateTime: Date;
 }): SkillView {
@@ -70,6 +106,10 @@ function toView(row: {
     skill_id: row.skillId,
     name: row.name,
     description: row.description,
+    // `null` da coluna vira ausente no JSON: `category: null` obrigaria todo consumidor a
+    // tratar dois "sem categoria" diferentes.
+    ...(typeof row.category === 'string' && row.category !== '' ? { category: row.category } : {}),
+    ...(typeof row.execution === 'string' && row.execution !== '' ? { execution: row.execution } : {}),
     state: row.state,
     latest_revision_id: row.latestRevisionId,
     create_time: row.createTime.toISOString(),
@@ -83,6 +123,10 @@ const liveColumns = {
   description: skills.description,
   state: skills.state,
   latestRevisionId: skills.latestRevisionId,
+  // M26 — o consumidor precisa destes ANTES de decidir o que fazer com a skill: `execution`
+  // diz se ela é carregada ou instalada, e a CLI recusa instalar uma `remote` sem ele.
+  category: skills.category,
+  execution: skills.execution,
   createTime: skills.createTime,
   updateTime: skills.updateTime,
 };
@@ -93,16 +137,36 @@ const liveColumns = {
  * so the lexical index is always consistent — including metadata-only updates
  * that do not create a new revision.
  */
-function refreshSearchText(executor: { execute: (q: ReturnType<typeof sql>) => Promise<unknown> }, skillId: string): Promise<unknown> {
+function refreshSearchText(
+  executor: { execute: (q: ReturnType<typeof sql>) => Promise<unknown> },
+  workspaceId: string,
+  skillId: string,
+): Promise<unknown> {
   return executor.execute(sql`
     UPDATE skills s
     SET search_text = s.name || ' ' || s.description || ' ' || coalesce(r.skill_md, '')
     FROM skill_revisions r
-    WHERE r.revision_id = s.latest_revision_id AND s.skill_id = ${skillId}
+    WHERE r.revision_id = s.latest_revision_id
+      AND s.workspace_id = ${workspaceId}
+      AND s.skill_id = ${skillId}
   `);
 }
 
-export function createSkillsStore(db: Db): SkillsStore {
+/**
+ * Cria um store JA ESCOPADO a um workspace.
+ *
+ * POR QUE A FACTORY RECEBE O INQUILINO, em vez de cada metodo receber um `workspaceId`:
+ * sao 17 operacoes so neste store (52 no conjunto). Com o inquilino como parametro de
+ * metodo, basta UMA chamada esquecida para vazar o catalogo inteiro de outro cliente — e o
+ * compilador nao ajuda, porque o parametro estaria la, so preenchido errado.
+ *
+ * Escopando na construcao, o filtro deixa de ser disciplina e vira estrutura: nao existe
+ * caminho de codigo que alcance o store sem antes ter resolvido de quem e a requisicao.
+ * E o mesmo desenho do `memory.withWorkspace('acme')` do theo-memory.
+ */
+export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
+  /** Todo predicado nasce ancorado no inquilino. */
+  const ws = eq(skills.workspaceId, workspaceId);
   return {
     async createWithRevision(input) {
       const revisionId = `rev_${createId()}`;
@@ -114,6 +178,7 @@ export function createSkillsStore(db: Db): SkillsStore {
           .delete(skills)
           .where(
             and(
+              ws,
               eq(skills.skillId, input.skillId),
               isNotNull(skills.deletedAt),
               lt(skills.reservedUntil, sql`now()`),
@@ -121,13 +186,26 @@ export function createSkillsStore(db: Db): SkillsStore {
           )
           .returning({ skillId: skills.skillId });
         if (purged.length > 0) {
-          await tx.delete(skillRevisions).where(eq(skillRevisions.skillId, input.skillId));
+          await tx
+            .delete(skillRevisions)
+            .where(
+              and(
+                eq(skillRevisions.workspaceId, workspaceId),
+                eq(skillRevisions.skillId, input.skillId),
+              ),
+            );
         }
         try {
           await tx.insert(skills).values({
+            workspaceId,
             skillId: input.skillId,
             name: input.name,
             description: input.description,
+            // Ausente vira NULL, não string vazia: `''` e `NULL` respondem diferente a
+            // `WHERE category = $1` e a agregações, e a mistura produz a categoria
+            // fantasma que aparece em toda listagem sem ninguém ter criado.
+            ...(input.category !== undefined ? { category: input.category } : {}),
+            ...(input.execution !== undefined ? { execution: input.execution } : {}),
             state: 'ACTIVE',
             latestRevisionId: revisionId,
           });
@@ -139,13 +217,17 @@ export function createSkillsStore(db: Db): SkillsStore {
         }
         await tx.insert(skillRevisions).values({
           revisionId,
+          workspaceId,
           skillId: input.skillId,
+          // Ausente vira NULL: uma revisão sem versão é legítima (nem toda skill usa canal),
+          // e `''` faria `isNotNull` enxergar uma versão vazia que nenhum range casa.
+          ...(input.version !== undefined ? { version: input.version } : {}),
           payload: input.payload,
           contentHash: input.contentHash,
           frontmatter: input.frontmatter,
           skillMd: input.skillMd,
         });
-        await refreshSearchText(tx, input.skillId);
+        await refreshSearchText(tx, workspaceId, input.skillId);
       });
     },
 
@@ -154,7 +236,9 @@ export function createSkillsStore(db: Db): SkillsStore {
       await db.transaction(async (tx) => {
         await tx.insert(skillRevisions).values({
           revisionId,
+          workspaceId,
           skillId,
+          ...(rev.version !== undefined ? { version: rev.version } : {}),
           payload: rev.payload,
           contentHash: rev.contentHash,
           frontmatter: rev.frontmatter,
@@ -163,8 +247,8 @@ export function createSkillsStore(db: Db): SkillsStore {
         await tx
           .update(skills)
           .set({ latestRevisionId: revisionId, updateTime: new Date() })
-          .where(eq(skills.skillId, skillId));
-        await refreshSearchText(tx, skillId);
+          .where(and(ws, eq(skills.skillId, skillId)));
+        await refreshSearchText(tx, workspaceId, skillId);
       });
       return revisionId;
     },
@@ -178,8 +262,8 @@ export function createSkillsStore(db: Db): SkillsStore {
         patch['description'] = fields.description;
       }
       await db.transaction(async (tx) => {
-        await tx.update(skills).set(patch).where(eq(skills.skillId, skillId));
-        await refreshSearchText(tx, skillId);
+        await tx.update(skills).set(patch).where(and(ws, eq(skills.skillId, skillId)));
+        await refreshSearchText(tx, workspaceId, skillId);
       });
     },
 
@@ -187,17 +271,62 @@ export function createSkillsStore(db: Db): SkillsStore {
       const rows = await db
         .select(liveColumns)
         .from(skills)
-        .where(and(eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+        .where(and(ws, eq(skills.skillId, skillId), isNull(skills.deletedAt)))
         .limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toView(row);
     },
 
+    async getInstructions(skillId) {
+      // UMA consulta: o corpo mora na revisão, o modo de execução e a visibilidade na skill.
+      // Duas idas ao banco abririam janela para ler o corpo de uma revisão que a segunda
+      // consulta descobriria pertencer a uma skill apagada.
+      const rows = await db
+        .select({
+          skillId: skills.skillId,
+          workspaceId: skills.workspaceId,
+          execution: skills.execution,
+          instructions: skillRevisions.skillMd,
+        })
+        .from(skills)
+        .innerJoin(
+          skillRevisions,
+          and(
+            eq(skillRevisions.workspaceId, skills.workspaceId),
+            eq(skillRevisions.revisionId, skills.latestRevisionId),
+          ),
+        )
+        .where(
+          and(
+            eq(skills.skillId, skillId),
+            isNull(skills.deletedAt),
+            // Mesma união da busca: as minhas OU as públicas. Uma `private` alheia não
+            // satisfaz nenhum lado — e `shared` também não, porque organização ainda não
+            // existe no dado.
+            or(eq(skills.workspaceId, workspaceId), eq(skills.visibility, 'public')),
+          ),
+        )
+        // A minha tem precedência sobre uma pública homônima: sob a PK composta, o mesmo
+        // `skill_id` em dois inquilinos é o caso NORMAL, e sem ordenação a linha devolvida
+        // seria arbitrária.
+        .orderBy(desc(eq(skills.workspaceId, workspaceId)))
+        .limit(1);
+
+      const row = rows[0];
+      if (row === undefined) return undefined;
+      return {
+        skill_id: row.skillId,
+        instructions: row.instructions,
+        execution: row.execution,
+        origin: row.workspaceId === workspaceId ? 'own' : 'public',
+      };
+    },
+
     async listPaginated(pageSize, pageToken) {
       const where =
         pageToken === null
-          ? isNull(skills.deletedAt)
-          : and(isNull(skills.deletedAt), gt(skills.skillId, pageToken));
+          ? and(ws, isNull(skills.deletedAt))
+          : and(ws, isNull(skills.deletedAt), gt(skills.skillId, pageToken));
       const rows = await db
         .select(liveColumns)
         .from(skills)
@@ -217,7 +346,7 @@ export function createSkillsStore(db: Db): SkillsStore {
       const result = await db
         .update(skills)
         .set({ state: 'DELETED', deletedAt: new Date(), reservedUntil, updateTime: new Date() })
-        .where(and(eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+        .where(and(ws, eq(skills.skillId, skillId), isNull(skills.deletedAt)))
         .returning({ skillId: skills.skillId });
       return result.length > 0;
     },
@@ -228,6 +357,7 @@ export function createSkillsStore(db: Db): SkillsStore {
         .from(skills)
         .where(
           and(
+            ws,
             eq(skills.skillId, skillId),
             isNotNull(skills.reservedUntil),
             gt(skills.reservedUntil, sql`now()`),

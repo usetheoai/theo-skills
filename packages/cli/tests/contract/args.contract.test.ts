@@ -62,3 +62,23 @@ describe('resolveArgs (config↔flags precedence — T3.2)', () => {
     expect(r.auth).toBe('tok');
   });
 });
+
+describe('--runtime (M7 — o destinatário da instalação)', () => {
+  it('aceita `theokit` e `claude`', () => {
+    expect(parseCliArgs(['install', 'sk_1', '--runtime', 'theokit']).runtime).toBe('theokit');
+    expect(parseCliArgs(['install', 'sk_1', '--runtime', 'claude']).runtime).toBe('claude');
+  });
+
+  it('ausente = `undefined`, para o default viver num lugar só (resolveSkillsDir)', () => {
+    // Repetir o default aqui criaria duas fontes de verdade que divergem no primeiro dia em
+    // que uma delas mudar.
+    expect(parseCliArgs(['install', 'sk_1']).runtime).toBeUndefined();
+  });
+
+  it('REJEITA um runtime desconhecido em vez de cair no default em silêncio', () => {
+    // Um typo (`--runtime theokti`) instalando em `.claude/skills` sem reclamar é o defeito
+    // que este parâmetro existe para corrigir, reintroduzido pela porta dos fundos: a
+    // instalação diz que deu certo e o agente nunca vê a skill.
+    expect(() => parseCliArgs(['install', 'sk_1', '--runtime', 'theokti'])).toThrow(CliUsageError);
+  });
+});

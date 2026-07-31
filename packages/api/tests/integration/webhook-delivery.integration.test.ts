@@ -1,8 +1,7 @@
 import {
   type WebhookSendRequest,
   type WebhookSendResponse,
-  type WebhookSender,
-} from '@usetheo/skillregistry';
+  type WebhookSender, DEFAULT_WORKSPACE_ID }  from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -10,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createApp } from '../../src/server/app.js';
 import { createDb } from '../../src/server/db.js';
 import { createNoopLogger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { createWebhookEndpointsStore } from '../../src/server/store/webhook-endpoints-store.js';
 import {
   createWebhookDeliveryHandler,
@@ -50,7 +50,7 @@ const publicResolver = {
   resolve6: () => Promise.resolve([] as string[]),
 };
 
-async function pollOpState(app: Hono, opId: string, target: string): Promise<string> {
+async function pollOpState(app: Hono<AppEnv>, opId: string, target: string): Promise<string> {
   for (let i = 0; i < 200; i++) {
     const op = (await (await app.request(`/v1/operations/${opId}`)).json()) as { state: string };
     if (op.state === target || op.state === 'FAILED') return op.state;
@@ -67,15 +67,35 @@ async function deliveryRow(id: string): Promise<{ delivered_at: Date | null; fai
   return r.rows[0];
 }
 
+/**
+ * Orçamento de espera derivado da FÍSICA do sistema sob teste, não de chute.
+ *
+ * O teto anterior era 200 × 50ms = 10s — MENOR que o pior caso real, o que tornava estes
+ * testes matematicamente impossíveis de passar quando a fila ia até o fim do backoff:
+ *
+ *   retryDelay: 2s com retryBackoff (queue.ts:21,101) → 2s + 4s + 8s = 14s só de espera
+ *   + pollingIntervalSeconds 1 e 2 (webhook-delivery-worker.ts:113,122) → +1-2s por ciclo
+ *
+ * Resultado: ~14-20s no pior caso contra um teto de 10s. Passava quando o polling calhava
+ * cedo e falhava quando não — a flakiness que o CI de M10 expôs (3-4 de 8 vermelhos,
+ * variando entre execuções do MESMO commit).
+ *
+ * 45s cobre o pior caso com folga sem esconder travamento real: um teste que trave de
+ * verdade ainda falha, só que por diagnóstico correto em vez de por corrida perdida.
+ */
+const WAIT_BUDGET_MS = 45_000;
+const WAIT_STEP_MS = 50;
+
 async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
-  for (let i = 0; i < 200; i++) {
+  const deadline = Date.now() + WAIT_BUDGET_MS;
+  while (Date.now() < deadline) {
     if (await predicate()) return;
-    await sleep(50);
+    await sleep(WAIT_STEP_MS);
   }
-  throw new Error('condition not reached');
+  throw new Error(`condition not reached in ${WAIT_BUDGET_MS}ms`);
 }
 
-async function createEndpoint(app: Hono, eventTypes?: string[]): Promise<{ id: string; secret: string }> {
+async function createEndpoint(app: Hono<AppEnv>, eventTypes?: string[]): Promise<{ id: string; secret: string }> {
   const body: Record<string, unknown> = { url: 'https://hooks.example.com/in' };
   if (eventTypes !== undefined) body['event_types'] = eventTypes;
   const res = await app.request('/v1/webhookEndpoints', {
@@ -86,7 +106,7 @@ async function createEndpoint(app: Hono, eventTypes?: string[]): Promise<{ id: s
   return (await res.json()) as { id: string; secret: string };
 }
 
-async function postSkill(app: Hono, skillId: string): Promise<string> {
+async function postSkill(app: Hono<AppEnv>, skillId: string): Promise<string> {
   const zip = await buildZipBase64([{ path: 'SKILL.md', content: skillMd(skillId) }]);
   const res = await app.request('/v1/skills', {
     method: 'POST',
@@ -98,13 +118,13 @@ async function postSkill(app: Hono, skillId: string): Promise<string> {
 
 describeIntegration('webhook delivery pipeline E2E (T5.1)', () => {
   let boss: PgBoss;
-  let app: Hono;
+  let app: Hono<AppEnv>;
   let sender: StubSender;
 
   beforeAll(async () => {
     boss = await startBoss();
     sender = new StubSender();
-    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()));
+    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     const enqueuer = createWebhookEnqueuer({ endpointsStore, queue: boss, logger: createNoopLogger() });
     const h = buildWorkerHandlers(getPool(), createNoopLogger(), enqueuer);
     await registerWorker({ queue: boss, createHandler: h.createHandler, updateHandler: h.updateHandler, deleteHandler: h.deleteHandler });
@@ -180,7 +200,7 @@ describeIntegration('webhook delivery pipeline E2E (T5.1)', () => {
   });
 
   it('reconciler recovers an orphaned (un-enqueued) delivery and it gets delivered', async () => {
-    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()));
+    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await endpointsStore.create({ id: 'whe_orphan', url: 'https://hooks.example.com/in', secret: 's', eventTypes: null });
     // simulate a crash AFTER recordDelivery but BEFORE enqueue: row exists, enqueued_at NULL.
     await endpointsStore.recordDelivery({
@@ -222,7 +242,7 @@ describeIntegration('webhook delivery pipeline E2E (T5.1)', () => {
   });
 
   it('two concurrent reconciler sweeps re-drive an orphan exactly once (no double send)', async () => {
-    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()));
+    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await endpointsStore.create({ id: 'whe_2rec', url: 'https://hooks.example.com/in', secret: 's', eventTypes: null });
     await endpointsStore.recordDelivery({ id: 'whd_2rec', endpointId: 'whe_2rec', eventType: 'skill.created', traceId: 'tr-test', payload: { k: 1 } });
     await getPool().query("UPDATE webhook_deliveries SET create_time = now() - interval '5 minutes' WHERE id = 'whd_2rec'");
@@ -237,7 +257,7 @@ describeIntegration('webhook delivery pipeline E2E (T5.1)', () => {
   });
 
   it('reconciler re-drives a STUCK (enqueued but non-terminal) delivery (lost DLQ event)', async () => {
-    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()));
+    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await endpointsStore.create({ id: 'whe_stuck', url: 'https://hooks.example.com/in', secret: 's', eventTypes: null });
     await endpointsStore.recordDelivery({ id: 'whd_stuck', endpointId: 'whe_stuck', eventType: 'skill.created', traceId: 'tr-test', payload: { k: 1 } });
     await endpointsStore.stampEnqueued('whd_stuck'); // enqueued...

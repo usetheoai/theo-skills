@@ -7,6 +7,8 @@ import { type QueryExecutor, type RetrievedSkill, type RetrieveParams, type Skil
 export interface VectorRetrieverDeps {
   readonly executor: QueryExecutor;
   readonly embedder: EmbeddingProvider;
+  /** Workspace fixado na construção — ver `KeywordRetrieverDeps.workspaceId`. */
+  readonly workspaceId: string;
 }
 
 /**
@@ -21,12 +23,22 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
       assertEmbeddingDim(vec);
       const b = new ParamBuilder();
       const vecPh = b.bind(`[${vec.join(',')}]`);
+      const wsPh = b.bind(deps.workspaceId);
       const limitPh = b.bind(params.topK);
+      // O JOIN carrega `workspace_id` por NECESSIDADE, não por simetria: desde que a PK
+      // de `skills` virou composta `(workspace_id, skill_id)`, o `skill_id` deixou de ser
+      // único globalmente. Juntar só por `skill_id` casaria a skill de um tenant com o
+      // embedding de outro que escolheu o mesmo id — um vazamento silencioso que nenhum
+      // filtro no WHERE corrigiria, porque a linha errada já teria entrado no resultado.
       const sql = `
-        SELECT s.skill_id, s.name, s.description, 1 - (e.vector <=> ${vecPh}::vector) AS score
+        SELECT s.skill_id, s.name, s.description, 1 - (e.vector <=> ${vecPh}::vector) AS score,
+               CASE WHEN s.workspace_id = ${wsPh} THEN 'own' ELSE 'public' END AS origin
         FROM embeddings e
-        JOIN skills s ON s.skill_id = e.skill_id AND e.revision_id = s.latest_revision_id
-        WHERE s.deleted_at IS NULL
+        JOIN skills s
+          ON s.workspace_id = e.workspace_id
+         AND s.skill_id = e.skill_id
+         AND e.revision_id = s.latest_revision_id
+        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public') AND s.deleted_at IS NULL
         ORDER BY e.vector <=> ${vecPh}::vector ASC, s.skill_id ASC
         LIMIT ${limitPh}
       `;

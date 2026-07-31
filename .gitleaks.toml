@@ -1,0 +1,86 @@
+# Config do scan de segredos (M10).
+#
+# GATE PREVENTIVO, não forense: varre a ÁRVORE DE TRABALHO, não o histórico. Reescrever
+# histórico é proibido (Regra Inquebrável 4), então um scan de histórico produziria um alarme
+# permanente que ninguém pode silenciar — ruído que treina o time a ignorar o gate.
+title = "theo-skills secret scan"
+
+[extend]
+# Herda o ruleset padrão do gitleaks (chaves AWS/GCP/GitHub/Stripe/…): Regra 9 — não
+# reinventar detecção de segredo. As regras abaixo ACRESCENTAM os formatos próprios do
+# produto, que nenhum ruleset genérico conhece.
+useDefault = true
+
+# ── Formatos do produto ──────────────────────────────────────────────────────────────────
+#
+# `theoskill init` grava `auth` em `.theoskill/config.json` com permissão 0600
+# (`packages/cli/src/config.ts:5`). O arquivo é do usuário e nunca deve ser commitado; esta
+# regra pega o caso em que alguém cola o token direto no código ou na prosa.
+#
+# ATUALIZADO NO M12: o formato canônico agora EXISTE (`theoskill_live_*` / `theoskill_boot_*`)
+# e a regra que a nota anterior prometia está no fim deste arquivo. A regra do campo `auth`
+# permanece porque cobre um caso distinto: o token colado num JSON commitado, onde o prefixo
+# pode nem aparecer.
+[[rules]]
+id = "theoskill-config-auth"
+description = "Campo `auth` do .theoskill/config.json com valor literal (token do registry)"
+regex = '''(?i)"auth"\s*:\s*"[A-Za-z0-9_\-\.]{24,}"'''
+tags = ["theo-skills", "registry-token"]
+
+[[rules]]
+id = "theoskill-npm-token"
+description = "Token npm (npm_…) em código ou prosa — publicação usa secret do CI, nunca literal"
+regex = '''npm_[A-Za-z0-9]{36}'''
+tags = ["npm", "publish"]
+
+# ── Allowlist ────────────────────────────────────────────────────────────────────────────
+[allowlist]
+description = "Caminhos alheios e fixtures sintéticas"
+
+# ── Valores sintéticos ───────────────────────────────────────────────────────────────────
+#
+# O ruleset padrão acusa 4 fixtures que existem para TESTAR o próprio secret scanner do
+# produto (`secretlint-scanner.contract.test.ts`, `validate.contract.test.ts`,
+# `webhook-signing.contract.test.ts`, `m1-e2e.integration.test.ts`). São tokens falsos com
+# corpo sequencial `0123456789abcdef…`.
+#
+# POR QUE ALLOWLIST POR VALOR, E NÃO POR CAMINHO: excluir `**/tests/**` silenciaria também um
+# segredo REAL colado num teste — e teste é exatamente onde alguém cola uma credencial "só
+# para ver funcionando". Casar a sequência sintética é cirúrgico: nenhuma chave real tem
+# corpo `0123456789abcdef`.
+#
+# POR QUE NÃO DESLIGAR O RULESET PADRÃO (o que o theo-memory faz): sem ele, uma chave AWS,
+# GCP ou GitHub real commitada passaria em silêncio. O ruído das 4 fixtures não justifica
+# abrir mão da detecção de todo o resto.
+regexes = [
+  '''0123456789abcdef''',
+  '''whsec_test_''',
+]
+
+paths = [
+  # Zona de estudo: 9 repositórios de TERCEIROS clonados (`reference-provenance.md`). São
+  # dezenas de milhares de arquivos alheios; qualquer achado ali é sobre o projeto do outro,
+  # não sobre o nosso, e afogaria o sinal. A zona é gitignored — nada dela chega ao remoto.
+  '''knowledge-base/references/.*''',
+  '''node_modules/.*''',
+  '''dist/.*''',
+  '''pnpm-lock\.yaml''',
+  # O exemplo de env existe para DOCUMENTAR os nomes das variáveis; os valores são
+  # placeholders por definição.
+  '''\.env\.example''',
+]
+
+# -- Credencial canonica do produto (M12) ----------------------------------------------
+#
+# `theoskill_live_<segredo>` (chave de API) e `theoskill_boot_<64 hex>` (primeiro acesso).
+#
+# O piso de 32 caracteres separa CREDENCIAL de FIXTURE: uma chave real carrega 256 bits de
+# entropia (`generateBootstrapToken`), enquanto um valor de teste e curto e legivel. Sem
+# esse piso a regra acusaria todo teste do produto — e um gate que grita em codigo correto
+# e um gate que o time aprende a ignorar, que foi exatamente o que a regra generica fez
+# antes desta existir.
+[[rules]]
+id = "theoskill-api-key"
+description = "Credencial do theo-skills com entropia de chave real"
+regex = '''theoskill_(live|boot)_[A-Za-z0-9_\-]{32,}'''
+tags = ["theo-skills", "api-key"]

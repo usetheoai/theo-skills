@@ -35,16 +35,31 @@ export const WEBHOOK_DELIVERY_SINGLETON_SECONDS = 120;
 
 /** Build a pg-boss instance bound to the Postgres connection URI. */
 export function createQueue(uri: string): PgBoss {
-  return new PgBoss({ connectionString: uri, application_name: '@usetheo/skillregistry-api' });
+  return new PgBoss({ connectionString: uri, application_name: '@usetheo/skills-api' });
 }
 
 export interface CreateSkillJobData {
+  /**
+   * Inquilino dono do trabalho (M11).
+   *
+   * O worker roda FORA de uma requisicao — nao ha Principal no contexto. Sem carregar o
+   * inquilino no proprio job, o worker teria de adivinhar em qual workspace escrever, e
+   * qualquer palpite e um vazamento entre clientes.
+   *
+   * Opcional para os jobs JA enfileirados quando esta versao subir: eles pertencem ao
+   * workspace da ponte legada.
+   */
+  readonly workspaceId?: string;
   readonly operation_id: string;
   readonly skill_id: string;
   /** M9: correlation id propagated HTTP→operation→job→webhook. */
   readonly trace_id: string;
   readonly name: string;
   readonly description: string;
+  /** M23/M27 — declarados no frontmatter e propagados até a coluna. */
+  readonly category?: string;
+  readonly execution?: string;
+  readonly version?: string;
   readonly content_hash: string;
   readonly payload_b64: string;
   readonly frontmatter: Record<string, unknown>;
@@ -53,6 +68,17 @@ export interface CreateSkillJobData {
 }
 
 export interface UpdateSkillJobData {
+  /**
+   * Inquilino dono do trabalho (M11).
+   *
+   * O worker roda FORA de uma requisicao — nao ha Principal no contexto. Sem carregar o
+   * inquilino no proprio job, o worker teria de adivinhar em qual workspace escrever, e
+   * qualquer palpite e um vazamento entre clientes.
+   *
+   * Opcional para os jobs JA enfileirados quando esta versao subir: eles pertencem ao
+   * workspace da ponte legada.
+   */
+  readonly workspaceId?: string;
   readonly operation_id: string;
   readonly skill_id: string;
   /** M9: correlation id propagated HTTP→operation→job→webhook. */
@@ -68,6 +94,17 @@ export interface UpdateSkillJobData {
 }
 
 export interface DeleteSkillJobData {
+  /**
+   * Inquilino dono do trabalho (M11).
+   *
+   * O worker roda FORA de uma requisicao — nao ha Principal no contexto. Sem carregar o
+   * inquilino no proprio job, o worker teria de adivinhar em qual workspace escrever, e
+   * qualquer palpite e um vazamento entre clientes.
+   *
+   * Opcional para os jobs JA enfileirados quando esta versao subir: eles pertencem ao
+   * workspace da ponte legada.
+   */
+  readonly workspaceId?: string;
   readonly operation_id: string;
   readonly skill_id: string;
   /** M9: correlation id propagated HTTP→operation→job→webhook. */
@@ -76,6 +113,17 @@ export interface DeleteSkillJobData {
 }
 
 export interface WebhookDeliveryJobData {
+  /**
+   * Inquilino dono do trabalho (M11).
+   *
+   * O worker roda FORA de uma requisicao — nao ha Principal no contexto. Sem carregar o
+   * inquilino no proprio job, o worker teria de adivinhar em qual workspace escrever, e
+   * qualquer palpite e um vazamento entre clientes.
+   *
+   * Opcional para os jobs JA enfileirados quando esta versao subir: eles pertencem ao
+   * workspace da ponte legada.
+   */
+  readonly workspaceId?: string;
   readonly delivery_id: string;
   readonly endpoint_id: string;
   /** M9: correlation id carried from the operation that triggered the delivery. */
@@ -87,6 +135,17 @@ export interface WebhookDeliveryJobData {
  * so each revision is embedded exactly once and an update never dedups the new
  * revision against the previous one). */
 export interface EmbedSkillJobData {
+  /**
+   * Inquilino dono do trabalho (M11).
+   *
+   * O worker roda FORA de uma requisicao — nao ha Principal no contexto. Sem carregar o
+   * inquilino no proprio job, o worker teria de adivinhar em qual workspace escrever, e
+   * qualquer palpite e um vazamento entre clientes.
+   *
+   * Opcional para os jobs JA enfileirados quando esta versao subir: eles pertencem ao
+   * workspace da ponte legada.
+   */
+  readonly workspaceId?: string;
   readonly skill_id: string;
   readonly revision_id: string;
 }

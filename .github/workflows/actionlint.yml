@@ -1,0 +1,40 @@
+# Valida os próprios workflows + shellcheck dos blocos `run:`.
+#
+# Sem este gate, um erro de sintaxe em workflow só aparece quando o workflow roda — e um
+# `run:` com bug de shell só aparece em produção do pipeline.
+name: actionlint
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: actionlint-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # O scan leva segundos; a folga cobre o pull da imagem num runner frio.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: actionlint (workflows + shellcheck dos blocos run:)
+        # Imagem fixada por DIGEST — o repo pina actions por SHA; um `:latest` num gate de
+        # qualidade/segurança é a mesma classe de risco de supply chain.
+        run: |
+          docker run --rm -v "$PWD:/repo" --workdir /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color

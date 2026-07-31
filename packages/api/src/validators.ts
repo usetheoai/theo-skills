@@ -1,8 +1,9 @@
 /**
- * Lightweight subpath (`@usetheo/skillregistry-api/validators`) re-exporting the
- * SAME payload + secret adapters the server boundary uses, so the dev CLI runs
- * identical checks (M5 DRY) WITHOUT pulling the server runtime (hono/pg-boss/pg).
- * This module imports only the yauzl + secretlint adapters.
+ * Reexporta os validadores, que agora vivem no `core`.
+ *
+ * Mantido para não quebrar quem já importava `@usetheo/skills-api/validators`. A
+ * implementação mudou de casa por uma razão de EMPACOTAMENTO: a CLI os usa no caminho de
+ * produção, e enquanto moravam aqui, publicá-la no npm arrastaria pg-boss, drizzle e hono
+ * para dentro de um cliente de linha de comando.
  */
-export { createYauzlPayloadValidator } from './server/payload/yauzl-validator.js';
-export { createSecretlintScanner } from './server/payload/secretlint-scanner.js';
+export { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills/validators';

@@ -1,7 +1,6 @@
 {
-  "name": "@usetheo/skillregistry-cli",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@usetheo/skills-cli",
+  "version": "0.1.0",
   "type": "module",
   "bin": {
     "theoskill": "./dist/index.js"
@@ -14,14 +13,32 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
-    "@usetheo/skillregistry": "workspace:*",
-    "@usetheo/skillregistry-api": "workspace:*",
-    "yazl": "^3.3.1"
+    "@usetheo/skills": "workspace:*",
+    "@usetheo/skills-api": "workspace:*",
+    "yazl": "^3.3.1",
+    "yauzl": "^3.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/yazl": "^2.4.5",
     "typescript": "^5.4.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "@types/yauzl": "^2.10.3"
+  },
+  "description": "CLI do theo-skills \u2014 publicar, instalar e atualizar skills de agentes.",
+  "license": "Apache-2.0",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheoai/theo-skills.git",
+    "directory": "packages/cli"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

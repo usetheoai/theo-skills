@@ -88,7 +88,7 @@ Common patterns to recognize and use deliberately:
 - **Pipeline** — sequential stages with explicit fallbacks
 - **State machine / Reconciler** — declarative desired-state convergence
 
-When a `*-patterns` skill from `cycle-discover` is registered AND its trigger phrases match the current task, the halt-loop SHOULD consult it as documented in `to-plan/SKILL.md § Step 0`. Override of a pattern requires an ADR.
+When a `*-patterns` skill (authored on demand via the standalone `/skill-creator`) is present in `skills/` AND its trigger phrases match the current task, the halt-loop SHOULD consult it as documented in `to-plan/SKILL.md § Step 0`. Override of a pattern requires an ADR.
 
 ### WIRING (HARD GATE — the main rule)
 

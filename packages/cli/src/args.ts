@@ -1,5 +1,7 @@
 import { parseArgs } from 'node:util';
 
+import type { SkillsRuntime } from './commands/install.js';
+
 export type CliCommand =
   | 'validate'
   | 'publish'
@@ -8,7 +10,9 @@ export type CliCommand =
   | 'status'
   | 'get'
   | 'list'
-  | 'revisions';
+  | 'revisions'
+  | 'install'
+  | 'update';
 
 export interface ParsedCli {
   readonly command: CliCommand;
@@ -18,6 +22,14 @@ export interface ParsedCli {
   readonly skillId?: string;
   /** Auth token (init flag, or carried from config at dispatch time). */
   readonly auth?: string;
+  /** `install --global` → instala em `~/.claude/skills` em vez de no projeto. */
+  readonly global?: boolean;
+  /** `--runtime` → qual agente vai LER a skill do disco. Ausente = default de `resolveSkillsDir`. */
+  readonly runtime?: SkillsRuntime;
+  /** `install --force` → instala mesmo uma skill `remote` (M26). */
+  readonly force?: boolean;
+  /** `update --apply` → aplica de fato; sem ele o comando só mostra o que mudaria. */
+  readonly apply?: boolean;
 }
 
 export class CliUsageError extends Error {}
@@ -30,12 +42,23 @@ const KNOWN: ReadonlySet<string> = new Set([
   'get',
   'list',
   'revisions',
+  'install',
+  'update',
 ]);
 
 /**
  * Parse `theoskill <command> [positional] [--registry url] [--skill-id id] [--auth token]`
  * using the Node stdlib `parseArgs` (no arg-parser dependency — parsimony ladder).
  */
+/**
+ * Runtimes de agente que a CLI sabe instalar. Espelha `SkillsRuntime` de `install.ts`.
+ *
+ * Tipado como `ReadonlySet<string>` de propósito: o que chega de `parseArgs` é `string`, e é
+ * exatamente contra esse `string` que o teste precisa acontecer. Um Set de `SkillsRuntime`
+ * exigiria afirmar o tipo ANTES da validação — assumindo o que ainda vai ser verificado.
+ */
+const RUNTIMES: ReadonlySet<string> = new Set<SkillsRuntime>(['claude', 'theokit']);
+
 export function parseCliArgs(argv: readonly string[]): ParsedCli {
   const command = argv[0];
   if (command === undefined || command === 'help' || command === '--help' || command === '-h') {
@@ -51,8 +74,19 @@ export function parseCliArgs(argv: readonly string[]): ParsedCli {
       registry: { type: 'string' },
       'skill-id': { type: 'string' },
       auth: { type: 'string' },
+      global: { type: 'boolean' },
+      apply: { type: 'boolean' },
+      runtime: { type: 'string' },
+      force: { type: 'boolean' },
     },
   });
+  // Validado AQUI, na fronteira, e não lá na frente: um `--runtime theokti` que caísse no
+  // default instalaria em `.claude/skills` sem reclamar, a instalação diria que deu certo, e
+  // o agente Theokit nunca veria a skill. É exatamente o defeito silencioso que este
+  // parâmetro existe para corrigir — aceitá-lo por omissão o reintroduziria.
+  if (values.runtime !== undefined && !RUNTIMES.has(values.runtime)) {
+    throw new CliUsageError(`unknown --runtime: ${values.runtime} (use: ${[...RUNTIMES].join(' | ')})`);
+  }
   const path = positionals[0];
   return {
     command: command as CliCommand,
@@ -60,6 +94,10 @@ export function parseCliArgs(argv: readonly string[]): ParsedCli {
     ...(values.registry !== undefined ? { registry: values.registry } : {}),
     ...(values['skill-id'] !== undefined ? { skillId: values['skill-id'] } : {}),
     ...(values.auth !== undefined ? { auth: values.auth } : {}),
+    ...(values.global === true ? { global: true } : {}),
+    ...(values.apply === true ? { apply: true } : {}),
+    ...(values.runtime !== undefined ? { runtime: values.runtime as SkillsRuntime } : {}),
+    ...(values.force === true ? { force: true } : {}),
   };
 }
 

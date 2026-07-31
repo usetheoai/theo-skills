@@ -1,27 +1,47 @@
 {
-  "name": "@usetheo/skillregistry",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@usetheo/skills",
+  "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./contract": "./src/contract/index.ts",
-    "./db": "./src/infrastructure/db/schema.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./contract": {
+      "types": "./dist/contract/index.d.ts",
+      "default": "./dist/contract/index.js"
+    },
+    "./db": {
+      "types": "./dist/infrastructure/db/schema.d.ts",
+      "default": "./dist/infrastructure/db/schema.js"
+    },
+    "./migrate": {
+      "types": "./dist/infrastructure/db/migrate.d.ts",
+      "default": "./dist/infrastructure/db/migrate.js"
+    },
+    "./validators": {
+      "types": "./dist/infrastructure/validators.d.ts",
+      "default": "./dist/infrastructure/validators.js"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint 'src/**/*.ts' --no-error-on-unmatched-pattern",
     "test": "vitest run --config vitest.contract.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && cp -r src/infrastructure/db/migrations dist/infrastructure/db/migrations",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.0",
     "pg": "^8.13.0",
     "yaml": "^2.8.4",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "yauzl": "^3.3.0",
+    "@secretlint/core": "^11.3.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^11.3.1"
   },
   "optionalDependencies": {
     "openai": "^6.41.0"
@@ -31,6 +51,17 @@
     "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.4.0",
-    "vitest": "^4.0.0"
-  }
+    "vitest": "^4.0.0",
+    "@types/yauzl": "^2.10.3",
+    "@secretlint/types": "^11.3.1"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0"
 }

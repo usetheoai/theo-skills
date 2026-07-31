@@ -1,8 +1,7 @@
 import {
   type WebhookSendRequest,
   type WebhookSendResponse,
-  type WebhookSender,
-} from '@usetheo/skillregistry';
+  type WebhookSender, DEFAULT_WORKSPACE_ID }  from '@usetheo/skills';
 import { type Hono } from 'hono';
 import type PgBoss from 'pg-boss';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -11,6 +10,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { createApp } from '../../src/server/app.js';
 import { createDb } from '../../src/server/db.js';
 import { type Logger } from '../../src/server/logger.js';
+import { type AppEnv } from '../../src/server/principal-context.js';
 import { createWebhookEndpointsStore } from '../../src/server/store/webhook-endpoints-store.js';
 import {
   createWebhookDeliveryHandler,
@@ -58,12 +58,22 @@ const publicResolver = {
   resolve6: () => Promise.resolve([] as string[]),
 };
 
+/**
+ * Mesmo orçamento e mesma razão do `webhook-delivery.integration.test.ts`: estes testes
+ * seguem a propagação do trace ATÉ a entrega do webhook, então herdam o backoff da fila
+ * (2s+4s+8s) mais o polling dos workers (1-2s). O teto anterior de 10s ficava abaixo do
+ * pior caso e produzia vermelho por corrida perdida, não por defeito.
+ */
+const WAIT_BUDGET_MS = 45_000;
+const WAIT_STEP_MS = 50;
+
 async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
-  for (let i = 0; i < 200; i++) {
+  const deadline = Date.now() + WAIT_BUDGET_MS;
+  while (Date.now() < deadline) {
     if (await predicate()) return;
-    await sleep(50);
+    await sleep(WAIT_STEP_MS);
   }
-  throw new Error('condition not reached');
+  throw new Error(`condition not reached in ${WAIT_BUDGET_MS}ms`);
 }
 
 async function deliveryTraceId(skillId: string): Promise<string | undefined> {
@@ -76,7 +86,7 @@ async function deliveryTraceId(skillId: string): Promise<string | undefined> {
   return r.rows[0]?.trace_id;
 }
 
-async function postSkillWithTrace(app: Hono, skillId: string, traceparent: string): Promise<string> {
+async function postSkillWithTrace(app: Hono<AppEnv>, skillId: string, traceparent: string): Promise<string> {
   const zip = await buildZipBase64([{ path: 'SKILL.md', content: skillMd(skillId) }]);
   const res = await app.request('/v1/skills', {
     method: 'POST',
@@ -86,7 +96,7 @@ async function postSkillWithTrace(app: Hono, skillId: string, traceparent: strin
   return ((await res.json()) as { operation_id: string }).operation_id;
 }
 
-async function createEndpoint(app: Hono): Promise<void> {
+async function createEndpoint(app: Hono<AppEnv>): Promise<void> {
   await app.request('/v1/webhookEndpoints', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -99,7 +109,7 @@ const tp = (traceId: string): string => `00-${traceId}-0123456789abcdef-01`;
 
 describeIntegration('trace_id propagation E2E (M9 T1.3 / gap #1)', () => {
   let boss: PgBoss;
-  let app: Hono;
+  let app: Hono<AppEnv>;
   let sender: StubSender;
   let cap: ReturnType<typeof capturingLogger>;
 
@@ -107,7 +117,7 @@ describeIntegration('trace_id propagation E2E (M9 T1.3 / gap #1)', () => {
     boss = await startBoss();
     sender = new StubSender();
     cap = capturingLogger();
-    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()));
+    const endpointsStore = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     const enqueuer = createWebhookEnqueuer({ endpointsStore, queue: boss, logger: cap.logger });
     const h = buildWorkerHandlers(getPool(), cap.logger, enqueuer);
     await registerWorker({ queue: boss, createHandler: h.createHandler, updateHandler: h.updateHandler, deleteHandler: h.deleteHandler });
@@ -157,7 +167,7 @@ describeIntegration('trace_id propagation E2E (M9 T1.3 / gap #1)', () => {
   it('reconciler_reenqueue_preserves_trace_id', async () => {
     // EC-1: an orphan delivery (row persisted, never enqueued) must keep its trace_id
     // when the reconciler re-drives it — proven by the delivery-worker log carrying it.
-    const store = createWebhookEndpointsStore(createDb(getPool()));
+    const store = createWebhookEndpointsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
     await store.create({ id: 'whe_tr', url: 'https://hooks.example.com/in', secret: 's', eventTypes: null });
     await store.recordDelivery({
       id: 'whd_tr',

@@ -118,10 +118,66 @@ class TypescriptDetector(BaseDetector):
             return False
         return module == self_name or module.startswith(self_name + "/")
 
+    def _find_workspace_package_names(self, changed_files: list[Path]) -> set[str]:
+        """Todos os nomes de pacote do MONOREPO, não apenas o da raiz.
+
+        Um monorepo pnpm/npm publica N pacotes que se importam entre si por link de
+        workspace (`@usetheo/skills`, `@usetheo/skills-api`, …). Nenhum deles existe no
+        registry antes do primeiro publish — e alguns nunca existirão, por serem privados
+        de propósito.
+
+        A versão anterior olhava só o `package.json` mais externo e devolvia UM nome, então
+        todo import cruzado entre pacotes irmãos era acusado de pacote fabricado. Num
+        monorepo com três pacotes isso produziu 39 achados HARD e reprovou o gate inteiro
+        sobre código correto — falso-positivo que bloqueia release é pior que detector
+        ausente, porque ensina o time a ignorar o gate.
+        """
+        if hasattr(self, "_cached_ws_names"):
+            return self._cached_ws_names
+        names: set[str] = set()
+        roots: set[Path] = set()
+        for src_file in changed_files:
+            try:
+                cur = src_file.resolve().parent if src_file.exists() else Path.cwd()
+            except OSError:
+                continue
+            for parent in [cur, *cur.parents]:
+                pkg_json = parent / "package.json"
+                if pkg_json.is_file():
+                    roots.add(parent)
+                    try:
+                        data = json.loads(pkg_json.read_text(encoding="utf-8"))
+                        name = data.get("name")
+                        if isinstance(name, str) and name:
+                            names.add(name)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+        # Varre os manifestos irmãos a partir de cada raiz encontrada: um arquivo do
+        # pacote A precisa reconhecer o nome do pacote B mesmo sem nenhum arquivo de B
+        # na lista auditada.
+        for root in list(roots):
+            for pattern in ("packages/*/package.json", "apps/*/package.json", "*/package.json"):
+                for pkg_json in root.glob(pattern):
+                    try:
+                        data = json.loads(pkg_json.read_text(encoding="utf-8"))
+                        name = data.get("name")
+                        if isinstance(name, str) and name:
+                            names.add(name)
+                    except (json.JSONDecodeError, OSError):
+                        pass
+        self._cached_ws_names = names
+        return names
+
+    @staticmethod
+    def _is_workspace_reference(module: str, names: set[str]) -> bool:
+        """`@scope/pkg` e qualquer subpath dele (`@scope/pkg/testkit`)."""
+        return any(module == n or module.startswith(n + "/") for n in names)
+
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
         """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30)."""
         findings: list[Finding] = []
         self_name = self._find_self_package_name(changed_files)
+        ws_names = self._find_workspace_package_names(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -143,6 +199,10 @@ class TypescriptDetector(BaseDetector):
                     continue
                 # Patch 2026-05-30 — Self-reference (the workspace IS the package being imported)
                 if self._is_self_reference(module, self_name):
+                    continue
+                # Import entre pacotes do MESMO monorepo — resolvido por link de workspace,
+                # não pelo registry (ver `_find_workspace_package_names`).
+                if self._is_workspace_reference(module, ws_names):
                     continue
                 # Package name for npm lookup
                 pkg = module if module.startswith("@") else module.split("/")[0]

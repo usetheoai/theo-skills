@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { assertEmbeddingDim, type EmbeddingProvider } from '@usetheo/skillregistry';
+import { assertEmbeddingDim, type EmbeddingProvider } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from '../logger.js';

@@ -5,6 +5,10 @@ interface Row {
   name: string;
   description: string;
   score: number | string;
+  /** `own` | `public` (M14) — ausente nos retrievers que ainda não a projetam. */
+  origin?: string;
+  readonly category?: unknown;
+  readonly execution?: unknown;
 }
 
 /**
@@ -28,6 +32,14 @@ export async function runRetrieveQuery(
     skill_id: r.skill_id,
     name: r.name,
     description: r.description,
+    // A origem só entra quando a consulta a projeta — o híbrido combina resultados de dois
+    // retrievers, e forçar um default aqui inventaria procedência para uma linha que não a
+    // declarou.
+    ...(r.origin === 'own' || r.origin === 'public' ? { origin: r.origin } : {}),
+    // Só entram quando a consulta os projeta — o híbrido combina dois retrievers, e um
+    // default aqui inventaria categoria para uma linha que não a declarou.
+    ...(typeof r.category === 'string' && r.category !== '' ? { category: r.category } : {}),
+    ...(r.execution === 'remote' || r.execution === 'local' ? { execution: r.execution } : {}),
     score: Number(r.score),
   }));
 }

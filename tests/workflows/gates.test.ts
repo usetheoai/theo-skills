@@ -1,0 +1,106 @@
+/**
+ * Invariantes dos gates — a política que o actionlint não vê.
+ *
+ * Cada teste aqui corresponde a um defeito real documentado no theo-memory ou no blueprint
+ * do M10. Nenhum é preferência de estilo.
+ */
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
+
+const ROOT = process.cwd();
+const wf = (name: string): string => join(ROOT, '.github/workflows', name);
+const readRaw = (name: string): string => readFileSync(wf(name), 'utf8');
+// `on:` é YAML 1.1 truthy — o parser devolve a chave `true`. Normalizamos aqui.
+const readDoc = (name: string): Record<string, any> => parse(readRaw(name)) as Record<string, any>;
+const triggers = (doc: Record<string, any>): Record<string, unknown> =>
+  (doc['on'] ?? doc[true as unknown as string] ?? {}) as Record<string, unknown>;
+
+describe('ci.yml — gate rápido', () => {
+  it('roda Build ANTES de Lint', () => {
+    // DEFEITO QUE ISTO PREVINE (theo-memory ci.yml:82-95, run 30306550640): lint antes do
+    // build acusou 14 erros `no-unsafe-*` em código intocado. As regras são TYPE-AWARE e,
+    // sem `dist/`, imports entre pacotes do workspace resolvem para `any`.
+    const steps = (readDoc('ci.yml').jobs.static.steps as { name?: string }[]).map((s) => s.name ?? '');
+    const build = steps.findIndex((n) => /^build$/i.test(n));
+    const lint = steps.findIndex((n) => /^lint$/i.test(n));
+
+    expect(build, 'step Build não encontrado').toBeGreaterThanOrEqual(0);
+    expect(lint, 'step Lint não encontrado').toBeGreaterThanOrEqual(0);
+    expect(build, 'Build tem de vir antes de Lint').toBeLessThan(lint);
+  });
+
+  it('exercita os quatro gates sem banco: build, lint, typecheck, test', () => {
+    const runs = (readDoc('ci.yml').jobs.static.steps as { run?: string }[])
+      .map((s) => s.run ?? '')
+      .join('\n');
+
+    for (const gate of ['build', 'lint', 'typecheck', 'test']) {
+      expect(runs, `gate ausente: ${gate}`).toMatch(new RegExp(`pnpm[^\\n]*\\b${gate}\\b`));
+    }
+  });
+
+  it('é invocável como reusable (publish.yml depende disso)', () => {
+    expect(triggers(readDoc('ci.yml'))).toHaveProperty('workflow_call');
+  });
+});
+
+describe('security-sast.yml — escopo do scan', () => {
+  it('o scan de segredos cobre a RAIZ, não apenas packages/', () => {
+    // theo-memory: "gate cuja justificativa não corresponde ao que ele faz é pior que gate
+    // ausente" — o scan lia só /src/packages enquanto dizia cobrir prosa.
+    const raw = readRaw('security-sast.yml');
+    const gitleaks = raw.split('\n').filter((l) => l.includes('gitleaks') || l.includes('dir /src'));
+    expect(gitleaks.join('\n')).toMatch(/dir\s+\/src(\s|$)/);
+    expect(gitleaks.join('\n'), 'scan restrito a packages/').not.toMatch(/\/src\/packages/);
+  });
+
+  it('nenhum job usa `container:` (deixaria arquivos root-owned no workspace)', () => {
+    const jobs = Object.entries(readDoc('security-sast.yml').jobs as Record<string, { container?: unknown }>);
+    const offenders = jobs.filter(([, j]) => j.container !== undefined).map(([n]) => n);
+    expect(offenders, `jobs com container:: ${offenders.join(', ')}`).toEqual([]);
+  });
+});
+
+describe('publish.yml — gates encadeados', () => {
+  it('invoca o ci.yml como job, em vez de confiar que rodou antes', () => {
+    const jobs = Object.values(readDoc('publish.yml').jobs as Record<string, { uses?: string }>);
+    expect(jobs.some((j) => j.uses === './.github/workflows/ci.yml')).toBe(true);
+  });
+
+  it('NUNCA dispara em pull_request', () => {
+    // O reusable de build SEMPRE dá push da imagem — não há modo build-only. Rodar em PR
+    // publicaria artefato de código não mergeado.
+    expect(triggers(readDoc('publish.yml'))).not.toHaveProperty('pull_request');
+  });
+
+  it('a identidade do cosign referencia ESTE repositório', () => {
+    // Guard de confused-deputy: a identidade keyless deriva de repo + path do workflow.
+    // Apontar para outro repo faz a verificação ACEITAR assinatura produzida por outro
+    // workflow — pior que não verificar.
+    const raw = existsSync(wf('build-publish.yml')) ? readRaw('build-publish.yml') : readRaw('publish.yml');
+    // O valor é um regexp entre aspas simples e CONTÉM barras invertidas (`github\.com`);
+    // casar até o fecha-aspas é a única leitura correta.
+    const identity = /--certificate-identity-regexp\s+'([^']+)'/.exec(raw);
+    expect(identity, 'cosign sem --certificate-identity-regexp').not.toBeNull();
+    expect(identity![1], 'a identidade aponta para outro repositório').toContain('theo-skills');
+  });
+});
+
+describe('Dockerfile — coerência com o CI', () => {
+  it('o major do Node casa o do ci.yml', () => {
+    // Testar num major diferente do que se publica é como um worker morto chegar ao host
+    // de dev com a esteira verde.
+    const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8');
+    const fromMajor = /FROM\s+node:(\d+)/.exec(dockerfile);
+    expect(fromMajor, 'FROM node:<major> não encontrado').not.toBeNull();
+
+    const setupNode = (readDoc('ci.yml').jobs.static.steps as { with?: { 'node-version'?: number | string } }[])
+      .map((s) => s.with?.['node-version'])
+      .find((v) => v !== undefined);
+    expect(setupNode, 'node-version não declarado no ci.yml').toBeDefined();
+    expect(String(setupNode)).toBe(fromMajor![1]);
+  });
+});

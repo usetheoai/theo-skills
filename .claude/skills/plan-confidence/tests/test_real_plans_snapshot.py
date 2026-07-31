@@ -142,6 +142,9 @@ def test_snapshots_cover_active_plans_with_matrix() -> None:
         "memory-write-redesign-followup.md",
         "observability-cache-maturity-baseline.md",
         "observability-cache-maturity-edge-cases.md",
+        # Working plan for the patterns-consumption-gate feature itself (gitignored
+        # under knowledge-base/plans/); not a regression-snapshot fixture.
+        "patterns-consumption-gate-plan.md",
     }
     snapshot_plans = set(SNAPSHOTS.keys())
     active_plans = {p.name for p in PLANS_DIR.glob("*.md") if p.is_file()}

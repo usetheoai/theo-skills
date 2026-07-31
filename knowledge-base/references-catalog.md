@@ -2,7 +2,7 @@
 generated_by: roadmap-init
 generated_on: 2026-06-22
 slug: skill-registry
-peer_count_cloned: 8
+peer_count_cloned: 9
 peer_count_skipped: 0
 note: >
   This catalog lives at knowledge-base/references-catalog.md (sibling of references/)
@@ -305,6 +305,86 @@ boundary falls (`ask`/`learn.*` fenced behind `safe_mode`).
 
 ```bash
 git clone --depth 1 --filter=blob:none https://github.com/kayba-ai/agentic-context-engine knowledge-base/references/agentic-context-engine/
+```
+
+---
+
+## cat-agent-skills
+
+- **Folder:** `knowledge-base/references/cat-agent-skills/`
+- **Lifecycle:** cloned
+- **Repo:** https://github.com/microsoft/cat-agent-skills
+- **License:** `MIT` (Microsoft Corporation; `CONTRIBUTING.md` exige que toda submissão seja compartilhada sob a MIT do repo — as 74 skills de terceiros em `submissions/` estão cobertas)
+- **License-gate decision:** auto-approved-permissive
+- **Last release / last commit:** 2026-07-29 (`71f89f4`)
+- **Stars / forks at clone time:** 41 / 51
+- **Added by:** referência indicada pelo owner (2026-07-30)
+
+### Why this peer is here
+
+Galeria pública de Agent Skills da Microsoft (Copilot Studio / Cowork / Scout) — o único peer do
+catálogo que é ao mesmo tempo um **registry em operação real** e um **corpus de 74 skills reais**.
+Os outros peers do formato (`anthropic-skills`, `agentskills-spec`, `openskills`) definem ou parseiam
+o `SKILL.md`; este mostra o que um registry precisa decidir **em volta** dele: separação de metadados,
+validação em CI, curadoria de submissões e um sinal de qualidade por skill.
+
+Três achados sem paralelo no resto do catálogo:
+
+1. **Duas descrições, deliberadamente separadas** (`docs/authoring-skills.md` § 2): a `description` do
+   frontmatter do `SKILL.md` é **agent-facing** (um gatilho preciso, lido pelo modelo para decidir
+   quando invocar); a `description` do `metadata.json` é **catalog-facing** (uma linha amigável para
+   humanos na galeria). No schema elas coexistem como `agentDescription` e `description`
+   (`src/lib/skill-schema.ts`). Nosso `SkillInput` tem um único par `displayName`/`description`, e o
+   DoD de M3 indexa "displayName + description + corpo SKILL.md" no mesmo vetor — vale verificar se
+   estamos misturando texto de gatilho com texto de vitrine no embedding.
+2. **Ratings como sinal de qualidade por skill** (`docs/ratings.md` + `scripts/fetch-ratings.ts`):
+   reações positivas em GitHub Discussions (uma discussion por slug) somadas via GraphQL em CI e
+   assadas num snapshot `ratings.json` de build. Degradação graciosa: sem token/discussions o arquivo
+   fica `{}` e tudo mostra `0`. É um sinal de popularidade fora do texto — insumo para o rerank do M4,
+   que hoje é keyword + vetor puros.
+3. **Um schema Zod único como fonte da verdade**, importado tanto pela content collection do Astro
+   (build-time) quanto pelo validador standalone de CI (`scripts/validate-skill.ts`), com o comentário
+   explícito de que existe "so the rules can never drift". É exatamente a nossa aposta de M1/M5
+   (checker único no `core`, consumido por CLI e fronteira HTTP) — prior art independente para ela,
+   na mesma linguagem.
+
+### What to study in it
+
+- `src/lib/skill-schema.ts` — schema Zod compartilhado; note `agentDescription` vs `description`, o
+  discriminador `type: skill | plugin | automation` (derivado pelo importer, não autorado) e mensagens
+  de erro escritas para o autor ("author is required — add it to the submission's metadata.json").
+- `scripts/validate-skill.ts` (116 LoC) — validador com saída itemizada por campo e exit codes
+  scriptáveis; o mesmo shape de DX que a nossa CLI de M5 persegue.
+- `scripts/import-submissions.ts` (1054 LoC, com `.test.ts`) — pipeline de ingestão/curadoria:
+  empacota o bundle, resolve autoria a partir da submissão (nunca do login do PR/merger) e normaliza
+  os metadados. Referência de curadoria para M2.
+- `docs/ratings.md` + `scripts/fetch-ratings.ts` — o sinal de rating fim-a-fim (M4).
+- `docs/authoring-skills.md` + `submissions/_template/` — o contrato de autoria: `SKILL.md` +
+  `metadata.json` + `scripts/` opcional, com o `bundle` derivado automaticamente.
+- `submissions/` (74 skills reais: `SKILL.md` + metadata + `scripts/`/`references/`) — corpus de
+  skills genuínas, em contraste com fixtures sintéticas.
+
+### Supports ROADMAP milestone(s)
+
+- M1 — *because:* a separação metadados-de-catálogo vs frontmatter-de-agente e o schema único
+  informam o modelo de skill e a validação de fronteira.
+- M4 — *because:* rating por skill é um sinal de rerank fora do texto, e o corpus de 74 skills é
+  material candidato para o eval set de Recall@5.
+- M5 — *because:* `validate-skill.ts` é o precedente direto do `theoskill validate` (mesma
+  linguagem, mesma regra compartilhada com o servidor).
+- M7 — *because:* consome o formato canônico Agent Skills que o provider remoto do Theokit devolve.
+
+### Open question this peer raises (not a decision)
+
+Usar as 74 submissões como **eval set** de M4 é atraente (skills reais, descrições escritas para
+gatilho) e a MIT permite com atribuição — mas copiar bytes da zona para `packages/api/eval/` é
+material derivado e a zona é read-only por regra nossa (`reference-provenance.md`). Se essa rota
+for desejada, ela precisa de decisão explícita (ADR + atribuição no `CHANGELOG`), não de um `cp`.
+
+### Clone command used
+
+```bash
+git clone --depth 1 --filter=blob:none https://github.com/microsoft/cat-agent-skills.git knowledge-base/references/cat-agent-skills/
 ```
 
 ---

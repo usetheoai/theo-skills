@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { stubEmbed } from '@usetheo/skillregistry';
+import { stubEmbed } from '@usetheo/skills';
 import { afterAll, beforeEach, expect, it } from 'vitest';
 
 import { closePool, getPool, truncateAll } from './_helpers/db.js';

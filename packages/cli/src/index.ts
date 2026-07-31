@@ -2,13 +2,15 @@
 import { argv } from 'node:process';
 import { pathToFileURL } from 'node:url';
 
-import { type SkillValidationDeps } from '@usetheo/skillregistry';
-import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skillregistry-api/validators';
+import { type SkillValidationDeps } from '@usetheo/skills';
+import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/skills/validators';
 
 import { CliUsageError, HELP_TEXT, parseCliArgs, resolveArgs } from './args.js';
 import { runInit } from './commands/init.js';
+import { runInstall } from './commands/install.js';
 import { runPublish } from './commands/publish.js';
 import { runRead } from './commands/read.js';
+import { runUpdate } from './commands/update.js';
 import { runValidate } from './commands/validate.js';
 import { loadConfig } from './config.js';
 
@@ -46,6 +48,48 @@ export async function main(argv: readonly string[]): Promise<number> {
       return runValidate(args.path, { validation: realValidation(), out });
     case 'publish':
       return runPublish(args, { validation: realValidation(), out, fetch: globalThis.fetch });
+    case 'install': {
+      if (args.registry === undefined || args.registry.length === 0) {
+        out('no registry configured — pass --registry <url> or run `theoskill init`');
+        return 2;
+      }
+      if (args.path === undefined) {
+        out('usage: theoskill install <skill-id> [--global] [--runtime claude|theokit] [--force]\n  theoskill update <nome> [--apply] [--global] [--runtime claude|theokit]');
+        return 2;
+      }
+      // O extrator real usa `yauzl`, que já é dependência do produto (validador de payload) —
+      // parsimony rung 4: reusar em vez de adicionar uma segunda biblioteca de zip.
+      const { extractZipTo } = await import('./commands/extract-zip.js');
+      return runInstall(args.path, {
+        out,
+        fetch: globalThis.fetch,
+        registry: args.registry,
+        extract: extractZipTo,
+        ...(args.auth !== undefined ? { auth: args.auth } : {}),
+        ...(args.global === true ? { global: true } : {}),
+        ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
+        ...(args.force === true ? { force: true } : {}),
+      });
+    }
+    case 'update': {
+      if (args.path === undefined) {
+        out('usage: theoskill update <nome> [--apply] [--global] [--runtime claude|theokit]');
+        return 2;
+      }
+      const { extractZipTo } = await import('./commands/extract-zip.js');
+      return runUpdate(args.path, {
+        out,
+        fetch: globalThis.fetch,
+        // O registry efetivo vem da PROCEDÊNCIA da instalação; este é só o fallback do tipo.
+        registry: args.registry ?? '',
+        extract: extractZipTo,
+        ...(args.auth !== undefined ? { auth: args.auth } : {}),
+        ...(args.global === true ? { global: true } : {}),
+        ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
+        ...(args.force === true ? { force: true } : {}),
+        ...(args.apply === true ? { apply: true } : {}),
+      });
+    }
     case 'get':
     case 'list':
     case 'status':
