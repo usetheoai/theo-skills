@@ -552,7 +552,7 @@ promover uma correção sem avisar cada um individualmente.
 
 ---
 
-### M20 — [ ] Distribuição para clientes de terceiros (bundles + tokens delegados)
+### M20 — [x] Distribuição para clientes de terceiros (bundles + tokens delegados)
 
 **Objective:** O milestone que responde ao pedido: um publisher (nosso cliente) empacota um
 subconjunto do catálogo dele e o distribui aos **clientes dele**, que consomem direto do nosso
@@ -560,11 +560,11 @@ registry com credencial que **o publisher** emite e revoga — modelo Supabase /
 
 **Definition of done:**
 
-- [ ] **Bundle** — conjunto nomeado e versionado de skills de um workspace, curado pelo publisher. Um bundle referencia skills por canal (M19), não por revisão fixa, de modo que corrigir uma skill propaga sem reemitir tokens.
-- [ ] **Token de distribuição** emitido pelo publisher, escopado a **um** bundle, com TTL obrigatório, revogável a qualquer momento com efeito imediato na próxima requisição — nunca logado, nunca recuperável após a emissão.
-- [ ] `theoskill install --token=<t>` resolve o bundle e instala; um token de outro publisher devolve **404, não 403** — a existência do bundle alheio não vaza (mesmo contrato do isolamento de M11).
-- [ ] Quota por token e por publisher, com `429` + `Retry-After`; exceder não derruba os demais clientes do mesmo publisher.
-- [ ] Suíte de isolamento cruzado: token do publisher A **nunca** alcança bundle, skill ou revisão do publisher B — em list, get, retrieve, install e nos erros.
+- [x] **Bundle** — conjunto nomeado e versionado de skills de um workspace, curado pelo publisher. Um bundle referencia skills por canal (M19), não por revisão fixa, de modo que corrigir uma skill propaga sem reemitir tokens.
+- [x] **Token de distribuição** emitido pelo publisher, escopado a **um** bundle, com TTL obrigatório, revogável a qualquer momento com efeito imediato na próxima requisição — nunca logado, nunca recuperável após a emissão.
+- [x] `theoskill install --token=<t>` resolve o bundle e instala; um token de outro publisher devolve **404, não 403** — a existência do bundle alheio não vaza (mesmo contrato do isolamento de M11).
+- [x] Quota por token e por publisher, com `429` + `Retry-After`; exceder não derruba os demais clientes do mesmo publisher.
+- [x] Suíte de isolamento cruzado: token do publisher A **nunca** alcança bundle, skill ou revisão do publisher B — em list, get, retrieve, install e nos erros.
 
 **Dependencies:** M12, M13, M19.
 

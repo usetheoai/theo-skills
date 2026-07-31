@@ -13,6 +13,7 @@ import type PgBoss from 'pg-boss';
 import { createAuthMiddleware } from './auth/middleware.js';
 import { createDb } from './db.js';
 import { registerAdminKeysRoutes } from './handlers/admin-keys.js';
+import { registerDistributionRoutes } from './handlers/distribution.js';
 import { registerHealthRoutes } from './handlers/health.js';
 import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
@@ -77,6 +78,8 @@ export interface CreateAppOptions {
    * declarado do milestone. Ligar é decisão de operação, com o número vindo de medição.
    */
   readonly rateLimit?: RateLimitConfig;
+  /** Quota das rotas de distribuição (M20). Ausente = distribuição desligada. */
+  readonly distribution?: { readonly defaultQuota: number; readonly windowMs: number };
 }
 
 /** Build the Hono app with injected dependencies (DIP, ADR-3). */
@@ -101,6 +104,18 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // pegou antes de virar incidente.
   registerHealthRoutes(app);
   registerVersionRoutes(app);
+
+  // DISTRIBUIÇÃO — registrada aqui, ANTES do middleware de autenticação interna, porque quem
+  // a consome é o cliente de um publisher: não é membro de workspace algum e não tem
+  // Principal. Passá-la pelo auth interno exigiria um caminho de exceção lá dentro, e um
+  // caminho de exceção é o que se esquece de fechar.
+  if (opts.distribution !== undefined) {
+    registerDistributionRoutes(app, {
+      db,
+      defaultQuota: opts.distribution.defaultQuota,
+      windowMs: opts.distribution.windowMs,
+    });
+  }
 
   // O Principal e resolvido UMA vez por requisicao e carregado no contexto; os stores sao
   // construidos JA ESCOPADOS a ele. Nenhum handler recebe um store global.
