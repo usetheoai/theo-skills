@@ -54,7 +54,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         return 2;
       }
       if (args.path === undefined) {
-        out('usage: theoskill install <skill-id> [--global]\n  theoskill update <nome> [--apply] [--global]');
+        out('usage: theoskill install <skill-id> [--global] [--runtime claude|theokit]\n  theoskill update <nome> [--apply] [--global] [--runtime claude|theokit]');
         return 2;
       }
       // O extrator real usa `yauzl`, que já é dependência do produto (validador de payload) —
@@ -67,11 +67,12 @@ export async function main(argv: readonly string[]): Promise<number> {
         extract: extractZipTo,
         ...(args.auth !== undefined ? { auth: args.auth } : {}),
         ...(args.global === true ? { global: true } : {}),
+        ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
       });
     }
     case 'update': {
       if (args.path === undefined) {
-        out('usage: theoskill update <nome> [--apply] [--global]');
+        out('usage: theoskill update <nome> [--apply] [--global] [--runtime claude|theokit]');
         return 2;
       }
       const { extractZipTo } = await import('./commands/extract-zip.js');
@@ -83,6 +84,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         extract: extractZipTo,
         ...(args.auth !== undefined ? { auth: args.auth } : {}),
         ...(args.global === true ? { global: true } : {}),
+        ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
         ...(args.apply === true ? { apply: true } : {}),
       });
     }

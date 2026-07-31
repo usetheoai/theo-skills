@@ -16,6 +16,12 @@ export interface RevisionsStore {
   listBySkill(skillId: string): Promise<RevisionView[]>;
   /** A single revision by id (metadata). */
   getById(revisionId: string): Promise<RevisionView | undefined>;
+  /**
+   * Bytes da revisão (M7). Separado de `getById` de propósito: o payload é o corpo
+   * executável e pode ter megabytes, e embuti-lo no metadado faria toda listagem e todo
+   * `update --diff` carregarem o zip inteiro para exibir uma linha.
+   */
+  getPayload(revisionId: string): Promise<Buffer | undefined>;
 }
 
 function toView(row: {
@@ -73,6 +79,25 @@ export function createRevisionsStore(db: Db, workspaceId: string): RevisionsStor
         .limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toView(row);
+    },
+
+    async getPayload(revisionId) {
+      const rows = await db
+        .select({ payload: skillRevisions.payload })
+        .from(skillRevisions)
+        // MESMO filtro de inquilino do `getById`, e aqui ele pesa mais: o que vaza não é
+        // metadado, é o corpo que o agente do outro cliente vai carregar e executar.
+        .where(
+          and(
+            eq(skillRevisions.workspaceId, workspaceId),
+            eq(skillRevisions.revisionId, revisionId),
+          ),
+        )
+        .limit(1);
+      const row = rows[0];
+      if (row === undefined) return undefined;
+      // `bytea` volta como Buffer no node-postgres; o normalize evita depender disso.
+      return Buffer.isBuffer(row.payload) ? row.payload : Buffer.from(row.payload as Uint8Array);
     },
   };
 }

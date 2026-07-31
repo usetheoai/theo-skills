@@ -21,25 +21,55 @@ export interface InstallDeps {
   readonly auth?: string;
   /** Raiz de instalação. Default: `.claude/skills` no cwd (project-local). */
   readonly skillsDir?: string;
-  /** `true` instala em `~/.claude/skills`. */
+  /** `true` instala no home em vez do projeto. */
   readonly global?: boolean;
+  /** Runtime que vai LER a skill. Default `claude` (ADR 0005); `theokit` para agentes Theokit. */
+  readonly runtime?: SkillsRuntime;
   /** Extrai o zip para o diretório. Injetado para o teste não depender de zip real. */
   readonly extract: (zip: Buffer, destDir: string) => Promise<void>;
   readonly now?: () => Date;
 }
 
 /**
- * Diretório de instalação — o MESMO layout que os agentes já leem.
+ * Runtime de agente que vai LER a skill do disco.
  *
- * `.claude/skills/<name>/`, project-local por padrão e global com `--global`. É o layout do
- * `openskills` (`src/utils/dirs.ts`), e adotá-lo é a decisão 4 do ADR 0005: a
- * interoperabilidade acontece por DISCO, não por API — o `openskills` não tem cliente HTTP
- * e não é nosso para mudar. Uma skill publicada aqui fica visível para qualquer agente sem
- * que nenhuma das duas ferramentas conheça a outra.
+ * Não é preferência de caminho: cada runtime descobre skills num diretório próprio e ignora
+ * o do outro. Instalar no layout errado entrega a skill num lugar onde o destinatário nunca
+ * olha — e o sintoma é silencioso, porque instalar dá certo.
  */
-export function resolveSkillsDir(opts: { global?: boolean; skillsDir?: string }): string {
+export type SkillsRuntime = 'claude' | 'theokit';
+
+/** Diretório-base por runtime. `claude` primeiro por ser o default (ADR 0005). */
+const RUNTIME_DIR: Record<SkillsRuntime, string> = {
+  claude: '.claude',
+  theokit: '.theokit',
+};
+
+/**
+ * Diretório de instalação — o layout que o runtime ALVO de fato lê.
+ *
+ * `<base>/skills/<name>/`, project-local por padrão e global com `--global`.
+ *
+ * O default `.claude/skills` é o layout do `openskills` (`src/utils/dirs.ts`) e vem da
+ * decisão 4 do ADR 0005: a interoperabilidade acontece por DISCO, não por API — o
+ * `openskills` não tem cliente HTTP e não é nosso para mudar.
+ *
+ * O QUE FALTAVA, e é o motivo deste parâmetro existir: os dois layouts servem consumidores
+ * DIFERENTES, e a decisão original só cobria um. MEDIDO em `@theokit/agents` 6.0.0 — o
+ * pacote descobre skills exclusivamente em `.theokit/skills/<name>/SKILL.md` e não tem uma
+ * única referência a `.claude` no `dist`. No `agent-builder` (agente Theokit real) as duas
+ * pastas coexistem: dezenas de skills em `.claude/skills/` para o Claude Code, e a única
+ * que o agente Theokit carrega em `.theokit/skills/daily-briefing/`.
+ *
+ * Enquanto só existia o default, uma skill vinda do registry era INVISÍVEL para todo agente
+ * Theokit — que é justamente o consumidor que o M7 exige. Isto não revoga o ADR 0005; ele
+ * continua certo para o `openskills`. Completa-o para o runtime que ficou de fora.
+ */
+export function resolveSkillsDir(opts: { global?: boolean; skillsDir?: string; runtime?: SkillsRuntime }): string {
+  // Caminho explícito vence tudo: quem passou `--skills-dir` já decidiu o destino.
   if (opts.skillsDir !== undefined) return opts.skillsDir;
-  return opts.global === true ? join(homedir(), '.claude', 'skills') : join(process.cwd(), '.claude', 'skills');
+  const base = RUNTIME_DIR[opts.runtime ?? 'claude'];
+  return opts.global === true ? join(homedir(), base, 'skills') : join(process.cwd(), base, 'skills');
 }
 
 /**
@@ -62,7 +92,6 @@ export function safeSkillDir(root: string, name: string): string {
 interface RevisionResponse {
   readonly revision_id: string;
   readonly content_hash: string;
-  readonly payload_base64: string;
 }
 
 interface SkillResponse {
@@ -96,7 +125,21 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
   }
   const revision = (await revRes.json()) as RevisionResponse;
 
-  const zip = Buffer.from(revision.payload_base64, 'base64');
+  // Os BYTES vêm de uma segunda chamada, na rota de payload.
+  //
+  // Antes daqui o código lia `revision.payload_base64` do metadado — um campo que a API
+  // NUNCA devolveu. Contra o registry real isso era `Buffer.from(undefined)`, e o comando
+  // morria. O teste de contrato não pegava porque o stub inventava o campo: ele concordava
+  // com a expectativa da CLI, e ninguém confrontou os dois lados com o servidor.
+  const payloadRes = await deps.fetch(
+    `${deps.registry}/v1/skills/${skillId}/revisions/${skill.latest_revision_id}/payload`,
+    { headers },
+  );
+  if (!payloadRes.ok) {
+    deps.out(`erro: payload da revisão ${skill.latest_revision_id} indisponível (HTTP ${String(payloadRes.status)})`);
+    return 1;
+  }
+  const zip = Buffer.from(await payloadRes.arrayBuffer());
 
   // INTEGRIDADE ANTES DO DISCO (M18 DoD #2).
   //
@@ -109,7 +152,11 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
     return 1;
   }
 
-  const root = resolveSkillsDir({ ...(deps.global !== undefined ? { global: deps.global } : {}), ...(deps.skillsDir !== undefined ? { skillsDir: deps.skillsDir } : {}) });
+  const root = resolveSkillsDir({
+    ...(deps.global !== undefined ? { global: deps.global } : {}),
+    ...(deps.skillsDir !== undefined ? { skillsDir: deps.skillsDir } : {}),
+    ...(deps.runtime !== undefined ? { runtime: deps.runtime } : {}),
+  });
   let dest: string;
   try {
     dest = safeSkillDir(root, skill.name);

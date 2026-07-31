@@ -297,4 +297,34 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
     }
     return c.json(revision, 200);
   });
+
+  // GET /v1/skills/:id/revisions/:revisionId/payload — M7.
+  //
+  // A ROTA QUE FALTAVA. O `theoskill install` esperava um campo `payload_base64` no metadado
+  // acima; a API nunca o devolveu, e a CLI quebrava com `Buffer.from(undefined)` contra o
+  // registry real. Os bytes sempre estiveram no banco — não havia por onde lê-los.
+  //
+  // Binário, e não base64 dentro do JSON: base64 infla 33% e obrigaria toda listagem de
+  // revisões a carregar o zip inteiro. O consumidor confere o `content_hash` do metadado
+  // ANTES de escrever no disco — é o que torna a separação segura em vez de só econômica.
+  app.get('/v1/skills/:id/revisions/:revisionId/payload', async (c) => {
+    const store = deps.revisionsStoreFor(workspaceOf(c));
+    const revisionId = c.req.param('revisionId');
+
+    // O metadado primeiro, para amarrar a revisão ao skill da URL. Sem esta checagem,
+    // `/v1/skills/QUALQUER/revisions/rev_X/payload` serviria os bytes de `rev_X` — o id da
+    // revisão viraria a única credencial necessária.
+    const revision = await store.getById(revisionId);
+    if (revision === undefined || revision.skill_id !== c.req.param('id')) {
+      return c.json({ error: 'not_found' }, 404);
+    }
+
+    const payload = await store.getPayload(revisionId);
+    if (payload === undefined) return c.json({ error: 'not_found' }, 404);
+
+    c.header('content-type', 'application/zip');
+    // O hash viaja no cabeçalho para que quem baixa possa conferir sem uma segunda chamada.
+    c.header('x-content-hash', revision.content_hash);
+    return c.body(new Uint8Array(payload), 200);
+  });
 }
