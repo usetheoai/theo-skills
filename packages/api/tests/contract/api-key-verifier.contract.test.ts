@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import { type ApiKeyRecord, createApiKeyVerifier } from '../../src/server/auth/api-key-verifier.js';
+import { API_KEY_PREFIX } from '../../src/server/auth/oidc-verifier.js';
 
 /**
  * M12 DoD #1 e #2 — o adapter de API key do {@link AuthVerifier}.
@@ -14,8 +15,11 @@ import { type ApiKeyRecord, createApiKeyVerifier } from '../../src/server/auth/a
 
 const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex');
 
-const KEY = 'theoskill_live_abc123';
-const OTHER = 'theoskill_live_zzz999';
+// Derivadas da CONSTANTE do produto, não de literais copiados: o teste passa a validar o
+// prefixo real (se ele mudar, o teste acompanha em vez de divergir em silêncio) e some do
+// código a string que um scanner de segredo, com razão, não sabe distinguir de credencial.
+const KEY = `${API_KEY_PREFIX}fixture-sem-entropia`;
+const OTHER = `${API_KEY_PREFIX}outra-fixture`;
 
 const recordFor = (over: Partial<ApiKeyRecord> = {}): ApiKeyRecord => ({
   tokenHash: sha256(KEY),

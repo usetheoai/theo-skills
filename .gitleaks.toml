@@ -17,11 +17,10 @@ useDefault = true
 # (`packages/cli/src/config.ts:5`). O arquivo é do usuário e nunca deve ser commitado; esta
 # regra pega o caso em que alguém cola o token direto no código ou na prosa.
 #
-# NOTA HONESTA: o theo-skills ainda NÃO tem formato canônico de credencial — autenticação é
-# M12. Quando o formato existir (o theo-memory usa `theo_live_` + 43 chars base64url), esta
-# regra tem de ser reescrita para casá-lo exatamente, como o `.gitleaks.toml` do theo-memory
-# faz. Até lá, a regra abaixo cobre a forma como o token aparece hoje: um campo `auth` com
-# valor longo em JSON commitado.
+# ATUALIZADO NO M12: o formato canônico agora EXISTE (`theoskill_live_*` / `theoskill_boot_*`)
+# e a regra que a nota anterior prometia está no fim deste arquivo. A regra do campo `auth`
+# permanece porque cobre um caso distinto: o token colado num JSON commitado, onde o prefixo
+# pode nem aparecer.
 [[rules]]
 id = "theoskill-config-auth"
 description = "Campo `auth` do .theoskill/config.json com valor literal (token do registry)"
@@ -70,3 +69,18 @@ paths = [
   # placeholders por definição.
   '''\.env\.example''',
 ]
+
+# -- Credencial canonica do produto (M12) ----------------------------------------------
+#
+# `theoskill_live_<segredo>` (chave de API) e `theoskill_boot_<64 hex>` (primeiro acesso).
+#
+# O piso de 32 caracteres separa CREDENCIAL de FIXTURE: uma chave real carrega 256 bits de
+# entropia (`generateBootstrapToken`), enquanto um valor de teste e curto e legivel. Sem
+# esse piso a regra acusaria todo teste do produto — e um gate que grita em codigo correto
+# e um gate que o time aprende a ignorar, que foi exatamente o que a regra generica fez
+# antes desta existir.
+[[rules]]
+id = "theoskill-api-key"
+description = "Credencial do theo-skills com entropia de chave real"
+regex = '''theoskill_(live|boot)_[A-Za-z0-9_\-]{32,}'''
+tags = ["theo-skills", "api-key"]

@@ -4,7 +4,8 @@ import { createBootstrapVerifier, generateBootstrapToken } from '../../src/serve
 
 /** M12 DoD #1 — a credencial de primeiro acesso, e os três jeitos dela ficar aberta. */
 describe('createBootstrapVerifier', () => {
-  const TOKEN = 'theoskill_boot_abc';
+  // Fixture curta e sem entropia — ver nota em `api-key-verifier.contract.test.ts`.
+  const TOKEN = 'boot-fixture-sem-entropia';
 
   it('aceita o token configurado e resolve como admin do workspace declarado', async () => {
     const v = createBootstrapVerifier({ token: TOKEN, workspaceId: 'ws_boot' });
