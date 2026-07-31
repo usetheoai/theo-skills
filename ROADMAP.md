@@ -379,17 +379,17 @@ theo-memory.
 
 ---
 
-### M12 — [ ] Autenticação: API keys, OIDC e scopes
+### M12 — [x] Autenticação: API keys, OIDC e scopes
 
 **Objective:** Fechar a porta da API, com o mesmo arranjo do theo-memory — hoje qualquer
 um que alcança a porta publica o que quiser.
 
 **Definition of done:**
 
-- [ ] `AuthVerifier` (port) com adapters de API key e de OIDC introspect; `bootstrap-token` para o primeiro acesso e `dual-validation` na janela de rotação.
-- [ ] Hierarquia de scopes de capacidade (`skills:read` · `skills:write` · `skills:publish` · `skills:admin`), verificada por rota; comparação de credencial em **tempo constante**.
-- [ ] Erro no backend de auth devolve **`503`**, nunca acesso; sem credencial, colapsa no workspace `default` (bridge legado).
-- [ ] Matriz scope × verbo coberta por teste, incluindo os casos negativos (scope insuficiente → `403`; credencial inválida → `401`, e `401` precede `403`).
+- [x] `AuthVerifier` (port) com adapters de API key e de OIDC introspect; `bootstrap-token` para o primeiro acesso e `dual-validation` na janela de rotação.
+- [x] Hierarquia de scopes de capacidade (`skills:read` · `skills:write` · `skills:publish` · `skills:admin`), verificada por rota; comparação de credencial em **tempo constante**.
+- [x] Erro no backend de auth devolve **`503`**, nunca acesso; sem credencial, colapsa no workspace `default` (bridge legado).
+- [x] Matriz scope × verbo coberta por teste, incluindo os casos negativos (scope insuficiente → `403`; credencial inválida → `401`, e `401` precede `403`).
 
 **Dependencies:** M11.
 
