@@ -103,3 +103,37 @@ describe('category e execution (M23 — descoberta remota)', () => {
     expect(() => parseFrontmatter(md('execution: LOCAL'))).toThrow(/execution/);
   });
 });
+
+describe('version (M27 — versionamento semântico)', () => {
+  const md = (extra: string) => `---\nname: demo\ndescription: Faz X. Use quando Y.\n${extra}\n---\n\n# corpo\n`;
+
+  it('aceita semver e devolve normalizado', () => {
+    expect(parseFrontmatter(md('version: 1.2.3')).version).toBe('1.2.3');
+    expect(parseFrontmatter(md('version: 0.1.0')).version).toBe('0.1.0');
+  });
+
+  it('é OPCIONAL — skill sem versão continua publicável', () => {
+    // Exigir versão de toda skill transformaria um registry de descoberta num gerenciador
+    // de pacotes. Só quem usa canais precisa versionar.
+    expect(parseFrontmatter(md('')).version).toBeUndefined();
+  });
+
+  it('versão MALFORMADA é erro explícito, nunca ignorada', () => {
+    // Descartar em silêncio deixaria a coluna nula e o canal invisível, e o autor
+    // procuraria o defeito no canal em vez de no que ele escreveu.
+    expect(() => parseFrontmatter(md('version: 1.2'))).toThrow(/version/);
+    expect(() => parseFrontmatter(md('version: v1.2.3'))).toThrow(/version/);
+    expect(() => parseFrontmatter(md('version: 1.2.3.4'))).toThrow(/version/);
+    expect(() => parseFrontmatter(md('version: abc'))).toThrow(/version/);
+  });
+
+  it('YAML lê `version: 1.0` como número — e isso tem que virar erro, não "1"', () => {
+    // Sem aspas, `1.0` é float em YAML e viraria a string "1". O autor escreveu uma versão
+    // e o registry gravaria outra: divergência silenciosa entre o que ele leu e o que ficou.
+    expect(() => parseFrontmatter(md('version: 1.0'))).toThrow(/version/);
+  });
+
+  it('aceita pré-release', () => {
+    expect(parseFrontmatter(md('version: 1.0.0-rc.1')).version).toBe('1.0.0-rc.1');
+  });
+});

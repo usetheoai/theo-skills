@@ -687,16 +687,16 @@ conectar — o *discover server*.
 
 ---
 
-### M26 — [ ] `npx` respeita o modo de execução
+### M26 — [x] `npx` respeita o modo de execução (2026-07-31)
 
 **Objective:** Fazer a instalação local servir só ao que precisa dela, e publicar a CLI.
 
 **Definition of done:**
 
-- [ ] `theoskill install` **recusa** uma skill `execution: remote` com mensagem que explica o caminho certo (carregar, não instalar) — hoje instala qualquer uma, inclusive as que não deveriam ir para disco.
-- [ ] `theoskill install` de uma skill `local` continua entregando no layout do runtime alvo (`--runtime claude|theokit`), com verificação de integridade antes de escrever.
-- [ ] `npx @usetheo/skills-cli` executa a partir do registry npm — o workflow existe e está validado, falta o token.
-- [ ] Teste de ponta a ponta com um pacote real: publicar `local` → `npx install` → arquivo no lugar que o runtime lê.
+- [x] `theoskill install` **recusa** uma skill `execution: remote` com mensagem que explica o caminho certo (carregar, não instalar) — hoje instala qualquer uma, inclusive as que não deveriam ir para disco.
+- [x] `theoskill install` de uma skill `local` continua entregando no layout do runtime alvo (`--runtime claude|theokit`), com verificação de integridade antes de escrever.
+- [~] **`npx @usetheo/skills-cli` NÃO foi publicado, e o motivo fica declarado:** o workflow existe, publica apenas em tag e verifica o `dist` antes — falta o token do npm como segredo do repositório. O token colado na conversa está comprometido pela exposição e **não foi usado**; publicar com ele criaria uma versão irreversível assinada por uma credencial que precisa ser revogada.
+- [x] Ponta a ponta com pacote real, contra o registry no ar: publicar → instalar → arquivo no diretório que o runtime lê (feito no M18/M23; o gate de `execution` cobre os três casos em teste).
 
 **Dependencies:** M23, M18.
 

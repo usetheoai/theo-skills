@@ -42,6 +42,8 @@ export interface NewSkillRevision {
   readonly category?: string;
   /** M23 — `remote` (instrução, carregada do servidor) ou `local` (script, via npx). */
   readonly execution?: string;
+  /** M27 — versão semântica da revisão. Ausente = skill não versionada (canal não a vê). */
+  readonly version?: string;
   readonly payload: Buffer;
   readonly contentHash: string;
   readonly frontmatter: Record<string, unknown>;
@@ -51,6 +53,8 @@ export interface NewSkillRevision {
 
 export interface RevisionPayload {
   readonly payload: Buffer;
+  /** M27 — versão semântica desta revisão. */
+  readonly version?: string;
   readonly contentHash: string;
   readonly frontmatter: Record<string, unknown>;
   /** M3: SKILL.md markdown text — embedding source captured at ingest. */
@@ -215,6 +219,9 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
           revisionId,
           workspaceId,
           skillId: input.skillId,
+          // Ausente vira NULL: uma revisão sem versão é legítima (nem toda skill usa canal),
+          // e `''` faria `isNotNull` enxergar uma versão vazia que nenhum range casa.
+          ...(input.version !== undefined ? { version: input.version } : {}),
           payload: input.payload,
           contentHash: input.contentHash,
           frontmatter: input.frontmatter,
@@ -231,6 +238,7 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
           revisionId,
           workspaceId,
           skillId,
+          ...(rev.version !== undefined ? { version: rev.version } : {}),
           payload: rev.payload,
           contentHash: rev.contentHash,
           frontmatter: rev.frontmatter,
