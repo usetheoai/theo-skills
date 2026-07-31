@@ -102,12 +102,21 @@ describe('createHttpRegistry — o tenant vem da CREDENCIAL', () => {
     expect(urls[0], 'a URL carrega workspace — o tenant deve vir só da credencial').not.toMatch(/workspace|tenant/i);
   });
 
-  it('resposta não-ok vira lista vazia / null, sem vazar status ao agente', async () => {
+  it('403 LANÇA — este teste travava o defeito, e foi corrigido junto com ele', async () => {
+    // A versão anterior afirmava que TODA resposta não-ok virava `[]`/`null` "sem vazar
+    // status ao agente". A intenção era boa (não expor detalhe de infra), mas o efeito era
+    // mentir: `[]` diante de um 403 diz "nenhuma skill", quando a verdade é "não posso
+    // perguntar". O agente segue a tarefa concluindo que o catálogo está vazio — a pior
+    // resposta possível, porque é plausível.
+    //
+    // Só o 404 é valor de domínio (não existe / não é seu). O resto é falha, e falha se
+    // declara. Registrado aqui porque um teste que trava o comportamento errado é mais
+    // perigoso que a ausência de teste: ele defende o defeito de quem tentar corrigi-lo.
     const fail = (() => Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) })) as unknown as typeof globalThis.fetch;
     const r = createHttpRegistry({ baseUrl: 'https://reg.test', auth: 't', fetch: fail });
-    expect(await r.retrieve('q', 5)).toEqual([]);
-    expect(await r.get('sk_1')).toBeNull();
-    expect(await r.revisions('sk_1')).toEqual([]);
+    await expect(r.retrieve('q', 5)).rejects.toThrow(/HTTP 403/);
+    await expect(r.get('sk_1')).rejects.toThrow(/HTTP 403/);
+    await expect(r.revisions('sk_1')).rejects.toThrow(/HTTP 403/);
   });
 
   it('escapa o id na URL — um id hostil não monta rota', async () => {
@@ -115,5 +124,31 @@ describe('createHttpRegistry — o tenant vem da CREDENCIAL', () => {
     const f = ((u: string) => { urls.push(u); return Promise.resolve({ ok: true, json: () => Promise.resolve({}) }); }) as unknown as typeof globalThis.fetch;
     await createHttpRegistry({ baseUrl: 'https://reg.test', auth: 't', fetch: f }).get('../../admin/keys');
     expect(urls[0]).not.toContain('../');
+  });
+});
+
+describe('createHttpRegistry — falha do registry não vira lista vazia', () => {
+  const fetchStatus = (status: number) =>
+    (() => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve({}) })) as unknown as typeof globalThis.fetch;
+
+  it('404 é valor de DOMÍNIO: lista vazia / null, sem lançar', async () => {
+    const r = createHttpRegistry({ baseUrl: 'https://r.test', auth: 't', fetch: fetchStatus(404) });
+    expect(await r.retrieve('q', 5)).toEqual([]);
+    expect(await r.get('sk_1')).toBeNull();
+    expect(await r.revisions('sk_1')).toEqual([]);
+  });
+
+  it('503 LANÇA — `[]` diria "nenhuma skill" quando a verdade é "não consegui perguntar"', async () => {
+    // O agente que recebe `[]` segue a tarefa concluindo que o catálogo está vazio. É a pior
+    // resposta possível porque é plausível: um erro explícito ele sabe tratar.
+    const r = createHttpRegistry({ baseUrl: 'https://r.test', auth: 't', fetch: fetchStatus(503) });
+    await expect(r.retrieve('q', 5)).rejects.toThrow(/indisponível/);
+    await expect(r.get('sk_1')).rejects.toThrow(/indisponível/);
+    await expect(r.revisions('sk_1')).rejects.toThrow(/indisponível/);
+  });
+
+  it('401 também lança — credencial errada não é "catálogo vazio"', async () => {
+    const r = createHttpRegistry({ baseUrl: 'https://r.test', auth: 'errada', fetch: fetchStatus(401) });
+    await expect(r.retrieve('q', 5)).rejects.toThrow(/HTTP 401/);
   });
 });
