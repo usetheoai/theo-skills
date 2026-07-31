@@ -95,9 +95,10 @@ export function createRevisionsStore(db: Db, workspaceId: string): RevisionsStor
         )
         .limit(1);
       const row = rows[0];
-      if (row === undefined) return undefined;
-      // `bytea` volta como Buffer no node-postgres; o normalize evita depender disso.
-      return Buffer.isBuffer(row.payload) ? row.payload : Buffer.from(row.payload as Uint8Array);
+      // `bytea` já chega como Buffer — o tipo da coluna diz isso e o driver cumpre. Havia
+      // aqui um normalize defensivo, e o lint mostrou que a asserção que ele exigia era
+      // desnecessária: a guarda não protegia de nada que o tipo permitisse.
+      return row?.payload;
     },
   };
 }
