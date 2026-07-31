@@ -643,18 +643,18 @@ separar o que é instrução do que é código.
 
 ---
 
-### M24 — [ ] Carga remota das instruções
+### M24 — [x] Carga remota das instruções (2026-07-31)
 
 **Objective:** Fechar a segunda fase da descoberta: o agente escolhe uma skill e carrega o
 corpo dela do servidor, sem nada em disco.
 
 **Definition of done:**
 
-- [ ] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o mesmo filtro de inquilino de toda leitura por id (404 cross-tenant, nunca 403).
-- [ ] Recusa com erro tipado quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
-- [ ] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
-- [ ] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
-- [ ] Medido contra o serviço no ar: um agente descobre, escolhe e carrega, com p95 da carga registrado.
+- [x] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o mesmo filtro de inquilino de toda leitura por id (404 cross-tenant, nunca 403).
+- [x] Recusa com erro tipado (422 `execution_is_local`) quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
+- [x] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
+- [x] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
+- [x] Medido contra o serviço no ar (`develop-4bfdf9b`): descobrir devolve `category=Sales execution=remote`; carregar devolve o corpo com `origin=own`; **p50 6,1 ms · p95 10,8 ms** (alvo do M17: 200 ms). Recusas confirmadas: `local` → 422, outro inquilino → 404, sem credencial → 401.
 
 **Dependencies:** M23.
 
