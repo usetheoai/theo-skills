@@ -21,6 +21,7 @@ import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
 import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
+import { createRateLimiter, type RateLimitConfig } from './middleware/rate-limit.js';
 import { createSecretlintScanner } from './payload/secretlint-scanner.js';
 import { createYauzlPayloadValidator } from './payload/yauzl-validator.js';
 import { type AppEnv } from './principal-context.js';
@@ -70,6 +71,12 @@ export interface CreateAppOptions {
    * — e o `SECURITY.md` continua declarando que o serviço não deve ser exposto assim.
    */
   readonly authVerifier?: AuthVerifier;
+  /**
+   * Rate limit por principal (M17). Ausente = desligado — de propósito: um limite ativado
+   * por omissão, com número escolhido no escuro, derruba cliente legítimo, que é o risco #2
+   * declarado do milestone. Ligar é decisão de operação, com o número vindo de medição.
+   */
+  readonly rateLimit?: RateLimitConfig;
 }
 
 /** Build the Hono app with injected dependencies (DIP, ADR-3). */
@@ -116,6 +123,19 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     c.set('principal', resolvePrincipal(c as unknown as Context<AppEnv>));
     await next();
   });
+
+  // Rate limit DEPOIS de o principal existir — nos DOIS caminhos (com e sem verificador).
+  //
+  // A primeira versão deste wiring o colocou logo após o middleware de auth, e estava errada:
+  // sem `authVerifier` o principal só é setado no middleware seguinte, então o limiter leria
+  // `undefined` e quebraria justamente a configuração legada que ele deveria proteger.
+  //
+  // O orçamento é POR PRINCIPAL e não por IP: num registry multi-tenant o IP é o gateway do
+  // cliente, então limitar por IP puniria todos os usuários dele pelo excesso de um só — e
+  // não conteria nada quando o abuso vem de IPs distintos com a mesma credencial.
+  if (opts.rateLimit !== undefined) {
+    app.use('*', createRateLimiter({ config: opts.rateLimit }));
+  }
 
   registerSkillsRoutes(app, {
     skillsStoreFor: (ws: string) => createSkillsStore(db, ws),
