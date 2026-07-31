@@ -8,6 +8,7 @@ ao [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- **Uma falha do registry chegava ao agente como "nenhuma skill encontrada".** O cliente MCP colapsava toda resposta de erro em lista vazia. `[]` diante de um servidor fora do ar diz ao agente que o catálogo está vazio, quando a verdade é que não foi possível perguntar — e ele segue a tarefa com essa conclusão, que é a pior resposta possível justamente por ser plausível. Agora só o "não encontrado" é valor de domínio; qualquer outra falha é declarada como erro, que o agente sabe tratar. **O teste que existia travava o comportamento errado** e foi corrigido junto: um teste que defende o defeito é mais perigoso que a ausência de teste. Achado pelo `/review`. (#review-2026-07-31)
 - **A rota de download da skill passa a ter teste do lado do servidor.** Ela nasceu nesta mesma série para corrigir um campo que a API nunca devolveu, e até agora só a camada de banco tinha cobertura — o defeito original foi exatamente uma camada testada sobre outra que ninguém exercitou, e repetir a omissão na correção seria a mesma falha um nível acima. Os testes novos cobrem o tipo do conteúdo, o cabeçalho de integridade, os bytes devolvidos, e o controle que impede que **conhecer o identificador de uma revisão baste para baixá-la** sob outra skill. Achado pelo `/review`. (#review-2026-07-31)
 
 ### Fixed
