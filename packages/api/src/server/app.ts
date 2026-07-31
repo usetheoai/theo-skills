@@ -98,11 +98,17 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     logger,
     ...(opts.dnsResolver !== undefined ? { dnsResolver: opts.dnsResolver } : {}),
   });
+  // Retriever POR WORKSPACE, como os stores acima — não um singleton de boot.
+  //
+  // O executor e o embedder continuam sendo criados uma vez (são caros e sem estado de
+  // tenant); o que se cria por requisição é o closure que fixa o workspace. Montar o
+  // dispatcher uma única vez no boot foi exatamente o que deixou a rota de descoberta
+  // servindo o catálogo inteiro a qualquer tenant.
+  const retrieveExecutor = createPgExecutor(opts.pool);
+  const retrieveEmbedder = opts.embedder ?? selectEmbedder();
   registerRetrieveRoutes(app, {
-    retriever: createDispatchingRetriever({
-      executor: createPgExecutor(opts.pool),
-      embedder: opts.embedder ?? selectEmbedder(),
-    }),
+    retrieverFor: (ws: string) =>
+      createDispatchingRetriever({ executor: retrieveExecutor, embedder: retrieveEmbedder, workspaceId: ws }),
     logger,
   });
 
