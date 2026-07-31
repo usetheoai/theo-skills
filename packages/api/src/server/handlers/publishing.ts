@@ -41,7 +41,11 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
     if ((await deps.skillsStoreFor(ws).getView(skillId)) === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
-    return c.json({ versions: await deps.channelsStoreFor(ws).versionsOf(skillId) }, 200);
+    const versoes = await deps.channelsStoreFor(ws).versionsOf(skillId);
+    // Mapeado, nunca repassado cru: a forma do store é camelCase e a da API é snake_case.
+    // Devolver o objeto do store congela um detalhe interno no contrato público — e a
+    // divergência só aparece para quem consome, não para quem escreve o teste.
+    return c.json({ versions: versoes.map((v) => ({ version: v.version, revision_id: v.revisionId })) }, 200);
   });
 
   app.get('/v1/skills/:id/channels', async (c) => {

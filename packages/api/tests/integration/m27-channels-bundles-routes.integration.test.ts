@@ -82,8 +82,13 @@ describeIntegration('M27 — rotas de canal e de bundle', () => {
   it('lista as versões de uma skill — o que `isNotNull(version)` descartava', async () => {
     const res = await app().request('/v1/skills/vendas/versions');
     expect(res.status).toBe(200);
-    const b = (await res.json()) as { versions: { version: string }[] };
+    const b = (await res.json()) as { versions: { version: string; revision_id: string }[] };
     expect(b.versions.map((v) => v.version).sort()).toEqual(['1.0.0', '1.1.0']);
+    // A CHAVE é `revision_id`, snake_case, como em TODA a API. Sem esta asserção a rota
+    // vazava a forma interna do store (`revisionId`) e o teste seguia verde: ele conferia
+    // só o campo em que os dois lados por acaso concordavam.
+    expect(b.versions.every((v) => typeof v.revision_id === 'string')).toBe(true);
+    expect(b.versions.some((v) => 'revisionId' in v)).toBe(false);
   });
 
   it('promove uma revisão a um canal, e o canal passa a apontar para ela', async () => {

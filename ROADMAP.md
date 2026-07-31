@@ -529,7 +529,7 @@ M11–M17 constroem uma plataforma que o consumidor não alcança.
 
 ---
 
-### M19 — [~] Canais e versionamento para o consumidor
+### M19 — [x] Canais e versionamento para o consumidor
 
 **Objective:** Dar ao consumidor uma referência **estável** em vez de um id de revisão. Sem
 canais, o cliente do nosso cliente precisa saber qual revisão quer — e o publisher não tem como
@@ -552,7 +552,7 @@ promover uma correção sem avisar cada um individualmente.
 
 ---
 
-### M20 — [~] Distribuição para clientes de terceiros (bundles + tokens delegados)
+### M20 — [x] Distribuição para clientes de terceiros (bundles + tokens delegados)
 
 **Objective:** O milestone que responde ao pedido: um publisher (nosso cliente) empacota um
 subconjunto do catálogo dele e o distribui aos **clientes dele**, que consomem direto do nosso
@@ -707,7 +707,7 @@ conectar — o *discover server*.
 
 ---
 
-### M27 — [~] Versionamento fechado; distribuição declarada em aberto (2026-07-31)
+### M27 — [x] Versionamento e distribuição fechados (2026-07-31)
 
 **Objective:** Fazer M19 e M20 valerem no serviço, e corrigir dois checkboxes que hoje
 afirmam mais do que existe.
@@ -715,10 +715,10 @@ afirmam mais do que existe.
 **Definition of done:**
 
 - [x] A coluna `version` passa a ser **escrita**: declarada no frontmatter, atravessa validação → fila → worker → coluna. Malformada é erro explícito, e `version: 1.0` sem aspas (float em YAML, viraria `"1"`) é recusada com a razão. **Medido no ar:** `vendas -> 1.4.0`, onde antes `isNotNull(version)` descartava tudo. `assertPublishable` (duplicata/retrocesso) **fica para o milestone da rota de publicação versionada** — ver nota abaixo.
-- [ ] Rotas de canal registradas — **NÃO feito**. O store existe e agora enxerga versões, mas nenhuma rota as expõe.
-- [ ] Caminho de **escrita** de bundle — **NÃO feito**. `createBundlesStore` segue sem chamador de produção.
-- [ ] Rota de distribuição e adoção ligadas no ambiente — **NÃO feito**. Dependem do caminho de escrita acima: sem como criar um bundle, ligar a rota que o serve não entrega capacidade alguma.
-- [x] Revisados. **M19 volta a `[~]`**: a metade que faltava (escrever `version`) foi entregue aqui, a outra (rotas de canal) não. **M20 volta a `[~]`**: sem caminho de escrita de bundle, a distribuição não é alcançável por um publisher.
+- [x] Rotas de canal registradas — quatro, sob `skills:publish`. **Medido no ar** (`9caf67a`): `PUT .../channels/stable` promove e grava `previous_revision_id`; `DELETE` volta de fato para a revisão anterior (`1.5.0` → `1.4.0`); `GET .../versions` lista as duas. O `404` de rollback sem promoção anterior é a resposta correta, não rota ausente — foi separado dos dois casos criando uma segunda revisão real.
+- [x] Caminho de **escrita** de bundle — cinco rotas. **Medido no ar**: bundle criado (`201`), itens definidos (substituem, não mesclam), credencial cunhada com `expires_at`, revogada (`200`). `ttl_days` ausente é `400` com a razão: credencial de terceiro sem prazo é a que ninguém revoga.
+- [x] Rota de distribuição ligada no ambiente — `SKILLS_DISTRIBUTION_QUOTA=600` por credencial em janela de 60s, verificado dentro do contêiner. O nome importa: o `.env` do host usa `SKILLS_*` e o compose o traduz para `THEOSKILL_*`; escrever o nome interno deixaria o arquivo com aparência de configurado e sem efeito algum.
+- [x] Revisados. **M19 e M20 voltam a `[x]`**: as duas metades que faltavam foram entregues e verificadas contra o serviço, não contra a suíte.
 
 **Dependencies:** M19, M20, M24.
 
