@@ -7,6 +7,9 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **A montagem do servidor passou a resolver os escopos pelo tipo do domínio, sem conversão manual.** O fixture de teste declarava a lista de escopos como texto livre e a convertia na fronteira; agora usa o tipo do contrato diretamente, e o compilador recusa um escopo que não exista. Uma conversão manual num teste de autorização é o ponto exato onde um escopo inventado passaria despercebido — e o teste continuaria verde. Sem mudança de comportamento. (#review-2026-07-31)
+
 ### Added
 - **Os escopos das chaves passam a valer de verdade.** `requireScope` existia, era testado, e **não estava aplicado a nenhuma rota**: uma chave emitida só para leitura publicava e apagava como qualquer outra — o vocabulário de escopos era decorativo. A distinção que isto restaura: **papel** governa pertencimento (quem é do workspace), **escopo** governa capacidade (o que aquela credencial pode fazer). Sem a segunda dimensão, delegar uma chave de leitura entregava poder de escrita junto. Publicar, atualizar e apagar agora exigem capacidade de escrita; ler segue aberto a quem só lê; e administrador implica escrita, para que a hierarquia não vire burocracia que ninguém cumpre. **O teste de isolamento entre clientes foi fortalecido junto**: o intruso dele passa a ter poder máximo, para que a única coisa entre ele e o recurso alheio seja a fronteira de cliente — antes, com escopo vazio, ele começaria a ser barrado pela capacidade e o teste deixaria de alcançar o guard que audita. (#review-2026-07-31)
 
