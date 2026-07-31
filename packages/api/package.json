@@ -20,7 +20,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "tsx src/server.ts",
-    "eval:tenant": "tsx eval/tenant-recall.ts"
+    "eval:tenant": "tsx eval/tenant-recall.ts",
+    "eval:storage": "tsx eval/storage-trigger.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.0",

@@ -104,6 +104,8 @@ export const skillRevisions = pgTable(
     skillId: text('skill_id').notNull(),
     payload: bytea('payload').notNull(),
     contentHash: text('content_hash').notNull(),
+    /** Versão semântica declarada no SKILL.md (M19). Nula nas revisões anteriores ao M19. */
+    version: text('version'),
     frontmatter: jsonb('frontmatter').notNull(),
     // M3: the SKILL.md markdown text captured at ingest — the embed worker reads
     // it (with name + description) as the embedding source, avoiding a re-unzip.
@@ -298,3 +300,114 @@ export const apiKeys = pgTable(
 export type UserRow = typeof users.$inferSelect;
 export type WorkspaceUserRow = typeof workspaceUsers.$inferSelect;
 export type ApiKeyRow = typeof apiKeys.$inferSelect;
+
+/**
+ * Canais mutáveis por skill (M19).
+ *
+ * Um canal é um PONTEIRO para uma revisão — `stable`, `beta`, ou um nome do publisher. A
+ * revisão continua imutável; o que muda é para onde o canal aponta. Essa distinção é o que
+ * permite corrigir uma skill sem reemitir nada no lado do consumidor.
+ */
+export const skillChannels = pgTable(
+  'skill_channels',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    skillId: text('skill_id').notNull(),
+    /** `stable` · `beta` · nomeado pelo publisher. */
+    channel: text('channel').notNull(),
+    revisionId: text('revision_id').notNull(),
+    /** Para onde o canal apontava antes — torna a promoção REVERSÍVEL sem consultar log. */
+    previousRevisionId: text('previous_revision_id'),
+    updatedBy: text('updated_by'),
+    updateTime: timestamp('update_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.skillId, t.channel], name: 'skill_channels_pkey' })],
+);
+
+export type SkillChannelRow = typeof skillChannels.$inferSelect;
+
+/**
+ * Bundles — o conjunto curado que um publisher distribui aos CLIENTES DELE (M20).
+ *
+ * Um bundle referencia skills por CANAL, não por revisão fixa: corrigir uma skill propaga
+ * para todos os destinatários sem reemitir um único token. Fixar revisão obrigaria o
+ * publisher a reemitir credenciais a cada correção — e ninguém faria isso, então as
+ * correções não chegariam.
+ */
+export const bundles = pgTable(
+  'bundles',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    bundleId: text('bundle_id').notNull(),
+    name: text('name').notNull(),
+    createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.bundleId], name: 'bundles_pkey' })],
+);
+
+/** Itens do bundle — cada um aponta para uma skill e o CANAL a seguir. */
+export const bundleItems = pgTable(
+  'bundle_items',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    bundleId: text('bundle_id').notNull(),
+    skillId: text('skill_id').notNull(),
+    channel: text('channel').notNull().default('stable'),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.bundleId, t.skillId], name: 'bundle_items_pkey' })],
+);
+
+/**
+ * Tokens de distribuição — emitidos pelo PUBLISHER para os clientes dele.
+ *
+ * Escopados a UM bundle e com expiração OBRIGATÓRIA (`expiresAt` é notNull, ao contrário das
+ * chaves de API internas): uma credencial de terceiro sem prazo é uma que ninguém lembra de
+ * revogar. Guarda apenas o hash — o valor sai uma vez, na emissão.
+ */
+export const distributionTokens = pgTable(
+  'distribution_tokens',
+  {
+    tokenId: text('token_id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    bundleId: text('bundle_id').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    label: text('label'),
+    /** Requisições por janela para este token. `null` = usa o padrão do publisher. */
+    quotaPerWindow: integer('quota_per_window'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('distribution_tokens_bundle_idx').on(t.workspaceId, t.bundleId)],
+);
+
+export type BundleRow = typeof bundles.$inferSelect;
+export type BundleItemRow = typeof bundleItems.$inferSelect;
+export type DistributionTokenRow = typeof distributionTokens.$inferSelect;
+
+/**
+ * Eventos de instalação (M21) — a telemetria que o publisher pede no primeiro dia.
+ *
+ * Guarda o token por **id**, NUNCA o valor: um evento com o segredo dentro transformaria a
+ * tabela de telemetria numa segunda cópia do cofre de credenciais, e telemetria costuma ter
+ * retenção mais longa e acesso mais amplo que credencial.
+ */
+export const installEvents = pgTable(
+  'install_events',
+  {
+    eventId: text('event_id').primaryKey(),
+    /** Publisher dono do bundle — o único que pode ler estes eventos. */
+    workspaceId: text('workspace_id').notNull(),
+    bundleId: text('bundle_id').notNull(),
+    tokenId: text('token_id').notNull(),
+    skillId: text('skill_id').notNull(),
+    revisionId: text('revision_id').notNull(),
+    version: text('version'),
+    createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('install_events_bundle_idx').on(t.workspaceId, t.bundleId, t.createTime),
+  ],
+);
+
+export type InstallEventRow = typeof installEvents.$inferSelect;

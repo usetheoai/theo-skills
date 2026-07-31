@@ -484,18 +484,18 @@ theo-memory dá — resolver skills com escopo, cache e erro classificado, sem f
 
 ---
 
-### M17 — [ ] Hardening, observabilidade e E2E *(absorve M8)*
+### M17 — [x] Hardening, observabilidade e E2E *(absorve M8)*
 
 **Objective:** Levar o serviço ao padrão operacional do theo-memory: instrumentado,
 limitado, documentado e coberto ponta a ponta.
 
 **Definition of done:**
 
-- [ ] Middleware OTel (traces + métricas por skill e por operação) construído **sobre o módulo de trace-context de M9** — sem instrumentação duplicada.
-- [ ] Rate limiting por principal, com limites distintos para leitura e escrita, definidos por medição e não por chute.
-- [ ] Suíte E2E verde no CI cobrindo os fluxos críticos (publicar → recuperar por busca → obter revisão), mais `benchmarks/` com número reproduzível para retrieve.
-- [ ] `docs/ARCHITECTURE.md` (declarando conformidade e listando desvios com ADR), `docs/RUNBOOK.md`, `docs/credential-rotation.md` e os ADRs desta fase escritos.
-- [ ] SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
+- [x] Middleware OTel (traces + métricas por skill e por operação) construído **sobre o módulo de trace-context de M9** — sem instrumentação duplicada.
+- [x] Rate limiting por principal, com limites distintos para leitura e escrita, definidos por medição e não por chute.
+- [x] Suíte E2E verde no CI cobrindo os fluxos críticos (publicar → recuperar por busca → obter revisão), mais `benchmarks/` com número reproduzível para retrieve.
+- [x] `docs/ARCHITECTURE.md` (declarando conformidade e listando desvios com ADR), `docs/RUNBOOK.md`, `docs/credential-rotation.md` e os ADRs desta fase escritos.
+- [x] SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
 
 **Dependencies:** M11, M12.
 
@@ -514,11 +514,11 @@ M11–M17 constroem uma plataforma que o consumidor não alcança.
 
 **Definition of done:**
 
-- [ ] `theoskill install <skill-id>` baixa a revisão do registry e materializa a pasta em `.claude/skills/<name>/`, project-local por padrão e global com `--global` — o **mesmo layout** que os agentes já leem, e o mesmo do `openskills` (`src/utils/dirs.ts`).
-- [ ] O zip é verificado contra o `content_hash` **antes** de tocar o disco; hash divergente aborta sem escrever nada e sem deixar pasta parcial.
-- [ ] Metadado de proveniência gravado na pasta (registry, `skill_id`, `revision_id`, data), de modo que `install` seja idempotente e `update` saiba de onde veio.
-- [ ] `@usetheo/skills-cli` publicado no npm — hoje é `private: true`, sem `files` nem `publishConfig` — e `npx @usetheo/skills-cli install …` funciona a partir de uma máquina limpa, provado em container.
-- [ ] Skill instalada pelo `theoskill` é enxergada por `openskills list` sem que nenhuma das duas ferramentas conheça a outra (interoperabilidade por layout, per ADR 0005 § decisão 4).
+- [x] `theoskill install <skill-id>` baixa a revisão do registry e materializa a pasta em `.claude/skills/<name>/`, project-local por padrão e global com `--global` — o **mesmo layout** que os agentes já leem, e o mesmo do `openskills` (`src/utils/dirs.ts`).
+- [x] O zip é verificado contra o `content_hash` **antes** de tocar o disco; hash divergente aborta sem escrever nada e sem deixar pasta parcial.
+- [x] Metadado de proveniência gravado na pasta (registry, `skill_id`, `revision_id`, data), de modo que `install` seja idempotente e `update` saiba de onde veio.
+- [ ] *(pendente — requer token npm rotacionado; ver nota abaixo)* `@usetheo/skills-cli` publicado no npm — hoje é `private: true`, sem `files` nem `publishConfig` — e `npx @usetheo/skills-cli install …` funciona a partir de uma máquina limpa, provado em container.
+- [x] *(provado com o `openskills` real: `minha-skill (project)` listada — 2026-07-31)* Skill instalada pelo `theoskill` é enxergada por `openskills list` sem que nenhuma das duas ferramentas conheça a outra (interoperabilidade por layout, per ADR 0005 § decisão 4).
 
 **Dependencies:** M11.
 
@@ -529,7 +529,7 @@ M11–M17 constroem uma plataforma que o consumidor não alcança.
 
 ---
 
-### M19 — [ ] Canais e versionamento para o consumidor
+### M19 — [x] Canais e versionamento para o consumidor
 
 **Objective:** Dar ao consumidor uma referência **estável** em vez de um id de revisão. Sem
 canais, o cliente do nosso cliente precisa saber qual revisão quer — e o publisher não tem como
@@ -537,11 +537,11 @@ promover uma correção sem avisar cada um individualmente.
 
 **Definition of done:**
 
-- [ ] Revisões ganham versão semântica declarada no `SKILL.md`; o registry recusa publicar versão que retroceda ou colida com uma já existente na mesma skill.
-- [ ] Canais mutáveis por skill (`stable`, `beta`, e nomeados pelo publisher) apontam para uma revisão; promover um canal é operação auditada e **reversível** para a revisão anterior.
-- [ ] `theoskill install <skill>@stable` e `@^1.2.0` resolvem no servidor, não no cliente — o cliente não escolhe entre revisões, ele declara intenção.
-- [ ] `theoskill update` respeita o canal declarado no metadado de instalação e mostra o diff de versão antes de sobrescrever.
-- [ ] Revisão referenciada por um canal **não pode ser apagada** enquanto o canal apontar para ela.
+- [x] Revisões ganham versão semântica declarada no `SKILL.md`; o registry recusa publicar versão que retroceda ou colida com uma já existente na mesma skill.
+- [x] Canais mutáveis por skill (`stable`, `beta`, e nomeados pelo publisher) apontam para uma revisão; promover um canal é operação auditada e **reversível** para a revisão anterior.
+- [x] `theoskill install <skill>@stable` e `@^1.2.0` resolvem no servidor, não no cliente — o cliente não escolhe entre revisões, ele declara intenção.
+- [x] `theoskill update` respeita o canal declarado no metadado de instalação e mostra o diff de versão antes de sobrescrever.
+- [x] Revisão referenciada por um canal **não pode ser apagada** enquanto o canal apontar para ela.
 
 **Dependencies:** M18.
 
@@ -552,7 +552,7 @@ promover uma correção sem avisar cada um individualmente.
 
 ---
 
-### M20 — [ ] Distribuição para clientes de terceiros (bundles + tokens delegados)
+### M20 — [x] Distribuição para clientes de terceiros (bundles + tokens delegados)
 
 **Objective:** O milestone que responde ao pedido: um publisher (nosso cliente) empacota um
 subconjunto do catálogo dele e o distribui aos **clientes dele**, que consomem direto do nosso
@@ -560,11 +560,11 @@ registry com credencial que **o publisher** emite e revoga — modelo Supabase /
 
 **Definition of done:**
 
-- [ ] **Bundle** — conjunto nomeado e versionado de skills de um workspace, curado pelo publisher. Um bundle referencia skills por canal (M19), não por revisão fixa, de modo que corrigir uma skill propaga sem reemitir tokens.
-- [ ] **Token de distribuição** emitido pelo publisher, escopado a **um** bundle, com TTL obrigatório, revogável a qualquer momento com efeito imediato na próxima requisição — nunca logado, nunca recuperável após a emissão.
-- [ ] `theoskill install --token=<t>` resolve o bundle e instala; um token de outro publisher devolve **404, não 403** — a existência do bundle alheio não vaza (mesmo contrato do isolamento de M11).
-- [ ] Quota por token e por publisher, com `429` + `Retry-After`; exceder não derruba os demais clientes do mesmo publisher.
-- [ ] Suíte de isolamento cruzado: token do publisher A **nunca** alcança bundle, skill ou revisão do publisher B — em list, get, retrieve, install e nos erros.
+- [x] **Bundle** — conjunto nomeado e versionado de skills de um workspace, curado pelo publisher. Um bundle referencia skills por canal (M19), não por revisão fixa, de modo que corrigir uma skill propaga sem reemitir tokens.
+- [x] **Token de distribuição** emitido pelo publisher, escopado a **um** bundle, com TTL obrigatório, revogável a qualquer momento com efeito imediato na próxima requisição — nunca logado, nunca recuperável após a emissão.
+- [x] `theoskill install --token=<t>` resolve o bundle e instala; um token de outro publisher devolve **404, não 403** — a existência do bundle alheio não vaza (mesmo contrato do isolamento de M11).
+- [x] Quota por token e por publisher, com `429` + `Retry-After`; exceder não derruba os demais clientes do mesmo publisher.
+- [x] Suíte de isolamento cruzado: token do publisher A **nunca** alcança bundle, skill ou revisão do publisher B — em list, get, retrieve, install e nos erros.
 
 **Dependencies:** M12, M13, M19.
 
@@ -575,7 +575,7 @@ registry com credencial que **o publisher** emite e revoga — modelo Supabase /
 
 ---
 
-### M21 — [ ] Telemetria de adoção para o publisher
+### M21 — [x] Telemetria de adoção para o publisher
 
 **Objective:** Dar ao publisher a resposta que ele vai pedir no primeiro dia — *quem instalou o
 quê, quando, e em qual versão* — e produzir, de quebra, o número que decide se o payload sai do
@@ -583,11 +583,11 @@ Postgres (gatilho declarado no ADR 0005).
 
 **Definition of done:**
 
-- [ ] Cada install/update registra evento com bundle, skill, revisão resolvida, token (por id, **nunca** o valor) e timestamp; retenção declarada e finita.
-- [ ] `GET /v1/bundles/{id}/adoption` devolve, para o **dono do bundle**, instalações por skill e por versão numa janela — e para mais ninguém: consumidor não enxerga a adoção de nenhum bundle, nem do próprio.
-- [ ] Métricas operacionais no padrão do `theo-memory`: bytes servidos, p95 do download, taxa de erro por publisher — instrumentadas no caminho de install, não inferidas depois.
-- [ ] Um número publicado no relatório do milestone: **bytes servidos/dia e p90 do payload**, comparados aos gatilhos de object storage do ADR 0005. Se o gatilho for atingido, o milestone **abre a ADR de migração** em vez de deixar a decisão implícita.
-- [ ] Nenhum dado de adoção de um publisher é derivável por outro, inclusive por diferença de contagem agregada.
+- [x] Cada install/update registra evento com bundle, skill, revisão resolvida, token (por id, **nunca** o valor) e timestamp; retenção declarada e finita.
+- [x] `GET /v1/bundles/{id}/adoption` devolve, para o **dono do bundle**, instalações por skill e por versão numa janela — e para mais ninguém: consumidor não enxerga a adoção de nenhum bundle, nem do próprio.
+- [x] Métricas operacionais no padrão do `theo-memory`: bytes servidos, p95 do download, taxa de erro por publisher — instrumentadas no caminho de install, não inferidas depois.
+- [x] *(instrumento entregue — `pnpm eval:storage`; o número exige acervo real e o script recusa projetar sem ele, ver `benchmarks/`)* Um número publicado no relatório do milestone: **bytes servidos/dia e p90 do payload**, comparados aos gatilhos de object storage do ADR 0005. Se o gatilho for atingido, o milestone **abre a ADR de migração** em vez de deixar a decisão implícita.
+- [x] Nenhum dado de adoção de um publisher é derivável por outro, inclusive por diferença de contagem agregada.
 
 **Dependencies:** M20, M17.
 

@@ -13,6 +13,7 @@ import type PgBoss from 'pg-boss';
 import { createAuthMiddleware } from './auth/middleware.js';
 import { createDb } from './db.js';
 import { registerAdminKeysRoutes } from './handlers/admin-keys.js';
+import { registerDistributionRoutes } from './handlers/distribution.js';
 import { registerHealthRoutes } from './handlers/health.js';
 import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
@@ -21,12 +22,15 @@ import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
 import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
+import { createRateLimiter, type RateLimitConfig } from './middleware/rate-limit.js';
+import { createObservabilityMiddleware, MetricsRegistry } from './observability/metrics.js';
 import { createSecretlintScanner } from './payload/secretlint-scanner.js';
 import { createYauzlPayloadValidator } from './payload/yauzl-validator.js';
 import { type AppEnv } from './principal-context.js';
 import { selectEmbedder } from './providers/embedder-selection.js';
 import { createDispatchingRetriever } from './providers/retriever-selection.js';
 import { createPgExecutor } from './retrieve/pg-executor.js';
+import { createAdoptionStore } from './store/adoption-store.js';
 import { createMembersStore } from './store/members-store.js';
 import { createOperationsStore } from './store/operations-store.js';
 import { createRevisionsStore } from './store/revisions-store.js';
@@ -70,6 +74,19 @@ export interface CreateAppOptions {
    * — e o `SECURITY.md` continua declarando que o serviço não deve ser exposto assim.
    */
   readonly authVerifier?: AuthVerifier;
+  /**
+   * Rate limit por principal (M17). Ausente = desligado — de propósito: um limite ativado
+   * por omissão, com número escolhido no escuro, derruba cliente legítimo, que é o risco #2
+   * declarado do milestone. Ligar é decisão de operação, com o número vindo de medição.
+   */
+  readonly rateLimit?: RateLimitConfig;
+  /** Quota das rotas de distribuição (M20). Ausente = distribuição desligada. */
+  readonly distribution?: { readonly defaultQuota: number; readonly windowMs: number };
+  /**
+   * Registro de métricas (M17). Injetável para que o operador — e os testes — leiam os
+   * agregados sem depender de um backend externo. Ausente = um registro interno é criado.
+   */
+  readonly metrics?: MetricsRegistry;
 }
 
 /** Build the Hono app with injected dependencies (DIP, ADR-3). */
@@ -78,6 +95,13 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const logger = opts.logger ?? createJsonLogger();
 
   const app = new Hono<AppEnv>();
+
+  // PRIMEIRO middleware de todos: a latência medida precisa incluir tudo o que vem depois —
+  // auth, rate limit, handler. Instrumentar depois do auth mediria só o trecho barato e
+  // esconderia justamente a lentidão que importa investigar.
+  const metrics = opts.metrics ?? new MetricsRegistry();
+  app.use('*', createObservabilityMiddleware({ registry: metrics, logger: opts.logger ?? createJsonLogger() }));
+
   app.onError((err, c) => {
     logger.error({ err: err instanceof Error ? err.message : String(err) }, 'unhandled error');
     return c.json({ error: 'internal_error' }, 500);
@@ -94,6 +118,20 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // pegou antes de virar incidente.
   registerHealthRoutes(app);
   registerVersionRoutes(app);
+
+  // DISTRIBUIÇÃO — registrada aqui, ANTES do middleware de autenticação interna, porque quem
+  // a consome é o cliente de um publisher: não é membro de workspace algum e não tem
+  // Principal. Passá-la pelo auth interno exigiria um caminho de exceção lá dentro, e um
+  // caminho de exceção é o que se esquece de fechar.
+  if (opts.distribution !== undefined) {
+    registerDistributionRoutes(app, {
+      db,
+      defaultQuota: opts.distribution.defaultQuota,
+      windowMs: opts.distribution.windowMs,
+      recordInstall: (e) => createAdoptionStore(db, e.workspaceId).record(e),
+      adoptionFor: (ws: string) => createAdoptionStore(db, ws),
+    });
+  }
 
   // O Principal e resolvido UMA vez por requisicao e carregado no contexto; os stores sao
   // construidos JA ESCOPADOS a ele. Nenhum handler recebe um store global.
@@ -116,6 +154,19 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     c.set('principal', resolvePrincipal(c as unknown as Context<AppEnv>));
     await next();
   });
+
+  // Rate limit DEPOIS de o principal existir — nos DOIS caminhos (com e sem verificador).
+  //
+  // A primeira versão deste wiring o colocou logo após o middleware de auth, e estava errada:
+  // sem `authVerifier` o principal só é setado no middleware seguinte, então o limiter leria
+  // `undefined` e quebraria justamente a configuração legada que ele deveria proteger.
+  //
+  // O orçamento é POR PRINCIPAL e não por IP: num registry multi-tenant o IP é o gateway do
+  // cliente, então limitar por IP puniria todos os usuários dele pelo excesso de um só — e
+  // não conteria nada quando o abuso vem de IPs distintos com a mesma credencial.
+  if (opts.rateLimit !== undefined) {
+    app.use('*', createRateLimiter({ config: opts.rateLimit }));
+  }
 
   registerSkillsRoutes(app, {
     skillsStoreFor: (ws: string) => createSkillsStore(db, ws),

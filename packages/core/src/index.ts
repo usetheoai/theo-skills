@@ -108,5 +108,6 @@ export {
 // M11 — tipos do isolamento multi-inquilino.
 export * from './domain/principal.js';
 export * from './domain/scope.js';
+export * from './domain/version.js';
 export * from './domain/dip/auth-verifier.js';
 
