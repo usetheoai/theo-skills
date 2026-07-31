@@ -105,10 +105,14 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
     ...over,
   });
 
-  it('converte para o formato do Theokit', async () => {
+  it('converte para o CreateSkillSpec REAL do Theokit (verificado contra o SDK 4.36.0)', async () => {
     const m = createRemoteSkillsManager({ client: client() });
     const [s] = await m.resolve('faturamento');
-    expect(s).toMatchObject({ name: 'n', description: 'd', source: 'theo-skills/sk_1', version: '0.0.0' });
+    // O contrato REAL do @theokit/sdk 4.36.0 — verificado instalando o SDK e construindo uma
+    // skill de verdade: `{ name, description, instructions, category? }`. Não há `source`
+    // nem `version`, e `instructions` é obrigatório. O ROADMAP descrevia outro contrato.
+    expect(s).toMatchObject({ name: 'n', description: 'd', category: 'own' });
+    expect(s?.instructions, 'skill sem corpo é casca que o agente carrega e não executa').toBeTruthy();
     expect(m.isDegraded()).toBe(false);
   });
 
@@ -116,7 +120,7 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
     // Um agente no meio de uma tarefa não deve morrer porque o registry piscou. Confundir
     // indisponibilidade do registry com indisponibilidade do agente transformaria um
     // incidente nosso num incidente de todos os clientes ao mesmo tempo.
-    const fallback = [{ name: 'local', description: 'd', source: 'local', version: '1.0.0' }];
+    const fallback = [{ name: 'local', description: 'd', instructions: 'faça isto' }];
     const motivos: string[] = [];
     const m = createRemoteSkillsManager({
       client: client({ retrieve: () => Promise.reject(new Error('registry fora')) }),
@@ -135,7 +139,7 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
     let t = 0;
     const m = createRemoteSkillsManager({
       client: client({ retrieve: () => (falhar ? Promise.reject(new Error('caiu')) : Promise.resolve([{ skill_id: 'sk_1', name: 'do-registry', description: 'd' }])) }),
-      localFallback: [{ name: 'local', description: 'd', source: 'local', version: '1.0.0' }],
+      localFallback: [{ name: 'local', description: 'd', instructions: 'faça isto' }],
       cacheTtlMs: 100,
       now: () => t,
     });
@@ -156,6 +160,23 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
     await m.resolve('q');
     await m.resolve('q');
     expect(n).toBe(1);
+  });
+
+  it('corpo ausente vira instructions que EXPLICA — nunca string vazia', async () => {
+    // String vazia produziria uma skill que o agente carrega e da qual não extrai
+    // comportamento algum, sem ter como saber por quê.
+    const m = createRemoteSkillsManager({ client: client() });
+    const [s] = await m.resolve('q');
+    expect(s?.instructions).toContain('corpo indisponível');
+  });
+
+  it('usa o corpo do registry quando ele vem', async () => {
+    const m = createRemoteSkillsManager({
+      client: client({
+        retrieve: () => Promise.resolve([{ skill_id: 'sk_1', name: 'n', description: 'd', instructions: '# Passos reais' }]),
+      }),
+    });
+    expect((await m.resolve('q'))[0]?.instructions).toBe('# Passos reais');
   });
 
   it('sem fallback e sem cache, devolve lista vazia — nunca lança', async () => {

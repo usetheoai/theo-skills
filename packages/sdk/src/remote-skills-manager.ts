@@ -1,13 +1,28 @@
 import { type Skill, type WorkspaceClient } from './client.js';
 import { classifyError } from './error-classifier.js';
 
-/** O formato que o Theokit consome (M7 DoD #2). */
+/**
+ * O formato que o Theokit consome — `CreateSkillSpec` do `@theokit/sdk` (M7 DoD #2).
+ *
+ * VERIFICADO CONTRA O SDK REAL (4.36.0), e o contrato é diferente do que o ROADMAP
+ * descrevia. O roadmap dizia `Skill { name, description, source, version, category? }`; o
+ * SDK aceita `{ name, description, instructions, category?, dependencies?, references? }` —
+ * **sem `source`, sem `version`, e com `instructions` OBRIGATÓRIO**.
+ *
+ * A diferença não é cosmética. `Skill.create` ACEITA um objeto sem `instructions` e devolve
+ * uma skill com `source: 'inline://<name>'` — ou seja, uma skill **sem corpo**, que o agente
+ * carrega e não tem o que executar. Falha silenciosa: compila, aceita, e não funciona.
+ *
+ * Só apareceu ao instalar o SDK e construir uma skill de verdade. Enquanto o formato era
+ * conferido contra a descrição do roadmap, tudo parecia certo.
+ */
 export interface TheokitSkill {
   readonly name: string;
   readonly description: string;
-  readonly source: string;
-  readonly version: string;
+  /** O corpo da skill — o que o agente de fato executa. Sem isto, a skill é casca. */
+  readonly instructions: string;
   readonly category?: string;
+  readonly dependencies?: readonly string[];
 }
 
 export interface RemoteSkillsManagerOptions {
@@ -27,13 +42,21 @@ export interface RemoteSkillsManager {
   isDegraded(): boolean;
 }
 
-const toTheokit = (s: Skill, baseSource: string): TheokitSkill => ({
+/**
+ * Converte para o `CreateSkillSpec` do Theokit.
+ *
+ * `instructions` recebe o corpo quando o registry o fornece. Quando NÃO fornece, o texto de
+ * fallback DIZ isso em vez de ficar vazio: uma string vazia produziria uma skill que o agente
+ * carrega e da qual não extrai comportamento algum — e ele não teria como saber por quê.
+ */
+const toTheokit = (s: Skill): TheokitSkill => ({
   name: s.name,
   description: s.description,
-  source: `${baseSource}/${s.skill_id}`,
-  // A versão vem do registry quando existe; `0.0.0` sinaliza "não versionada" sem mentir
-  // um número plausível. Um agente que compara versões precisa distinguir os dois casos.
-  version: '0.0.0',
+  instructions:
+    s.instructions !== undefined && s.instructions !== ''
+      ? s.instructions
+      : `(corpo indisponível no registry para "${s.name}" — a busca devolve resumo; ` +
+        `obtenha a revisão para as instruções completas)`,
   ...(s.origin !== undefined ? { category: s.origin } : {}),
 });
 
@@ -66,7 +89,7 @@ export function createRemoteSkillsManager(opts: RemoteSkillsManagerOptions): Rem
 
       try {
         const encontradas = await opts.client.retrieve(query, topK);
-        const skills = encontradas.map((s) => toTheokit(s, 'theo-skills'));
+        const skills = encontradas.map((s) => toTheokit(s));
         cache.set(chave, { at: now(), skills });
         degraded = false;
         return skills;

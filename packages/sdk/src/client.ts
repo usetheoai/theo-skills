@@ -6,6 +6,8 @@ export interface Skill {
   readonly description: string;
   readonly score?: number;
   readonly origin?: 'own' | 'public';
+  /** Corpo da skill, quando a rota o fornece. A busca devolve resumo; `get` pode trazê-lo. */
+  readonly instructions?: string;
 }
 
 export interface SkillsClientOptions {

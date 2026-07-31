@@ -243,7 +243,7 @@ dogfood real — é o critério de "shipped".
 **Definition of done:**
 
 - [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
-- [x] Formato retornado casa com o `Skill { name, description, source, version, category? }` do Theokit; um agente Theokit real resolve `@Skills([...])` a partir do registry remoto.
+- [x] *(o contrato do ROADMAP estava DESATUALIZADO: o `@theokit/sdk` 4.36.0 aceita `CreateSkillSpec { name, description, instructions, category?, dependencies?, references? }` — **sem `source`, sem `version`, e com `instructions` obrigatório**. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no `toTheokit`)* Formato retornado casa com o `CreateSkillSpec` do Theokit; provado contra o `Skill.create` real.
 - [ ] *(BLOQUEADO — exige um agente Theokit interno em uso real; o gate `/dogfood` deste ecossistema existe justamente para impedir que se afirme isto sem evidência de uso)* **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
 
 **Dependencies:** M4.
