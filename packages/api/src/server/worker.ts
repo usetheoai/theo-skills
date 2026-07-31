@@ -17,6 +17,13 @@ import { type SkillsStore } from './store/skills-store.js';
 export type OnOperationTerminal = (args: {
   readonly operationId: string;
   readonly skillId: string;
+  /**
+   * Inquilino dono do trabalho (M11) — o worker já o resolve de `job.data.workspaceId`,
+   * e ele PRECISA chegar aqui. Sem este campo, todo consumidor terminal (embedding,
+   * webhook) tinha de escolher um workspace por conta própria, e a única escolha
+   * disponível era o legado — silenciosamente errada para todo cliente real.
+   */
+  readonly workspaceId: string;
   /** M9: correlation id carried from the job so the webhook hop keeps the same trace. */
   readonly traceId: string;
   readonly eventType: WebhookEventType;
@@ -90,7 +97,7 @@ async function runOperationJob(
     await action();
     await deps.operationsStoreFor(workspaceId).updateState(operationId, 'ACTIVE');
     deps.logger.info({ operation_id: operationId, skill_id: skillId, trace_id: traceId, state: 'ACTIVE', job: jobName }, `${jobName} done`);
-    await deps.onTerminal?.({ operationId, skillId, traceId, eventType, state: 'ACTIVE' });
+    await deps.onTerminal?.({ operationId, skillId, traceId, eventType, state: 'ACTIVE', workspaceId });
   } catch (err) {
     const lastAttempt = retryCount >= MAX_SKILL_RETRY;
     if (isBusinessRule(err) || lastAttempt) {
@@ -100,7 +107,7 @@ async function runOperationJob(
         { operation_id: operationId, skill_id: skillId, trace_id: traceId, state: 'FAILED', error: message, job: jobName },
         `${jobName} failed`,
       );
-      await deps.onTerminal?.({ operationId, skillId, traceId, eventType, state: 'FAILED' });
+      await deps.onTerminal?.({ operationId, skillId, traceId, eventType, state: 'FAILED', workspaceId });
       return; // no (further) retry
     }
     throw err; // transient — pg-boss retries with backoff

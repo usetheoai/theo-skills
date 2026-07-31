@@ -58,10 +58,10 @@ describeIntegration('M4 E2E: index via POST → retrieve hybrid scored (T4.3)', 
   beforeAll(async () => {
     boss = await startBoss();
     const embeddingsStore = createEmbeddingsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
-    const embedEnqueuer = createEmbedEnqueuer({ queue: boss, embeddingsStore, logger: createNoopLogger() });
+    const embedEnqueuer = createEmbedEnqueuer({ queue: boss, embeddingsStoreFor: () => embeddingsStore, logger: createNoopLogger() });
     const h = buildWorkerHandlers(getPool(), createNoopLogger(), embedEnqueuer);
     await registerWorker({ queue: boss, createHandler: h.createHandler, updateHandler: h.updateHandler, deleteHandler: h.deleteHandler });
-    await registerEmbedWorker({ queue: boss, handler: createEmbedSkillHandler({ embeddingsStore, embedder: createStubEmbedder(), logger: createNoopLogger() }), logger: createNoopLogger() });
+    await registerEmbedWorker({ queue: boss, handler: createEmbedSkillHandler({ embeddingsStoreFor: () => embeddingsStore, embedder: createStubEmbedder(), logger: createNoopLogger() }), logger: createNoopLogger() });
   });
   beforeEach(truncateAll);
   afterAll(async () => {
