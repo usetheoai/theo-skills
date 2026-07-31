@@ -102,6 +102,10 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
     retrieve: () => Promise.resolve([{ skill_id: 'sk_1', name: 'n', description: 'd', origin: 'own' as const }]),
     get: () => Promise.resolve(null),
     revisions: () => Promise.resolve([]),
+    // O duplo implementa a INTERFACE INTEIRA. Deixar `instructions` de fora tornaria o
+    // teste verde sobre um cliente que o compilador não aceitaria em produção — a mesma
+    // classe do stub que inventava `payload_base64`.
+    instructions: () => Promise.resolve(null),
     ...over,
   });
 
@@ -182,5 +186,58 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
   it('sem fallback e sem cache, devolve lista vazia — nunca lança', async () => {
     const m = createRemoteSkillsManager({ client: client({ retrieve: () => Promise.reject(new Error('x')) }) });
     expect(await m.resolve('q')).toEqual([]);
+  });
+});
+
+describe('instructions — a carga remota (M24)', () => {
+  const fetchDe = (status: number, body: unknown) =>
+    (() =>
+      Promise.resolve({
+        ok: status < 400,
+        status,
+        headers: { get: () => null },
+        json: () => Promise.resolve(body),
+      })) as unknown as typeof globalThis.fetch;
+
+  it('carrega o corpo da skill escolhida', async () => {
+    const c = withWorkspace({
+      baseUrl: 'https://r.test',
+      fetch: fetchDe(200, { skill_id: 'guia', instructions: '# Passos', execution: 'remote', origin: 'own' }),
+    });
+    const r = await c.instructions('guia');
+    expect(r?.instructions).toBe('# Passos');
+    expect(r?.origin).toBe('own');
+  });
+
+  it('404 vira `null` — não existe, ou não é seu, e os dois são a mesma coisa daqui', async () => {
+    const c = withWorkspace({ baseUrl: 'https://r.test', fetch: fetchDe(404, {}) });
+    expect(await c.instructions('sumiu')).toBeNull();
+  });
+
+  it('422 (`local`) LANÇA — devolver null diria "não existe" sobre uma skill que existe', async () => {
+    // O consumidor precisa distinguir "não achei" de "achei, e esta você tem que instalar".
+    // Colapsar os dois faria o agente desistir de uma skill que ele poderia usar.
+    const c = withWorkspace({
+      baseUrl: 'https://r.test',
+      fetch: fetchDe(422, { error: 'execution_is_local' }),
+    });
+    await expect(c.instructions('com-script')).rejects.toBeInstanceOf(SkillsApiError);
+  });
+
+  it('o provider Theokit usa o CORPO REAL quando ele existe', async () => {
+    // Antes desta rota, `instructions` recebia um texto dizendo que o corpo estava
+    // indisponível — a skill chegava ao agente como casca. É o defeito que M24 fecha.
+    const m = createRemoteSkillsManager({
+      client: {
+        retrieve: () => Promise.resolve([{ skill_id: 'sk_1', name: 'guia', description: 'd' }]),
+        get: () => Promise.resolve(null),
+        revisions: () => Promise.resolve([]),
+        instructions: () =>
+          Promise.resolve({ skill_id: 'guia', instructions: '# Passos reais', execution: 'remote', origin: 'own' }),
+      },
+      loadInstructions: true,
+    });
+    const [s] = await m.resolve('guia');
+    expect(s?.instructions, 'sem carregar, o agente recebe casca').toBe('# Passos reais');
   });
 });

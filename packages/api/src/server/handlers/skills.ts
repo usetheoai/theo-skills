@@ -313,6 +313,36 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
     return c.json({ revisions }, 200);
   });
 
+  // GET /v1/skills/:id/instructions — a SEGUNDA FASE da descoberta (M24).
+  //
+  // O agente descobre (lista compacta que cabe no prompt), escolhe UMA, e carrega o corpo
+  // dela daqui. Nada vai para o disco — é o que distingue um registry de descoberta de um
+  // gerenciador de pacotes, e é o modelo que serve a um agente hospedado no Theo.
+  //
+  // Entrega UMA skill, nunca o catálogo: o custo de contexto é do agente, e uma rota que
+  // devolvesse vários corpos convidaria a enchê-lo com o que não vai ser lido.
+  app.get('/v1/skills/:id/instructions', async (c) => {
+    const found = await deps.skillsStoreFor(workspaceOf(c)).getInstructions(c.req.param('id'));
+    // 404 cobre inexistente, apagada e privada-de-outro-inquilino — indistinguíveis de
+    // propósito: um 403 confirmaria a existência de uma skill cujo nome é adivinhável.
+    if (found === undefined) return c.json({ error: 'not_found' }, 404);
+
+    // Uma skill `local` traz script, e as instruções dela referenciam arquivos que o agente
+    // remoto não tem. Devolvê-las produziria um agente seguindo passos que não existem —
+    // falha plausível, e por isso a pior. A recusa é tipada e aponta o caminho certo.
+    if (found.execution === 'local') {
+      return c.json(
+        {
+          error: 'execution_is_local',
+          details: `skill "${found.skill_id}" traz script e roda na máquina do cliente; use \`theoskill install\` em vez de carregar`,
+        },
+        422,
+      );
+    }
+
+    return c.json(found, 200);
+  });
+
   // GET /v1/skills/:id/revisions/:revisionId
   app.get('/v1/skills/:id/revisions/:revisionId', async (c) => {
     const revision = await deps.revisionsStoreFor(workspaceOf(c)).getById(c.req.param('revisionId'));

@@ -1,6 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { skillRevisions, skills } from '@usetheo/skills/db';
-import { and, asc, eq, gt, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 import { isUniqueViolation, SkillAlreadyExistsError } from '../persistence/pg-errors.js';
@@ -14,6 +14,20 @@ export interface SkillView {
   readonly latest_revision_id: string | null;
   readonly create_time: string;
   readonly update_time: string;
+}
+
+/**
+ * O corpo da skill + o que o consumidor precisa saber ANTES de injetá-lo no prompt (M24).
+ *
+ * `origin` não é enfeite: uma skill pública é instrução de TERCEIRO que o agente vai seguir.
+ * Sem a marca, o consumidor não distingue o que o próprio time publicou do que veio de fora
+ * — e essa é justamente a decisão dele.
+ */
+export interface SkillInstructions {
+  readonly skill_id: string;
+  readonly instructions: string;
+  readonly execution: string;
+  readonly origin: 'own' | 'public';
 }
 
 export interface NewSkillRevision {
@@ -53,6 +67,14 @@ export interface SkillsStore {
   updateMetadata(skillId: string, fields: { name?: string; description?: string }): Promise<void>;
   /** Fetch a live (non-deleted) skill view, or undefined. */
   getView(skillId: string): Promise<SkillView | undefined>;
+  /**
+   * Corpo da revisão CORRENTE, para a carga remota (M24).
+   *
+   * Cobre a união `minhas + públicas` — a mesma cláusula da busca, e nada além dela: uma
+   * skill `private` de outro inquilino não satisfaz nenhum dos dois lados. `undefined` para
+   * inexistente, apagada e alheia-privada, indistinguíveis de propósito.
+   */
+  getInstructions(skillId: string): Promise<SkillInstructions | undefined>;
   /** Keyset-paginated list of live skills (ordered by skill_id). */
   listPaginated(pageSize: number, pageToken: string | null): Promise<ListPage>;
   /** Soft-delete: mark DELETED + reserved_until. Returns whether it existed. */
@@ -231,6 +253,51 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
         .limit(1);
       const row = rows[0];
       return row === undefined ? undefined : toView(row);
+    },
+
+    async getInstructions(skillId) {
+      // UMA consulta: o corpo mora na revisão, o modo de execução e a visibilidade na skill.
+      // Duas idas ao banco abririam janela para ler o corpo de uma revisão que a segunda
+      // consulta descobriria pertencer a uma skill apagada.
+      const rows = await db
+        .select({
+          skillId: skills.skillId,
+          workspaceId: skills.workspaceId,
+          execution: skills.execution,
+          instructions: skillRevisions.skillMd,
+        })
+        .from(skills)
+        .innerJoin(
+          skillRevisions,
+          and(
+            eq(skillRevisions.workspaceId, skills.workspaceId),
+            eq(skillRevisions.revisionId, skills.latestRevisionId),
+          ),
+        )
+        .where(
+          and(
+            eq(skills.skillId, skillId),
+            isNull(skills.deletedAt),
+            // Mesma união da busca: as minhas OU as públicas. Uma `private` alheia não
+            // satisfaz nenhum lado — e `shared` também não, porque organização ainda não
+            // existe no dado.
+            or(eq(skills.workspaceId, workspaceId), eq(skills.visibility, 'public')),
+          ),
+        )
+        // A minha tem precedência sobre uma pública homônima: sob a PK composta, o mesmo
+        // `skill_id` em dois inquilinos é o caso NORMAL, e sem ordenação a linha devolvida
+        // seria arbitrária.
+        .orderBy(desc(eq(skills.workspaceId, workspaceId)))
+        .limit(1);
+
+      const row = rows[0];
+      if (row === undefined) return undefined;
+      return {
+        skill_id: row.skillId,
+        instructions: row.instructions,
+        execution: row.execution,
+        origin: row.workspaceId === workspaceId ? 'own' : 'public',
+      };
     },
 
     async listPaginated(pageSize, pageToken) {
