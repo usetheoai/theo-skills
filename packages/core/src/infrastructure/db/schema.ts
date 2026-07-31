@@ -104,6 +104,8 @@ export const skillRevisions = pgTable(
     skillId: text('skill_id').notNull(),
     payload: bytea('payload').notNull(),
     contentHash: text('content_hash').notNull(),
+    /** Versão semântica declarada no SKILL.md (M19). Nula nas revisões anteriores ao M19. */
+    version: text('version'),
     frontmatter: jsonb('frontmatter').notNull(),
     // M3: the SKILL.md markdown text captured at ingest — the embed worker reads
     // it (with name + description) as the embedding source, avoiding a re-unzip.
@@ -298,3 +300,28 @@ export const apiKeys = pgTable(
 export type UserRow = typeof users.$inferSelect;
 export type WorkspaceUserRow = typeof workspaceUsers.$inferSelect;
 export type ApiKeyRow = typeof apiKeys.$inferSelect;
+
+/**
+ * Canais mutáveis por skill (M19).
+ *
+ * Um canal é um PONTEIRO para uma revisão — `stable`, `beta`, ou um nome do publisher. A
+ * revisão continua imutável; o que muda é para onde o canal aponta. Essa distinção é o que
+ * permite corrigir uma skill sem reemitir nada no lado do consumidor.
+ */
+export const skillChannels = pgTable(
+  'skill_channels',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    skillId: text('skill_id').notNull(),
+    /** `stable` · `beta` · nomeado pelo publisher. */
+    channel: text('channel').notNull(),
+    revisionId: text('revision_id').notNull(),
+    /** Para onde o canal apontava antes — torna a promoção REVERSÍVEL sem consultar log. */
+    previousRevisionId: text('previous_revision_id'),
+    updatedBy: text('updated_by'),
+    updateTime: timestamp('update_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.skillId, t.channel], name: 'skill_channels_pkey' })],
+);
+
+export type SkillChannelRow = typeof skillChannels.$inferSelect;

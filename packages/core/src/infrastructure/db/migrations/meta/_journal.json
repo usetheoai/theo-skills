@@ -64,6 +64,13 @@
       "when": 1785500769349,
       "tag": "0008_rainy_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785502407406,
+      "tag": "0009_demonic_living_lightning",
+      "breakpoints": true
     }
   ]
 }
