@@ -1,7 +1,7 @@
+import { createYauzlPayloadValidator } from '@usetheo/skills/validators';
 import { describe, expect, it } from 'vitest';
 import yazl from 'yazl';
 
-import { createYauzlPayloadValidator } from '../../src/server/payload/yauzl-validator.js';
 
 function buildZip(entries: readonly { path: string; content: string }[]): Promise<Buffer> {
   return new Promise((resolve) => {
