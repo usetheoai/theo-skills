@@ -20,11 +20,11 @@ import { buildZipBase64, skillMd } from './_helpers/zip.js';
  * **escopo** governa CAPACIDADE (o que aquela credencial pode fazer). Sem a segunda, uma
  * chave emitida para leitura carregava poder de escrita.
  */
-const principalCom = (scopes: string[]): Principal => ({
+const principalCom = (scopes: Principal['scopes']): Principal => ({
   workspaceId: 'ws_escopo',
   userId: 'u_escopo',
   role: 'member',
-  scopes: scopes as Principal['scopes'],
+  scopes,
 });
 
 describeIntegration('M12 — escopo governa a escrita', () => {
@@ -39,7 +39,7 @@ describeIntegration('M12 — escopo governa a escrita', () => {
     await closePool();
   });
 
-  const appCom = (scopes: string[]) =>
+  const appCom = (scopes: Principal['scopes']) =>
     createApp({
       pool: getPool(),
       queue: boss,
@@ -48,7 +48,7 @@ describeIntegration('M12 — escopo governa a escrita', () => {
       principalResolver: () => principalCom(scopes),
     });
 
-  const publicar = async (scopes: string[]) => {
+  const publicar = async (scopes: Principal['scopes']) => {
     const zip = await buildZipBase64([{ path: 'SKILL.md', content: skillMd('escopada', 'Faz X. Use quando Y.') }]);
     return appCom(scopes).request('/v1/skills', {
       method: 'POST',

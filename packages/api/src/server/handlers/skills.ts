@@ -11,9 +11,9 @@ import { type Context, type Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type PgBoss from 'pg-boss';
 
+import { requireScope } from '../auth/middleware.js';
 import { type Logger } from '../logger.js';
 import { resolveTraceId } from '../observability/trace-context.js';
-import { requireScope } from '../auth/middleware.js';
 import { type AppEnv, workspaceOf } from '../principal-context.js';
 import { JOB_NAMES, SKILL_SEND_OPTIONS } from '../queue/queue.js';
 import { type OperationsStore } from '../store/operations-store.js';
