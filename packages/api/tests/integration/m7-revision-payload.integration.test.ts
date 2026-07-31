@@ -1,10 +1,13 @@
 import { DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
-import { afterAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
+import { createApp } from '../../src/server/app.js';
 import { createDb } from '../../src/server/db.js';
+import { createNoopLogger } from '../../src/server/logger.js';
 import { createRevisionsStore } from '../../src/server/store/revisions-store.js';
 import { createSkillsStore } from '../../src/server/store/skills-store.js';
 
+import { startBoss } from './_helpers/boss.js';
 import { closePool, getPool, truncateAll } from './_helpers/db.js';
 import { describeIntegration } from './_helpers/env.js';
 
@@ -25,8 +28,10 @@ import { describeIntegration } from './_helpers/env.js';
  * que faltava era a rota de leitura.
  */
 describeIntegration('M7 — payload da revisão', () => {
+  let bossRef: Awaited<ReturnType<typeof startBoss>> | undefined;
+  beforeAll(async () => { bossRef = await startBoss(); });
   beforeEach(truncateAll);
-  afterAll(closePool);
+  afterAll(async () => { await bossRef?.stop(); await closePool(); });
 
   const semear = async (payload: Buffer, contentHash: string) => {
     const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
@@ -69,5 +74,35 @@ describeIntegration('M7 — payload da revisão', () => {
 
     const outro = createRevisionsStore(createDb(getPool()), 'ws_outro_inquilino');
     expect(await outro.getPayload(revisionId)).toBeUndefined();
+  });
+  it('HTTP: serve os bytes como application/zip com o content_hash no cabeçalho', async () => {
+    // A rota nasceu HOJE para corrigir o `payload_base64` inexistente, e até aqui só o STORE
+    // tinha teste. O defeito original foi precisamente uma camada testada sobre outra que
+    // ninguém exercitou — repetir a omissão na correção seria a mesma falha, um nível acima.
+    const bytes = Buffer.from('PK zip-de-verdade');
+    const revisionId = await semear(bytes, 'hash-http');
+    const app = createApp({ pool: getPool(), queue: bossRef!, logger: createNoopLogger(), reservationHours: 1 });
+
+    const res = await app.request(`/v1/skills/payload-demo/revisions/${revisionId}/payload`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/zip');
+    expect(res.headers.get('x-content-hash'), 'sem o hash quem baixa não confere sem 2ª chamada').toBe('hash-http');
+    expect(Buffer.compare(Buffer.from(await res.arrayBuffer()), bytes)).toBe(0);
+  });
+
+  it('HTTP: revisão VÁLIDA sob o skill ERRADO devolve 404 — o id da revisão não é credencial', async () => {
+    // Sem esta amarração, `/v1/skills/QUALQUER/revisions/{rev}/payload` serviria os bytes de
+    // `rev`, e conhecer o id da revisão bastaria para baixar o corpo executável.
+    const revisionId = await semear(Buffer.from('bytes'), 'hash-guard');
+    const skills = createSkillsStore(createDb(getPool()), DEFAULT_WORKSPACE_ID);
+    await skills.createWithRevision({
+      skillId: 'outra-demo', name: 'outra-demo', description: 'd',
+      payload: Buffer.from('outra'), contentHash: 'hash-outra',
+      frontmatter: { name: 'outra-demo', description: 'd' }, skillMd: '# outra',
+    });
+    const app = createApp({ pool: getPool(), queue: bossRef!, logger: createNoopLogger(), reservationHours: 1 });
+
+    expect((await app.request(`/v1/skills/outra-demo/revisions/${revisionId}/payload`)).status).toBe(404);
+    expect((await app.request('/v1/skills/payload-demo/revisions/rev_nope/payload')).status).toBe(404);
   });
 });
