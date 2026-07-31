@@ -106,6 +106,52 @@ describe('createObservabilityMiddleware', () => {
     await app.request('/x', { headers: { traceparent: `00-${traceId}-00f067aa0ba902b7-01` } });
     expect(linhas[0]?.trace_id).toBe(traceId);
   });
+
+  /**
+   * O LOG IDENTIFICA O ATOR, não só o inquilino (M6 DoD #2 — audit log por principal).
+   *
+   * O registro carregava `workspace_id` e parava aí. Dois admins do mesmo cliente ficavam
+   * indistinguíveis: o log não respondia "QUEM publicou esta skill" nem "quem revogou aquela
+   * credencial" — que é a única pergunta que um audit log existe para responder.
+   *
+   * `user_id` é identificador, não segredo: entra no log. O token jamais.
+   */
+  it('registra o ator (user_id), não apenas o inquilino', async () => {
+    const linhas: Record<string, unknown>[] = [];
+    const app = new Hono<AppEnv>();
+    app.use('*', async (c, next) => {
+      c.set('principal', { workspaceId: 'ws_a', userId: 'u_maria', role: 'admin', scopes: ['skills:write'] });
+      await next();
+    });
+    app.use(
+      '*',
+      createObservabilityMiddleware({
+        registry: new MetricsRegistry(),
+        logger: { info: (o) => linhas.push(o as Record<string, unknown>), error: () => undefined },
+      }),
+    );
+    app.post('/v1/skills', (c) => c.json({}, 202));
+
+    await app.request('/v1/skills', { method: 'POST' });
+    expect(linhas[0]?.['workspace_id']).toBe('ws_a');
+    expect(linhas[0]?.['user_id']).toBe('u_maria');
+  });
+
+  /** Rota sem autenticação não inventa ator — `-`, como já faz com o inquilino. */
+  it('não inventa ator em rota sem principal', async () => {
+    const linhas: Record<string, unknown>[] = [];
+    const app = new Hono<AppEnv>();
+    app.use(
+      '*',
+      createObservabilityMiddleware({
+        registry: new MetricsRegistry(),
+        logger: { info: (o) => linhas.push(o as Record<string, unknown>), error: () => undefined },
+      }),
+    );
+    app.get('/v1/version', (c) => c.json({}));
+    await app.request('/v1/version');
+    expect(linhas[0]?.['user_id']).toBe('-');
+  });
 });
 
 describe('checkRetrieveSlo', () => {

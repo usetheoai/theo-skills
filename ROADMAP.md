@@ -209,7 +209,7 @@ capacidade que o Google não tem.
 
 ---
 
-### M6 — [~] RBAC granular por skill — SUPERSEDED por M13 (2026-07-30)
+### M6 — [x] RBAC granular por skill — entregue por M13 (2026-07-31)
 
 > **Substituído.** O DoD abaixo é entregue por **M13 — RBAC + membros**, que implementa o
 > modelo completo do `theo-memory` (papéis `owner`/`admin`/`member`, last-owner invariant,
@@ -222,9 +222,9 @@ com auditoria.
 
 **Definition of done:**
 
-- [ ] Modelo de permissões por skill (ler/escrever/publicar/deletar) aplicado em todos os endpoints, com negação clara (`403`) e sem vazar existência indevidamente.
-- [ ] Autenticação na fronteira + audit log de acessos e mutações por principal.
-- [ ] Testes de integração cobrindo concessão, negação e escalonamento de privilégio tentado.
+- [x] Modelo de permissões por skill aplicado em todos os endpoints — escopos em M12, papéis em M13. `403` para negação de capacidade; `404` (nunca `403`) quando revelar a existência seria o vazamento.
+- [x] Autenticação na fronteira (M12) + audit log por principal. **A metade que faltava, fechada em 2026-07-31:** o log estruturado registrava `workspace_id` e parava aí — dois admins do mesmo cliente eram indistinguíveis, e o log não respondia "quem publicou esta skill". Agora carrega `user_id`. Fora da métrica de propósito: cardinalidade ilimitada.
+- [x] Testes de integração cobrindo concessão, negação e escalonamento — matriz papel × rota do M13, incluindo as duas corridas.
 
 **Dependencies:** M1, M2.
 
@@ -244,7 +244,8 @@ dogfood real — é o critério de "shipped".
 
 - [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
 - [x] *(o contrato do ROADMAP estava DESATUALIZADO: o `@theokit/sdk` 4.36.0 aceita `CreateSkillSpec { name, description, instructions, category?, dependencies?, references? }` — **sem `source`, sem `version`, e com `instructions` obrigatório**. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no `toTheokit`)* Formato retornado casa com o `CreateSkillSpec` do Theokit; provado contra o `Skill.create` real.
-- [ ] *(BLOQUEADO — exige um agente Theokit interno em uso real; o gate `/dogfood` deste ecossistema existe justamente para impedir que se afirme isto sem evidência de uso)* **Dogfood real** registrado: um agente Theokit interno usando o registry em uso de verdade; Recall@5 ≥ 0.85 e p95 < 200ms confirmados nesse uso.
+- [ ] **Dogfood real** registrado. **Parcialmente entregue em 2026-07-31** — primeira evidência em `knowledge-base/dogfood/evidence/2026-07-31-theo-skills-agent-builder.md`: a jornada completa de um publisher contra o serviço no ar, com um agente Theokit **real** (`agent-builder`) carregando a skill via `discoverSkills`. **p95 = 30.4 ms** medido (SLO 200 ms). O dogfood já pagou: revelou dois defeitos que a suíte não pegava e o `curl` não alcançava — a operação nascia no cliente `default`, e `publish` não enviava credencial.
+  **O que ainda falta, sem rodeio:** (a) **Recall@5** — medi-lo com consultas que eu mesmo escrevi contra skills que eu mesmo publiquei mede a minha expectativa, não o uso; exige consultas vindas de uso real. (b) status `running` — o contrato de dogfood pede ≥ 3 evidências e ≥ 1 história de falha **ao longo do tempo**. Uma sessão não é uso continuado, e nenhum commit encurta isso.
 
 **Dependencies:** M4.
 
@@ -255,7 +256,7 @@ dogfood real — é o critério de "shipped".
 
 ---
 
-### M8 — [~] Hardening + observabilidade por skill — SUPERSEDED por M17 (2026-07-30)
+### M8 — [x] Hardening + observabilidade por skill — entregue por M17 (2026-07-31)
 
 > **Substituído.** O DoD abaixo é entregue por **M17 — Hardening, observabilidade e E2E**,
 > que adota o middleware OTel e o rate limiting do `theo-memory` em vez de instrumentação
@@ -267,9 +268,9 @@ SLO e cobertura E2E.
 
 **Definition of done:**
 
-- [ ] OpenTelemetry: traces + métricas por skill e por operação (incl. error budget e time-to-relevant-skill como métrica de primeira classe).
-- [ ] Rate limiting por principal e SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
-- [ ] Suíte E2E dos fluxos críticos verde no CI; documentação de operação publicada.
+- [x] OpenTelemetry: traces + métricas por skill e por operação — M17 DoD #1, sobre o módulo de trace-context do M9.
+- [x] Rate limiting por principal e SLO de retrieve documentado — M17 DoD #2 e #5. **Medido no ar em 2026-07-31: p95 = 30.4 ms** (60 amostras), contra SLO de 200 ms.
+- [x] Suíte E2E verde no CI + documentação de operação — M17 DoD #3 e #4.
 
 **Dependencies:** M2, M4, M7.
 
