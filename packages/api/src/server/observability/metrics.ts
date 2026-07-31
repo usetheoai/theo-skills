@@ -104,11 +104,12 @@ export function createObservabilityMiddleware(deps: ObservabilityDeps): Middlewa
     // uma métrica bem-intencionada derruba o backend de observabilidade.
     const route = c.req.routePath;
     // O principal pode não existir: rotas públicas e de distribuição correm antes do auth.
-    const workspaceId = ((): string => {
+    const [workspaceId, userId] = ((): [string, string] => {
       try {
-        return c.get('principal').workspaceId;
+        const p = c.get('principal');
+        return [p.workspaceId, p.userId ?? '-'];
       } catch {
-        return '-';
+        return ['-', '-'];
       }
     })();
 
@@ -121,6 +122,15 @@ export function createObservabilityMiddleware(deps: ObservabilityDeps): Middlewa
         status: c.res.status,
         duration_ms: Math.round(durationMs * 100) / 100,
         workspace_id: workspaceId,
+        // O ATOR, não só o inquilino (M6 DoD #2 — audit log por principal). Sem ele, dois
+        // admins do mesmo cliente são indistinguíveis e o log não responde "quem publicou
+        // esta skill" nem "quem revogou aquela credencial" — a única pergunta que um audit
+        // log existe para responder. É identificador, não segredo; o token jamais entra.
+        //
+        // Fora da MÉTRICA de propósito: `user_id` tem cardinalidade ilimitada e uma série
+        // por usuário é como uma métrica bem-intencionada derruba o backend. Log responde
+        // "quem fez"; métrica responde "quanto e quão rápido".
+        user_id: userId,
       },
       'request',
     );
