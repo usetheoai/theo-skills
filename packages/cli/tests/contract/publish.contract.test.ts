@@ -126,4 +126,49 @@ describe('runPublish', () => {
     const { out } = capture();
     expect(await runPublish({ command: 'publish', path: 'skill' }, { validation, out, fetch: globalThis.fetch })).toBe(2);
   });
+
+  /**
+   * A CREDENCIAL ATRAVESSA AS TRÊS CHAMADAS.
+   *
+   * `publish` aceitava `--auth`, guardava no config, usava em `get`/`list`/`install` — e
+   * omitia no ÚNICO comando de escrita. Contra um registry com autenticação ligada (isto é,
+   * qualquer um implantado) publicar pela CLI era impossível: `401` em toda tentativa.
+   *
+   * Passou despercebido porque o stub de `fetch` daqui nunca olhava os headers. Um teste que
+   * confere só corpo e método concorda com um cliente que não se autentica.
+   *
+   * A checagem de existência entra junto de propósito: sem credencial ela recebe `401`, nunca
+   * `200`, e o comando conclui "não existe" para toda skill que existe.
+   */
+  it('envia a credencial nas TRÊS chamadas — existência, criação e atualização', async () => {
+    const buf = await valid();
+    const autorizacoes: (string | undefined)[] = [];
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const h = (init?.headers ?? {}) as Record<string, string>;
+      autorizacoes.push(h['authorization'] ?? h['Authorization']);
+      if (init?.method === undefined || init.method === 'GET') return Promise.resolve(jsonRes(200, {}));
+      return Promise.resolve(jsonRes(202, { operation_id: 'op_auth' }));
+    }) as unknown as typeof globalThis.fetch;
+    const { out } = capture();
+    const code = await runPublish({ ...args(), auth: 'tsk_segredo' }, { validation, out, fetch, package: () => Promise.resolve(buf) });
+    expect(code).toBe(0);
+    expect(autorizacoes.length).toBeGreaterThanOrEqual(2);
+    expect(autorizacoes.every((a) => a === 'Bearer tsk_segredo')).toBe(true);
+  });
+
+  /** Sem `--auth` nenhum header vazio é enviado — um `Bearer undefined` seria pior que a ausência. */
+  it('não inventa header quando não há credencial', async () => {
+    const buf = await valid();
+    const autorizacoes: (string | undefined)[] = [];
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const h = (init?.headers ?? {}) as Record<string, string>;
+      autorizacoes.push(h['authorization']);
+      if (init?.method === undefined || init.method === 'GET') return Promise.resolve(jsonRes(404, {}));
+      return Promise.resolve(jsonRes(202, { operation_id: 'op_sem' }));
+    }) as unknown as typeof globalThis.fetch;
+    const { out } = capture();
+    await runPublish(args(), { validation, out, fetch, package: () => Promise.resolve(buf) });
+    expect(autorizacoes.every((a) => a === undefined)).toBe(true);
+  });
+
 });
