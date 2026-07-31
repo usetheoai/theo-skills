@@ -120,3 +120,10 @@ export const RetrieveResultSchema = z.object({
   description: z.string(),
 });
 export type RetrieveResult = z.infer<typeof RetrieveResultSchema>;
+
+/** Papéis de workspace (M13). */
+export const MemberRoleSchema = z.enum(['owner', 'admin', 'member']);
+/** Corpo de `PATCH /v1/members/{userId}`. */
+export const MemberChangeRoleSchema = z.object({ role: MemberRoleSchema });
+/** Corpo de `PUT /v1/members`. */
+export const MemberAddSchema = z.object({ user_id: z.string().min(1), role: MemberRoleSchema });
