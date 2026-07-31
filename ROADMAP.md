@@ -400,18 +400,18 @@ um que alcança a porta publica o que quiser.
 
 ---
 
-### M13 — [ ] RBAC e membros de workspace *(absorve M6)*
+### M13 — [x] RBAC e membros de workspace *(absorve M6)*
 
 **Objective:** Controlar **quem publica** — em skills isso é mais grave que em memória,
 porque publicar injeta código executável no runtime de outros agentes.
 
 **Definition of done:**
 
-- [ ] `users` ↔ `workspace_users` (M:N) com papéis `owner ⊇ admin ⊇ member`; **default-deny**: chave sem membership resolve para `member`.
-- [ ] Rotas `/v1/members` e `/v1/admin/keys` exigem `admin`; publicar exige papel explícito (decisão registrada em ADR — `member` publica ou só `admin`?).
-- [ ] **Last-owner invariant**: transação com `SELECT … FOR UPDATE` antes da contagem — duas demoções concorrentes não zeram os owners (a segunda recebe `409`).
-- [ ] **Anti-escalation**: cunhar chave para membro de papel superior é `403`; para não-membro é `422`.
-- [ ] Matriz papel × rota coberta por teste, incluindo as duas corridas acima.
+- [x] `users` ↔ `workspace_users` (M:N) com papéis `owner ⊇ admin ⊇ member`; **default-deny**: chave sem membership resolve para `member`.
+- [x] Rotas `/v1/members` e `/v1/admin/keys` exigem `admin`; publicar exige papel explícito (decisão registrada em ADR — `member` publica ou só `admin`?).
+- [x] **Last-owner invariant**: transação com `SELECT … FOR UPDATE` antes da contagem — duas demoções concorrentes não zeram os owners (a segunda recebe `409`).
+- [x] **Anti-escalation**: cunhar chave para membro de papel superior é `403`; para não-membro é `422`.
+- [x] Matriz papel × rota coberta por teste, incluindo as duas corridas acima.
 
 **Dependencies:** M12.
 

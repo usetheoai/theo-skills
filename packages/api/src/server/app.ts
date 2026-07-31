@@ -12,7 +12,9 @@ import type PgBoss from 'pg-boss';
 
 import { createAuthMiddleware } from './auth/middleware.js';
 import { createDb } from './db.js';
+import { registerAdminKeysRoutes } from './handlers/admin-keys.js';
 import { registerHealthRoutes } from './handlers/health.js';
+import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
@@ -25,6 +27,7 @@ import { type AppEnv } from './principal-context.js';
 import { selectEmbedder } from './providers/embedder-selection.js';
 import { createDispatchingRetriever } from './providers/retriever-selection.js';
 import { createPgExecutor } from './retrieve/pg-executor.js';
+import { createMembersStore } from './store/members-store.js';
 import { createOperationsStore } from './store/operations-store.js';
 import { createRevisionsStore } from './store/revisions-store.js';
 import { createSkillsStore } from './store/skills-store.js';
@@ -126,6 +129,8 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
     maxBodyBytes: opts.maxBodyBytes ?? envMaxBodyBytes(),
   });
   registerOperationsRoutes(app, { operationsStoreFor: (ws: string) => createOperationsStore(db, ws) });
+  registerMembersRoutes(app, { membersStoreFor: (ws: string) => createMembersStore(db, ws) });
+  registerAdminKeysRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   registerWebhookEndpointRoutes(app, {
     endpointsStoreFor: (ws: string) => createWebhookEndpointsStore(db, ws),
     logger,

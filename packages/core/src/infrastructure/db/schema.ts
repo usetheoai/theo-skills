@@ -238,3 +238,63 @@ export type OperationRow = typeof operations.$inferSelect;
 export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
 export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
 export type EmbeddingRow = typeof embeddings.$inferSelect;
+
+/**
+ * Usuários e membros de workspace (M13).
+ *
+ * `users` é global; `workspace_users` é a relação M:N que carrega o PAPEL. O papel vive na
+ * RELAÇÃO e não no usuário porque a mesma pessoa é `owner` de um workspace e `member` de
+ * outro — modelar no usuário forçaria uma linha por combinação e perderia essa distinção.
+ */
+export const users = pgTable('users', {
+  userId: text('user_id').primaryKey(),
+  email: text('email').notNull().unique(),
+  createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workspaceUsers = pgTable(
+  'workspace_users',
+  {
+    workspaceId: text('workspace_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.userId, { onDelete: 'cascade' }),
+    /** `owner` ⊇ `admin` ⊇ `member` — a mesma hierarquia de `roleSatisfies`. */
+    role: text('role').notNull().default('member'),
+    createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+    updateTime: timestamp('update_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.userId], name: 'workspace_users_pkey' }),
+    // Índice para a contagem de owners do last-owner invariant: ela roda dentro de uma
+    // transação com FOR UPDATE, e um seq scan ali seguraria o lock por mais tempo do que
+    // o necessário — exatamente sob a concorrência que o invariante existe para tratar.
+    index('workspace_users_role_idx').on(t.workspaceId, t.role),
+  ],
+);
+
+/**
+ * Chaves de API cunhadas por workspace (M12 persistido + M13 anti-escalation).
+ *
+ * Guarda apenas o HASH: o token cru é mostrado uma vez na cunhagem e nunca mais. Um store
+ * que guardasse o valor transformaria um dump de banco em vazamento de todas as credenciais.
+ */
+export const apiKeys = pgTable(
+  'api_keys',
+  {
+    keyId: text('key_id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    /** Dono da chave: define o TETO de privilégio que ela pode carregar (anti-escalation). */
+    userId: text('user_id').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    scopes: jsonb('scopes').notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createTime: timestamp('create_time', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('api_keys_workspace_idx').on(t.workspaceId)],
+);
+
+export type UserRow = typeof users.$inferSelect;
+export type WorkspaceUserRow = typeof workspaceUsers.$inferSelect;
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
