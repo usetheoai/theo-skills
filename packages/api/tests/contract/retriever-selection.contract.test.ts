@@ -15,6 +15,7 @@ describe('createDispatchingRetriever', () => {
     const d = createDispatchingRetriever({
       executor: noExecutor,
       embedder: noEmbedder,
+      workspaceId: 'ws_contract',
       overrides: { vector: tagging('V'), keyword: tagging('K'), hybrid: tagging('H') },
     });
     expect((await d.retrieve({ query: 'q', topK: 1, strategy: 'vector' }))[0]?.skill_id).toBe('V');
