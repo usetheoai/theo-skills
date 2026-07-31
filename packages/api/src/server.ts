@@ -1,8 +1,12 @@
+import { pathToFileURL } from 'node:url';
+
 import { serve } from '@hono/node-server';
 import { assertEmbeddingDim, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import { runMigrations } from '@usetheo/skills/migrate';
 
 import { createApp } from './server/app.js';
+import { createApiKeyVerifier } from './server/auth/api-key-verifier.js';
+import { createApiKeysStore } from './server/store/api-keys-store.js';
 import { createDb, createPool } from './server/db.js';
 import {
   createEmbedEnqueuer,
@@ -30,6 +34,51 @@ import { createWebhookReconciler, startWebhookReconciler } from './server/webhoo
 import { createHttpWebhookSender } from './server/webhooks/webhook-sender.js';
 import { buildWorkerHandlers } from './server/wiring.js';
 import { composeTerminalHooks, registerWorker } from './server/worker.js';
+
+/**
+ * Traduz o AMBIENTE nas opções de composição do app (M12 / M17 / M20).
+ *
+ * Pura e exportada de propósito. Enquanto esta decisão vivia embutida em `main()`, a única
+ * forma de verificar a composição de PRODUÇÃO era subir o processo — e ninguém subia: os
+ * testes montavam `createApp` com as opções à mão e provavam um sistema que o binário não
+ * era. Foi assim que auth, rate limit e distribuição ficaram escritos, testados e desligados,
+ * com `GET /v1/skills` respondendo 200 sem credencial no serviço implantado.
+ *
+ * Separar DECISÃO (esta função) de EFEITO (`main`) é o que torna o gate verificável.
+ */
+export interface EnvAppOptions {
+  readonly authRequired: boolean;
+  readonly rateLimit?: { readonly read: number; readonly write: number; readonly windowMs: number };
+  readonly distribution?: { readonly defaultQuota: number; readonly windowMs: number };
+}
+
+export function resolveAppOptionsFromEnv(env: Record<string, string | undefined>): EnvAppOptions {
+  // Exigir credencial é decisão de OPERAÇÃO, não default de código: ligar por omissão
+  // devolveria 401 a todo chamador já integrado no deploy seguinte, sem aviso. Mesmo padrão
+  // do theo-memory (`parseRequireCredentialEnv`).
+  const authRequired = ['true', '1'].includes((env['THEOSKILL_AUTH_REQUIRED'] ?? '').trim().toLowerCase());
+
+  // Os DOIS limites são obrigatórios juntos: ligar só um deixa a outra classe de rota sem
+  // teto, e meia proteção é pior que nenhuma — passa a impressão de um guard que não existe.
+  const read = Number(env['THEOSKILL_RATE_LIMIT_READ'] ?? '0');
+  const write = Number(env['THEOSKILL_RATE_LIMIT_WRITE'] ?? '0');
+  const limitesValidos = Number.isFinite(read) && Number.isFinite(write) && read > 0 && write > 0;
+  const rateLimit = limitesValidos
+    ? { read, write, windowMs: Number(env['THEOSKILL_RATE_LIMIT_WINDOW_MS'] ?? '60000') }
+    : undefined;
+
+  const quota = Number(env['THEOSKILL_DISTRIBUTION_QUOTA'] ?? '0');
+  const distribution =
+    Number.isFinite(quota) && quota > 0
+      ? { defaultQuota: quota, windowMs: Number(env['THEOSKILL_DISTRIBUTION_WINDOW_MS'] ?? '60000') }
+      : undefined;
+
+  return {
+    authRequired,
+    ...(rateLimit !== undefined ? { rateLimit } : {}),
+    ...(distribution !== undefined ? { distribution } : {}),
+  };
+}
 
 const SHUTDOWN_DEADLINE_MS = 30_000;
 const RECONCILER_INTERVAL_MS = 30_000;
@@ -116,7 +165,29 @@ async function main(): Promise<void> {
   const reconciler = createWebhookReconciler({ endpointsStore, queue, logger });
   const stopReconciler = startWebhookReconciler(reconciler, RECONCILER_INTERVAL_MS, logger);
 
-  const app = createApp({ pool, queue, logger });
+  // COMPOSITION ROOT — auth, rate limit e distribuição são OPCIONAIS em `createApp` e só
+  // montam quando passados. Nenhum era: quatro milestones escritos, testados e inalcançáveis.
+  const envOpts = resolveAppOptionsFromEnv(process.env);
+  const authVerifier = envOpts.authRequired ? createApiKeyVerifier(createApiKeysStore(db)) : undefined;
+  logger.info(
+    {
+      auth_required: envOpts.authRequired,
+      rate_limit: envOpts.rateLimit !== undefined,
+      distribution: envOpts.distribution !== undefined,
+    },
+    envOpts.authRequired
+      ? 'auth ATIVA — credencial obrigatória em toda rota exceto /v1/health e /v1/version'
+      : 'auth DESLIGADA (THEOSKILL_AUTH_REQUIRED != true) — o serviço não deve ser exposto assim',
+  );
+
+  const app = createApp({
+    pool,
+    queue,
+    logger,
+    ...(authVerifier !== undefined ? { authVerifier } : {}),
+    ...(envOpts.rateLimit !== undefined ? { rateLimit: envOpts.rateLimit } : {}),
+    ...(envOpts.distribution !== undefined ? { distribution: envOpts.distribution } : {}),
+  });
   const server = serve({ fetch: app.fetch, port }, (info) => {
     logger.info({ port: info.port }, '@usetheo/skills-api listening');
   });
@@ -134,8 +205,21 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`${JSON.stringify({ level: 'error', msg: 'boot failed', err: message })}\n`);
-  process.exit(1);
-});
+/**
+ * Só sobe o servidor quando ESTE módulo é o entrypoint.
+ *
+ * Sem a guarda, um `import` deste arquivo executava `main()` — e como ele exige
+ * `THEOSKILL_PG_URI`, qualquer teste que quisesse verificar a COMPOSIÇÃO derrubava o
+ * processo com `process.exit(1)`. Era mais uma razão pela qual ninguém testava o composition
+ * root: o módulo não podia ser importado. Separar decisão de efeito exige que o efeito não
+ * aconteça só por alguém olhar.
+ */
+const ehEntrypoint = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (ehEntrypoint) {
+  main().catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${JSON.stringify({ level: 'error', msg: 'boot failed', err: message })}\n`);
+    process.exit(1);
+  });
+}
