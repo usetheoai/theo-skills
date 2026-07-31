@@ -1,20 +1,37 @@
 {
   "name": "@usetheo/skills-sdk",
   "version": "0.1.0",
-  "description": "SDK do theo-skills — descoberta e obtenção de skills, com binding de workspace.",
+  "description": "SDK do theo-skills \u2014 descoberta e obten\u00e7\u00e3o de skills, com binding de workspace.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
-  "publishConfig": { "access": "public" },
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts' --no-error-on-unmatched-pattern",
-    "test": "vitest run --config vitest.contract.config.ts"
+    "test": "vitest run --config vitest.contract.config.ts",
+    "eval:dogfood": "tsx eval/dogfood-run.ts"
   },
-  "dependencies": { "@usetheo/skills": "workspace:*" },
-  "engines": { "node": ">=20" }
+  "dependencies": {
+    "@usetheo/skills": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
+  }
 }
