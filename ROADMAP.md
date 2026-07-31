@@ -484,18 +484,18 @@ theo-memory dá — resolver skills com escopo, cache e erro classificado, sem f
 
 ---
 
-### M17 — [ ] Hardening, observabilidade e E2E *(absorve M8)*
+### M17 — [x] Hardening, observabilidade e E2E *(absorve M8)*
 
 **Objective:** Levar o serviço ao padrão operacional do theo-memory: instrumentado,
 limitado, documentado e coberto ponta a ponta.
 
 **Definition of done:**
 
-- [ ] Middleware OTel (traces + métricas por skill e por operação) construído **sobre o módulo de trace-context de M9** — sem instrumentação duplicada.
-- [ ] Rate limiting por principal, com limites distintos para leitura e escrita, definidos por medição e não por chute.
-- [ ] Suíte E2E verde no CI cobrindo os fluxos críticos (publicar → recuperar por busca → obter revisão), mais `benchmarks/` com número reproduzível para retrieve.
-- [ ] `docs/ARCHITECTURE.md` (declarando conformidade e listando desvios com ADR), `docs/RUNBOOK.md`, `docs/credential-rotation.md` e os ADRs desta fase escritos.
-- [ ] SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
+- [x] Middleware OTel (traces + métricas por skill e por operação) construído **sobre o módulo de trace-context de M9** — sem instrumentação duplicada.
+- [x] Rate limiting por principal, com limites distintos para leitura e escrita, definidos por medição e não por chute.
+- [x] Suíte E2E verde no CI cobrindo os fluxos críticos (publicar → recuperar por busca → obter revisão), mais `benchmarks/` com número reproduzível para retrieve.
+- [x] `docs/ARCHITECTURE.md` (declarando conformidade e listando desvios com ADR), `docs/RUNBOOK.md`, `docs/credential-rotation.md` e os ADRs desta fase escritos.
+- [x] SLO de retrieve documentado (p95 < 200ms) com alarme de regressão.
 
 **Dependencies:** M11, M12.
 
