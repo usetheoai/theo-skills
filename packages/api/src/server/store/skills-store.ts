@@ -12,6 +12,10 @@ export interface SkillView {
   readonly description: string;
   readonly state: string;
   readonly latest_revision_id: string | null;
+  /** Eixo de descoberta (M23), texto livre. Ausente = sem categoria. */
+  readonly category?: string;
+  /** Onde a skill executa (M23): `remote` (carregada) ou `local` (instalada). */
+  readonly execution?: string;
   readonly create_time: string;
   readonly update_time: string;
 }
@@ -89,6 +93,8 @@ function toView(row: {
   description: string;
   state: string;
   latestRevisionId: string | null;
+  category?: string | null;
+  execution?: string | null;
   createTime: Date;
   updateTime: Date;
 }): SkillView {
@@ -96,6 +102,10 @@ function toView(row: {
     skill_id: row.skillId,
     name: row.name,
     description: row.description,
+    // `null` da coluna vira ausente no JSON: `category: null` obrigaria todo consumidor a
+    // tratar dois "sem categoria" diferentes.
+    ...(typeof row.category === 'string' && row.category !== '' ? { category: row.category } : {}),
+    ...(typeof row.execution === 'string' && row.execution !== '' ? { execution: row.execution } : {}),
     state: row.state,
     latest_revision_id: row.latestRevisionId,
     create_time: row.createTime.toISOString(),
@@ -109,6 +119,10 @@ const liveColumns = {
   description: skills.description,
   state: skills.state,
   latestRevisionId: skills.latestRevisionId,
+  // M26 — o consumidor precisa destes ANTES de decidir o que fazer com a skill: `execution`
+  // diz se ela é carregada ou instalada, e a CLI recusa instalar uma `remote` sem ele.
+  category: skills.category,
+  execution: skills.execution,
   createTime: skills.createTime,
   updateTime: skills.updateTime,
 };

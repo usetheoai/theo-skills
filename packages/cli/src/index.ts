@@ -54,7 +54,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         return 2;
       }
       if (args.path === undefined) {
-        out('usage: theoskill install <skill-id> [--global] [--runtime claude|theokit]\n  theoskill update <nome> [--apply] [--global] [--runtime claude|theokit]');
+        out('usage: theoskill install <skill-id> [--global] [--runtime claude|theokit] [--force]\n  theoskill update <nome> [--apply] [--global] [--runtime claude|theokit]');
         return 2;
       }
       // O extrator real usa `yauzl`, que já é dependência do produto (validador de payload) —
@@ -68,6 +68,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         ...(args.auth !== undefined ? { auth: args.auth } : {}),
         ...(args.global === true ? { global: true } : {}),
         ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
+        ...(args.force === true ? { force: true } : {}),
       });
     }
     case 'update': {
@@ -85,6 +86,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         ...(args.auth !== undefined ? { auth: args.auth } : {}),
         ...(args.global === true ? { global: true } : {}),
         ...(args.runtime !== undefined ? { runtime: args.runtime } : {}),
+        ...(args.force === true ? { force: true } : {}),
         ...(args.apply === true ? { apply: true } : {}),
       });
     }
