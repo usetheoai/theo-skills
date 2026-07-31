@@ -22,11 +22,11 @@ import { describeIntegration } from './_helpers/env.js';
 
 const WS = 'ws_rotas';
 
-const principalDe = (userId: string, scopes: string[]): Principal => ({
+const principalDe = (userId: string, scopes: Principal['scopes']): Principal => ({
   workspaceId: WS,
   userId,
   role: 'member',
-  scopes: scopes as Principal['scopes'],
+  scopes,
 });
 
 describeIntegration('M27 — rotas de canal e de bundle', () => {
@@ -61,7 +61,7 @@ describeIntegration('M27 — rotas de canal e de bundle', () => {
     await closePool();
   });
 
-  const app = (userId = 'u_admin', scopes = ['skills:admin']) =>
+  const app = (userId = 'u_admin', scopes: Principal['scopes'] = ['skills:admin']) =>
     createApp({
       pool: getPool(),
       queue: boss,

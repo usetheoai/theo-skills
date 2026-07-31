@@ -1,10 +1,10 @@
 import { type Hono } from 'hono';
 
 import { requireScope } from '../auth/middleware.js';
+import { type AppEnv, workspaceOf } from '../principal-context.js';
 import { type BundlesStore } from '../store/bundles-store.js';
 import { type ChannelsStore } from '../store/channels-store.js';
 import { type SkillsStore } from '../store/skills-store.js';
-import { type AppEnv, workspaceOf } from '../principal-context.js';
 
 export interface PublishingRoutesDeps {
   readonly channelsStoreFor: (workspaceId: string) => ChannelsStore;
