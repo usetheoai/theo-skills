@@ -1,6 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 
 import { MAX_CATEGORY_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH } from './limits.js';
+import { parseVersion } from './version.js';
 
 export type FrontmatterErrorCode = 'missing_frontmatter' | 'schema_invalid';
 
@@ -48,6 +49,11 @@ export interface SkillFrontmatter {
   readonly category?: string;
   /** Onde executa. Default `remote` — ver {@link SkillExecution}. */
   readonly execution: SkillExecution;
+  /**
+   * Versão semântica (M27). Opcional — só quem usa canais precisa versionar, e exigi-la de
+   * toda skill transformaria um registry de descoberta num gerenciador de pacotes.
+   */
+  readonly version?: string;
   /** Full parsed frontmatter — unknown fields preserved (forward-compat, ADR-4). */
   readonly fields: Readonly<Record<string, unknown>>;
 }
@@ -131,5 +137,39 @@ export function parseFrontmatter(content: string): SkillFrontmatter {
   }
   const execution: SkillExecution = (rawExecution as SkillExecution | undefined) ?? 'remote';
 
-  return { name, description, ...(category !== undefined ? { category } : {}), execution, fields };
+  // `version` — semver estrito, e MALFORMADA é erro, nunca ignorada: descartar em silêncio
+  // deixaria a coluna nula, o canal invisível, e o autor procuraria o defeito no canal em vez
+  // de no que ele escreveu.
+  //
+  // O typeof importa mais do que parece: sem aspas, o YAML lê `version: 1.0` como FLOAT, e
+  // ele viraria a string "1". O autor escreveu uma versão e o registry gravaria outra —
+  // divergência silenciosa entre o que ele leu e o que ficou. Só string é aceita.
+  const rawVersion = fields['version'];
+  let version: string | undefined;
+  if (rawVersion !== undefined && rawVersion !== null) {
+    if (typeof rawVersion !== 'string') {
+      throw new SkillFrontmatterError(
+        'schema_invalid',
+        'version must be a quoted string (unquoted `1.0` is a YAML float and would become "1")',
+      );
+    }
+    try {
+      parseVersion(rawVersion);
+    } catch (err) {
+      throw new SkillFrontmatterError(
+        'schema_invalid',
+        `version is not valid semver: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    version = rawVersion;
+  }
+
+  return {
+    name,
+    description,
+    ...(category !== undefined ? { category } : {}),
+    execution,
+    ...(version !== undefined ? { version } : {}),
+    fields,
+  };
 }

@@ -76,3 +76,53 @@ describeIntegration('M13 — o job carrega o inquilino', () => {
     await boss.stop();
   });
 });
+
+describeIntegration('M27 — o job carrega versão, categoria e modo de execução', () => {
+  beforeEach(truncateAll);
+  afterAll(closePool);
+
+  it('o payload enfileirado propaga o que o autor declarou no frontmatter', async () => {
+    // Validar um campo e não propagá-lo é a forma mais silenciosa dele não existir: a
+    // publicação aceita, o autor vê sucesso, e a coluna fica nula. Foi o que aconteceu com
+    // `version` — o módulo de semver inteiro era órfão porque nada gravava.
+    const boss = await startBoss();
+    const enviados: Record<string, unknown>[] = [];
+    const espiao = {
+      send: (nome: string, dados: unknown, opts: unknown) => {
+        enviados.push(dados as Record<string, unknown>);
+        return boss.send(nome, dados as object, opts as object);
+      },
+    };
+
+    const app = createApp({
+      pool: getPool(),
+      queue: espiao as never,
+      logger: createNoopLogger(),
+      reservationHours: 1,
+      principalResolver: (): Principal => ({
+        workspaceId: 'ws_autor',
+        userId: 'u_autor',
+        role: 'member',
+        scopes: ['skills:admin'],
+      }),
+    });
+
+    const md =
+      '---\nname: versionada\ndescription: Faz X. Use quando Y.\ncategory: Sales\n' +
+      "version: '2.1.0'\nexecution: remote\n---\n\n# corpo\n";
+    const zip = await buildZipBase64([{ path: 'SKILL.md', content: md }]);
+    const res = await app.request('/v1/skills', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ skill_id: 'versionada', zippedFilesystem: zip }),
+    });
+    expect(res.status).toBe(202);
+
+    const p = enviados[0];
+    expect(p?.['version'], 'a versão não atravessou a fila — a coluna ficaria nula').toBe('2.1.0');
+    expect(p?.['category']).toBe('Sales');
+    expect(p?.['execution']).toBe('remote');
+
+    await boss.stop();
+  });
+});

@@ -41,6 +41,10 @@ interface IngestResult {
   readonly name: string;
   readonly description: string;
   readonly frontmatter: Record<string, unknown>;
+  /** M23/M27 — declarados pelo autor e propagados até a coluna. */
+  readonly category?: string;
+  readonly execution: string;
+  readonly version?: string;
 }
 
 /** A typed boundary error → HTTP 400/409. */
@@ -83,6 +87,9 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
     name: result.name,
     description: result.description,
     frontmatter: result.frontmatter,
+    ...(result.category !== undefined ? { category: result.category } : {}),
+    execution: result.execution,
+    ...(result.version !== undefined ? { version: result.version } : {}),
   };
 }
 
@@ -206,6 +213,12 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
       jobData: {
         name: ingest.name,
         description: ingest.description,
+        // M23/M27 — o que o autor declarou tem que ATRAVESSAR a fila até a coluna. Parar no
+        // handler seria validar um campo e descartá-lo, que é a forma mais silenciosa de ele
+        // não existir.
+        ...(ingest.category !== undefined ? { category: ingest.category } : {}),
+        execution: ingest.execution,
+        ...(ingest.version !== undefined ? { version: ingest.version } : {}),
         content_hash: ingest.validated.contentHash,
         payload_b64: ingest.buffer.toString('base64'),
         frontmatter: ingest.frontmatter,

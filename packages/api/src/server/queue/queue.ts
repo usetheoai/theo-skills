@@ -56,6 +56,10 @@ export interface CreateSkillJobData {
   readonly trace_id: string;
   readonly name: string;
   readonly description: string;
+  /** M23/M27 — declarados no frontmatter e propagados até a coluna. */
+  readonly category?: string;
+  readonly execution?: string;
+  readonly version?: string;
   readonly content_hash: string;
   readonly payload_b64: string;
   readonly frontmatter: Record<string, unknown>;

@@ -53,6 +53,8 @@ export interface SkillValidationOk {
   readonly category?: string;
   /** Onde a skill executa — governa o que o registry entrega ao agente. */
   readonly execution: SkillExecution;
+  /** Versão semântica declarada (M27). Ausente = skill não versionada. */
+  readonly version?: string;
   readonly frontmatter: Record<string, unknown>;
   readonly validated: ValidatedPayload;
 }
@@ -138,6 +140,7 @@ export async function validateSkillPayload(
     description,
     ...(fm.category !== undefined ? { category: fm.category } : {}),
     execution: fm.execution,
+    ...(fm.version !== undefined ? { version: fm.version } : {}),
     frontmatter,
     validated,
   };
