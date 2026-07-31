@@ -64,8 +64,8 @@ describeIntegration('M12 — store de chaves de API', () => {
 
     // O que está guardado é o hash. Uma consulta pelo valor cru não encontra nada — é o que
     // torna um vazamento do banco insuficiente para autenticar.
-    const { rows } = await getPool().query('SELECT token_hash FROM api_keys');
-    expect(rows[0]?.['token_hash']).not.toContain('segredo');
+    const { rows } = await getPool().query<{ token_hash: string }>('SELECT token_hash FROM api_keys');
+    expect(rows[0]?.token_hash).not.toContain('segredo');
   });
 
   it('chave REVOGADA não autentica', async () => {

@@ -6,7 +6,6 @@ import { runMigrations } from '@usetheo/skills/migrate';
 
 import { createApp } from './server/app.js';
 import { createApiKeyVerifier } from './server/auth/api-key-verifier.js';
-import { createApiKeysStore } from './server/store/api-keys-store.js';
 import { createDb, createPool } from './server/db.js';
 import {
   createEmbedEnqueuer,
@@ -22,6 +21,7 @@ import {
   JOB_NAMES,
   WEBHOOK_DELIVERY_DLQ_QUEUE_NAME,
 } from './server/queue/queue.js';
+import { createApiKeysStore } from './server/store/api-keys-store.js';
 import { createEmbeddingsStore } from './server/store/embeddings-store.js';
 import { createWebhookEndpointsStore } from './server/store/webhook-endpoints-store.js';
 import {
