@@ -81,6 +81,22 @@ export const skills = pgTable(
      * nunca por omissão de configuração.
      */
     visibility: text('visibility').notNull().default('private'),
+    /**
+     * Eixo de descoberta (M23), TEXTO LIVRE — `Sales`, `Shop`, … Nulo = sem categoria.
+     *
+     * Livre de propósito: uma lista fechada travaria quem publica numa taxonomia que nós
+     * escolhemos hoje. É filtro AUXILIAR da busca semântica, não substituto dela.
+     */
+    category: text('category'),
+    /**
+     * Onde a skill EXECUTA (M23): `remote` (instrução — o agente carrega o corpo do
+     * servidor, nada em disco) ou `local` (traz script — instala via npx e roda na máquina
+     * do cliente, porque código precisa do sistema de arquivos e dos segredos de lá).
+     *
+     * Default `remote`: é o caso comum, e a fronteira de publicação recusa um payload com
+     * script que se declare remoto — então o default não pode mentir.
+     */
+    execution: text('execution').notNull().default('remote'),
     /** Quem promoveu a `public`, e quando — proveniência exigida pelo DoD. */
     publishedBy: text('published_by'),
     publishedAt: timestamp('published_at', { withTimezone: true }),
@@ -96,6 +112,9 @@ export const skills = pgTable(
     // O planner precisa de um caminho barato para o recorte do inquilino ANTES de tocar
     // GIN/HNSW — sem ele, a busca varre o catálogo inteiro e filtra depois.
     index('skills_workspace_idx').on(t.workspaceId),
+    // O filtro por categoria roda ANTES da busca semântica e sempre sob o inquilino —
+    // um índice só em `category` seria varrido para todo tenant.
+    index('skills_workspace_category_idx').on(t.workspaceId, t.category),
   ],
 );
 

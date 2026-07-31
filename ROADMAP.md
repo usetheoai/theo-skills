@@ -596,6 +596,136 @@ Postgres (gatilho declarado no ADR 0005).
 1. **Telemetria de instalação é dado de negócio de terceiro.** Saber que o cliente X do publisher A instalou a skill Y é informação competitivamente sensível. Mitigação: escopo por dono do bundle, sem agregados cross-publisher, e retenção finita declarada — privacidade por desenho, não por política.
 2. **Instrumentar o caminho quente adiciona latência ao download.** Mitigação: evento assíncrono via pg-boss (já em uso), nunca no caminho síncrono da resposta; e o p95 do download entra no próprio DoD, então a regressão apareceria na medição do milestone.
 
+
+---
+
+### M22 — [x] Vertical Model B: o registry alcançável pelos clientes (2026-07-31)
+
+**Objective:** Tornar o registry consumível por um cliente do Theo — credencial por tenant
+emitida pelo control plane, autorização na borda, e o escopo emitível na tela.
+
+**Definition of done:**
+
+- [x] Rota de cunhagem de plataforma (`POST /v1/platform/keys`), **separada** da de admin: aquela deriva o workspace do principal do chamador e exige que o alvo seja membro, então um broker não a alcança. Credencial própria; chave de usuário com `skills:admin` **não** substitui.
+- [x] Broker + cliente de control plane no `theo-cloud` (`internal/skills/`), portado do trust sem mudança de comportamento — três verticais divergindo em como cacheiam credencial são três posturas de segurança que ninguém raciocina junto.
+- [x] ForwardAuth em `/internal/authz/forward-skills` e rota de borda `/v1/skills` + `/v1/operations`, sem rewrite (as rotas já têm o prefixo certo).
+- [x] `skills:read` · `skills:write` · `skills:publish` nos **dois** catálogos, travados pelo teste que os cruza. `skills:admin` fica fora: é escopo de ciclo de vida, e credencial cunhada pelo gateway jamais provisiona outra.
+- [x] **Verificado em produção:** sem credencial e com credencial inválida → `401`; `workspace_id` vazio e escopo inventado → `400`; válida → `201`; chave cunhada só com `skills:read` recebe `200` no `GET` e **`403` no `POST`** — menor privilégio de ponta a ponta.
+
+**Dependencies:** M12, M13.
+
+**Top risks:**
+
+1. **Credencial divergente entre os dois lados produz `401` no minter, visível só no log do control plane.** Mitigação: a razão está escrita ao lado da variável nos dois arquivos de compose; e aconteceu de verdade nesta série — a variável foi declarada no `.env` e não repassada no serviço, dando `401` idêntico a credencial errada.
+2. **Escopo emitível sem cadeia atrás entrega chave que nenhuma borda aceita.** Mitigação: o escopo entrou **por último**, depois de broker, forward-auth e rota — e o teste que cruza os catálogos impede que um lado ande sem o outro.
+
+---
+
+### M23 — [x] Categoria e modo de execução — a base da descoberta (2026-07-31)
+
+**Objective:** Dar ao agente o que ele precisa para escolher uma skill sem baixar nada, e
+separar o que é instrução do que é código.
+
+**Definition of done:**
+
+- [x] `category` no frontmatter, **texto livre** (`Sales`, `Shop`…): lista fechada travaria quem publica numa taxonomia que escolhemos hoje e ele descobre errada amanhã.
+- [x] `execution: remote | local`, default `remote` — o caso comum é instrução, e exigir o campo faria toda skill trivial carregar cerimônia.
+- [x] **A publicação recusa pacote com script que se declare `remote`**, nomeando o arquivo. Detecção por extensão **e** por shebang: só a extensão deixaria passar `bin/tool` sem sufixo.
+- [x] A guarda roda **depois** da varredura de segredos — se as duas coisas estão erradas, o autor precisa ouvir sobre o segredo primeiro, que é a única com janela de vazamento.
+- [x] Busca devolve `category` e `execution` e aceita filtro por categoria, parametrizado e **sem atravessar inquilino**.
+
+**Dependencies:** M14.
+
+**Top risks:**
+
+1. **Categoria livre vira ruído em poucos meses.** Aceito conscientemente: o filtro é auxiliar da busca semântica, não substituto. Mitigação futura, se doer: sugerir categorias existentes na publicação, sem travar.
+2. **`execution` errado entrega ao agente remoto instruções que referenciam arquivos inexistentes** — falha plausível, e por isso a pior. Mitigação: a guarda vive na fronteira de publicação, onde o erro chega a quem pode corrigi-lo.
+
+---
+
+### M24 — [ ] Carga remota das instruções
+
+**Objective:** Fechar a segunda fase da descoberta: o agente escolhe uma skill e carrega o
+corpo dela do servidor, sem nada em disco.
+
+**Definition of done:**
+
+- [ ] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o mesmo filtro de inquilino de toda leitura por id (404 cross-tenant, nunca 403).
+- [ ] Recusa com erro tipado quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
+- [ ] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
+- [ ] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
+- [ ] Medido contra o serviço no ar: um agente descobre, escolhe e carrega, com p95 da carga registrado.
+
+**Dependencies:** M23.
+
+**Top risks:**
+
+1. **Corpo grande no caminho quente infla a janela de contexto do agente.** Mitigação: a rota entrega UMA skill (a escolhida), nunca o catálogo; e o tamanho já é limitado na publicação.
+2. **Duas fontes de verdade para o corpo** — o zip da revisão e esta rota — podem divergir. Mitigação: a rota lê a mesma coluna que o zip empacota, e o teste confronta as duas.
+
+---
+
+### M25 — [ ] Servidor de descoberta (MCP)
+
+**Objective:** Transformar os descritores de ferramenta numa coisa a que um agente consiga
+conectar — o *discover server*.
+
+**Definition of done:**
+
+- [ ] `packages/mcp` ganha `bin`, transporte e a dependência de MCP. Hoje se descreve como "Servidor MCP" e **não contém servidor**: sem `bin`, sem transporte, sem dependência — nenhum agente conecta.
+- [ ] Handshake MCP real exercitado em teste, não um duplo: um teste que só chama as funções internas provaria a biblioteca, não o servidor.
+- [ ] As três ferramentas expõem `category` e `execution` no resultado, e aceitam filtro por categoria.
+- [ ] O cliente **nunca** é argumento de ferramenta — vem da credencial do servidor. Já há teste que reprova quem adicionar esse parâmetro; ele passa a valer também no servidor.
+- [ ] Registrado no `theo-traefik-mcp` como endpoint por tenant, ou declarado explicitamente por que não.
+
+**Dependencies:** M24.
+
+**Top risks:**
+
+1. **Um agente monta argumentos a partir de texto que pode conter instrução injetada.** Mitigação: o cliente vem da credencial, e o teto de resultados impede que a resposta encha a janela de contexto — que é o vetor de negação de serviço mais barato aqui.
+2. **`packages/mcp` é o pacote com menos testes do repositório.** Mitigação: o servidor não entra sem o handshake exercitado de fora do processo.
+
+---
+
+### M26 — [ ] `npx` respeita o modo de execução
+
+**Objective:** Fazer a instalação local servir só ao que precisa dela, e publicar a CLI.
+
+**Definition of done:**
+
+- [ ] `theoskill install` **recusa** uma skill `execution: remote` com mensagem que explica o caminho certo (carregar, não instalar) — hoje instala qualquer uma, inclusive as que não deveriam ir para disco.
+- [ ] `theoskill install` de uma skill `local` continua entregando no layout do runtime alvo (`--runtime claude|theokit`), com verificação de integridade antes de escrever.
+- [ ] `npx @usetheo/skills-cli` executa a partir do registry npm — o workflow existe e está validado, falta o token.
+- [ ] Teste de ponta a ponta com um pacote real: publicar `local` → `npx install` → arquivo no lugar que o runtime lê.
+
+**Dependencies:** M23, M18.
+
+**Top risks:**
+
+1. **Publicar no npm é irreversível** — não se republica uma versão. Mitigação: o workflow já publica **apenas em tag** e verifica o `dist` antes, porque pacote sem build instala sem erro e falha no primeiro import.
+2. **Recusar `remote` no install pode quebrar quem já usa o comando.** Mitigação: a recusa vem com o comando substituto na mensagem; e o único consumidor hoje é interno.
+
+---
+
+### M27 — [ ] Fechar versionamento e distribuição
+
+**Objective:** Fazer M19 e M20 valerem no serviço, e corrigir dois checkboxes que hoje
+afirmam mais do que existe.
+
+**Definition of done:**
+
+- [ ] A coluna `version` passa a ser **escrita** na publicação, com `assertPublishable` recusando duplicata e retrocesso. Hoje ela nunca é gravada, então `isNotNull(version)` descarta tudo e o módulo de semver inteiro é órfão.
+- [ ] Rotas de canal registradas — hoje não há nenhuma, então canal existe só no store.
+- [ ] Caminho de **escrita** de bundle: um publisher consegue criar bundle, itens e credencial por meio suportado. Hoje `createBundlesStore` só é chamado por teste.
+- [ ] Rota de distribuição e de adoção ligadas no ambiente, com a quota vinda de medição.
+- [ ] Os checkboxes de M19 e M20 revisados contra o que de fato roda — com nota datada se algum tiver de voltar a `[ ]`.
+
+**Dependencies:** M19, M20, M24.
+
+**Top risks:**
+
+1. **Um checkbox que mente é pior que um checkbox vazio** — foi o que escondeu a ausência de autenticação num serviço marcado como pronto. Mitigação: este milestone só fecha com a verificação contra o serviço no ar, não contra a suíte.
+2. **`assertPublishable` recusando retrocesso pode barrar correção urgente de versão antiga.** Mitigação: decidir e documentar o caminho de exceção (patch em linha antiga) antes de ligar a regra, não depois do primeiro incidente.
 ---
 
 ## State-of-the-art references

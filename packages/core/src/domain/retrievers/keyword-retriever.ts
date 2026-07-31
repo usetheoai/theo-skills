@@ -28,6 +28,10 @@ export function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriev
       const queryPh = b.bind(params.query);
       const wsPh = b.bind(deps.workspaceId);
       const limitPh = b.bind(params.topK);
+      // O filtro por categoria é parametrizado, nunca interpolado: `category` é texto
+      // LIVRE vindo de quem publica e repassado por quem busca — concatená-lo no SQL seria
+      // injeção pela porta da frente.
+      const categoryClause = params.category !== undefined ? ` AND s.category = ${b.bind(params.category)}` : '';
       const tsQuery = `to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', ${queryPh})), ' | '))`;
       // UNIÃO `minhas + públicas` (M14 DoD #2), e nada mais.
       //
@@ -38,10 +42,11 @@ export function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriev
       // está prestes a instalar código do próprio time ou de um terceiro.
       const sql = `
         SELECT s.skill_id, s.name, s.description, ts_rank(s.search_tsv, ${tsQuery}) AS score,
-               CASE WHEN s.workspace_id = ${wsPh} THEN 'own' ELSE 'public' END AS origin
+               CASE WHEN s.workspace_id = ${wsPh} THEN 'own' ELSE 'public' END AS origin,
+               s.category, s.execution
         FROM skills s
         WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public')
-          AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}
+          AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}${categoryClause}
         ORDER BY score DESC, s.skill_id ASC
         LIMIT ${limitPh}
       `;

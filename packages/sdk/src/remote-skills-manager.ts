@@ -33,6 +33,14 @@ export interface RemoteSkillsManagerOptions {
   readonly cacheTtlMs?: number;
   readonly now?: () => number;
   readonly onDegraded?: (motivo: string) => void;
+  /**
+   * Carrega o CORPO de cada skill devolvida pela busca (M24).
+   *
+   * Desligado por padrão: a busca é barata e devolve resumo, e carregar N corpos para
+   * mostrar uma lista encheria a janela de contexto com o que o agente não vai ler. Ligue
+   * quando o consumidor de fato injeta as instruções — que é o caso do provider Theokit.
+   */
+  readonly loadInstructions?: boolean;
 }
 
 export interface RemoteSkillsManager {
@@ -89,7 +97,21 @@ export function createRemoteSkillsManager(opts: RemoteSkillsManagerOptions): Rem
 
       try {
         const encontradas = await opts.client.retrieve(query, topK);
-        const skills = encontradas.map((s) => toTheokit(s));
+        // Carga sob demanda: o corpo mora no servidor, e só é buscado para as skills que
+        // de fato vão ao prompt. Uma falha em UMA não pode derrubar as outras — o agente
+        // fica com o resumo dela e segue, que é melhor que não receber nenhuma.
+        const skills = opts.loadInstructions === true
+          ? await Promise.all(
+              encontradas.map(async (s) => {
+                try {
+                  const corpo = await opts.client.instructions(s.skill_id);
+                  return corpo === null ? toTheokit(s) : toTheokit({ ...s, instructions: corpo.instructions });
+                } catch {
+                  return toTheokit(s);
+                }
+              }),
+            )
+          : encontradas.map((s) => toTheokit(s));
         cache.set(chave, { at: now(), skills });
         degraded = false;
         return skills;

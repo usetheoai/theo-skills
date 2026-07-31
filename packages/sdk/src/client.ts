@@ -20,10 +20,30 @@ export interface SkillsClientOptions {
 }
 
 /** Cliente já ATRELADO a um workspace — o binding vem da credencial. */
+/**
+ * O corpo de UMA skill, carregado sob demanda (M24) — a segunda fase da descoberta.
+ *
+ * `origin` acompanha o corpo porque a decisão que o consumidor precisa tomar é justamente
+ * essa: uma skill `public` é instrução de terceiro que o agente vai seguir.
+ */
+export interface SkillInstructions {
+  readonly skill_id: string;
+  readonly instructions: string;
+  readonly execution: 'remote' | 'local';
+  readonly origin: 'own' | 'public';
+}
+
 export interface WorkspaceClient {
   retrieve(query: string, topK?: number): Promise<Skill[]>;
   get(skillId: string): Promise<Skill | null>;
   revisions(skillId: string): Promise<{ revision_id: string; version: string | null }[]>;
+  /**
+   * Carrega o corpo da skill escolhida. `null` quando não existe (ou não é sua — daqui é a
+   * mesma coisa); LANÇA quando a skill é `local`, porque "existe, e esta você instala" é
+   * uma resposta diferente de "não achei", e colapsá-las faria o agente desistir de uma
+   * skill que ele poderia usar.
+   */
+  instructions(skillId: string): Promise<SkillInstructions | null>;
 }
 
 export class SkillsApiError extends Error {
@@ -90,6 +110,10 @@ export function withWorkspace(opts: SkillsClientOptions): WorkspaceClient {
     },
     async get(skillId) {
       const r = await request<Skill>(`/v1/skills/${encodeURIComponent(skillId)}`);
+      return r === 'not_found' ? null : r;
+    },
+    async instructions(skillId) {
+      const r = await request<SkillInstructions>(`/v1/skills/${encodeURIComponent(skillId)}/instructions`);
       return r === 'not_found' ? null : r;
     },
     async revisions(skillId) {
