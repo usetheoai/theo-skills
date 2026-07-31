@@ -42,6 +42,19 @@ concurrency:
   # Chaveado pela BRANCH, não por `github.ref`. Um push em develop e o PR do MESMO commit
   # carregam `github.ref` diferentes (`refs/heads/develop` vs `refs/pull/N/merge`), cairiam
   # em grupos distintos e AMBOS rodariam — o dobro do trabalho para o mesmo commit.
+  #
+  # CONSEQUÊNCIA ESPERADA, NÃO DEFEITO: todo push em `develop` deixa um run deste workflow
+  # com status `cancelled`, e ele LÊ-SE COMO FALHA na lista de runs. Não é. O push dispara
+  # DOIS caminhos para o mesmo commit — este workflow direto, e o `publish.yml`, que invoca
+  # este mesmo arquivo por `workflow_call` (job `gate-ci`). Numa chamada assim o workflow
+  # chamado herda o contexto do CHAMADOR: `github.event.pull_request` é nulo e `ref_name` é
+  # `develop`, então as duas instâncias caem no MESMO grupo `ci-develop` e `cancel-in-progress`
+  # mata a que começou antes. O gate continua rodando — dentro do `publish`, sob o nome
+  # `gate-ci`. Verificado em 915c87a: run avulso `cancelled`, `gate-ci` do publish `success`.
+  #
+  # ANTES DE "CORRIGIR": confira o `gate-ci` do run de `publish` do mesmo SHA. Remover este
+  # bloco ou trocar a chave faria os dois rodarem, dobrando o custo de CI para o mesmo commit
+  # — que é precisamente o que ele existe para evitar.
   group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
