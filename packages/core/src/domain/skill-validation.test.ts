@@ -58,3 +58,71 @@ describe('validateSkillPayload (shared server+CLI checker)', () => {
     expect(r).toMatchObject({ ok: false, code: 'schema_invalid' }); // not secret_detected
   });
 });
+
+describe('execution × payload (M23) — script não pode se declarar remoto', () => {
+  const comArquivos = (skillMd: string, extras: { path: string; content: string }[]): PayloadValidator => ({
+    validate: () =>
+      Promise.resolve({
+        skillMd,
+        contentHash: 'h',
+        entryCount: 1 + extras.length,
+        files: [{ path: 'SKILL.md', content: skillMd }, ...extras],
+      }),
+  });
+  const md = (exec?: string) =>
+    `---\nname: my-skill\ndescription: does a useful thing\n${exec !== undefined ? `execution: ${exec}\n` : ''}---\n# corpo\n`;
+
+  it('REJEITA script publicado como remoto', async () => {
+    // O agente remoto receberia instruções referenciando um arquivo que ele não tem. A
+    // falha não é um erro: é o agente seguindo passos que não existem — plausível, e por
+    // isso a pior. A guarda vive aqui, na fronteira de publicação, não no consumo.
+    const r = await validateSkillPayload(Buffer.from('z'), {
+      payloadValidator: comArquivos(md('remote'), [{ path: 'run.sh', content: '#!/bin/sh\necho oi' }]),
+      secretScanner: noSecrets,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe('execution_requires_local');
+      expect(r.details?.join(' '), 'diz QUAL arquivo forçou a decisão').toContain('run.sh');
+    }
+  });
+
+  it('o MESMO payload passa declarado como local', async () => {
+    const r = await validateSkillPayload(Buffer.from('z'), {
+      payloadValidator: comArquivos(md('local'), [{ path: 'run.sh', content: '#!/bin/sh\necho oi' }]),
+      secretScanner: noSecrets,
+    });
+    expect(r.ok, 'declarar `local` é a saída — a guarda não proíbe script, exige honestidade').toBe(true);
+  });
+
+  it('detecta script por EXTENSÃO em qualquer profundidade', async () => {
+    for (const p of ['scripts/deploy.py', 'a/b/c/tool.js', 'bin/run.ts', 'x.rb', 'x.ps1', 'x.bat']) {
+      const r = await validateSkillPayload(Buffer.from('z'), {
+        payloadValidator: comArquivos(md(), [{ path: p, content: 'x' }]),
+        secretScanner: noSecrets,
+      });
+      expect(r.ok, `${p} devia exigir execution: local`).toBe(false);
+    }
+  });
+
+  it('detecta script por SHEBANG, mesmo sem extensão conhecida', async () => {
+    // `bin/tool` sem extensão é o caso que uma checagem só por sufixo deixaria passar.
+    const r = await validateSkillPayload(Buffer.from('z'), {
+      payloadValidator: comArquivos(md(), [{ path: 'bin/tool', content: '#!/usr/bin/env python3\nprint(1)' }]),
+      secretScanner: noSecrets,
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('markdown e dados NÃO são script — a guarda não pode virar imposto sobre skill normal', async () => {
+    const r = await validateSkillPayload(Buffer.from('z'), {
+      payloadValidator: comArquivos(md(), [
+        { path: 'referencia.md', content: '# notas' },
+        { path: 'dados.json', content: '{"a":1}' },
+        { path: 'tabela.csv', content: 'a,b' },
+      ]),
+      secretScanner: noSecrets,
+    });
+    expect(r.ok).toBe(true);
+  });
+});

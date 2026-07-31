@@ -20,6 +20,10 @@ export interface NewSkillRevision {
   readonly skillId: string;
   readonly name: string;
   readonly description: string;
+  /** M23 — eixo de descoberta (texto livre). Ausente = sem categoria. */
+  readonly category?: string;
+  /** M23 — `remote` (instrução, carregada do servidor) ou `local` (script, via npx). */
+  readonly execution?: string;
   readonly payload: Buffer;
   readonly contentHash: string;
   readonly frontmatter: Record<string, unknown>;
@@ -157,6 +161,11 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
             skillId: input.skillId,
             name: input.name,
             description: input.description,
+            // Ausente vira NULL, não string vazia: `''` e `NULL` respondem diferente a
+            // `WHERE category = $1` e a agregações, e a mistura produz a categoria
+            // fantasma que aparece em toda listagem sem ninguém ter criado.
+            ...(input.category !== undefined ? { category: input.category } : {}),
+            ...(input.execution !== undefined ? { execution: input.execution } : {}),
             state: 'ACTIVE',
             latestRevisionId: revisionId,
           });

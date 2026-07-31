@@ -1,6 +1,6 @@
 import { parse as parseYaml } from 'yaml';
 
-import { MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH } from './limits.js';
+import { MAX_CATEGORY_LENGTH, MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH } from './limits.js';
 
 export type FrontmatterErrorCode = 'missing_frontmatter' | 'schema_invalid';
 
@@ -15,11 +15,39 @@ export class SkillFrontmatterError extends Error {
   }
 }
 
+/**
+ * Onde a skill EXECUTA — e, por consequência, o que o registry entrega ao agente.
+ *
+ * `remote`: a skill é INSTRUÇÃO. O agente descobre, escolhe e **carrega o corpo** do
+ * servidor sob demanda; nada vai para o disco. É o caso comum, e por isso o default.
+ *
+ * `local`: a skill traz SCRIPT. Código precisa do sistema de arquivos, da rede e dos
+ * segredos de quem executa, então ele roda na máquina do cliente — instalado via `npx`.
+ * Não é preferência de entrega: é a única forma de a skill fazer o que promete.
+ *
+ * O campo importa porque o agente pode estar hospedado no Theo. Uma skill com script
+ * entregue como instrução a um agente remoto produz um agente seguindo passos que
+ * referenciam arquivos que não existem — falha plausível, que é a pior.
+ */
+export type SkillExecution = 'remote' | 'local';
+
+export const SKILL_EXECUTIONS: readonly SkillExecution[] = ['remote', 'local'];
+
 export interface SkillFrontmatter {
   /** Required. Theokit-compatible skill name. */
   readonly name: string;
   /** Required. What the skill does + when to use it. */
   readonly description: string;
+  /**
+   * Eixo de descoberta, TEXTO LIVRE (`Sales`, `Shop`, …). Opcional.
+   *
+   * Livre de propósito: uma lista fechada travaria quem publica numa taxonomia que nós
+   * escolhemos hoje e ele descobre errada amanhã. O custo aceito é ruído no catálogo — e o
+   * filtro é auxiliar da busca semântica, não substituto dela.
+   */
+  readonly category?: string;
+  /** Onde executa. Default `remote` — ver {@link SkillExecution}. */
+  readonly execution: SkillExecution;
   /** Full parsed frontmatter — unknown fields preserved (forward-compat, ADR-4). */
   readonly fields: Readonly<Record<string, unknown>>;
 }
@@ -79,5 +107,29 @@ export function parseFrontmatter(content: string): SkillFrontmatter {
     );
   }
 
-  return { name, description, fields };
+  // `category` — texto livre, mas TEXTO. Um `42` coagido para "42" faria o filtro do
+  // agente casar com algo que ninguém escreveu; uma lista viraria "[object Object]".
+  const rawCategory = fields['category'];
+  if (rawCategory !== undefined && rawCategory !== null && typeof rawCategory !== 'string') {
+    throw new SkillFrontmatterError('schema_invalid', 'category must be a string');
+  }
+  const category = typeof rawCategory === 'string' && rawCategory.trim() !== '' ? rawCategory.trim() : undefined;
+  if (category !== undefined && category.length > MAX_CATEGORY_LENGTH) {
+    throw new SkillFrontmatterError('schema_invalid', `category exceeds ${MAX_CATEGORY_LENGTH} characters`);
+  }
+
+  // `execution` — default `remote` porque a maioria das skills é só instrução, e exigir o
+  // campo faria toda skill trivial carregar cerimônia. Valor DESCONHECIDO é erro, nunca
+  // default: um `execution: sandbox` caindo em `remote` entregaria como remota uma skill
+  // que o autor quis restringir — o silêncio é o modo de falha perigoso.
+  const rawExecution = fields['execution'];
+  if (rawExecution !== undefined && rawExecution !== null && !SKILL_EXECUTIONS.includes(rawExecution as SkillExecution)) {
+    throw new SkillFrontmatterError(
+      'schema_invalid',
+      `execution must be one of: ${SKILL_EXECUTIONS.join(' | ')}`,
+    );
+  }
+  const execution: SkillExecution = (rawExecution as SkillExecution | undefined) ?? 'remote';
+
+  return { name, description, ...(category !== undefined ? { category } : {}), execution, fields };
 }

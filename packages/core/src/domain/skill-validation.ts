@@ -8,9 +8,37 @@
  * Returns a STRUCTURED result (does not throw on a rule violation) so the CLI can
  * render clear per-rule errors and the server can map to HTTP 400.
  */
-import { parseFrontmatter, SkillFrontmatterError } from './frontmatter.js';
+import { parseFrontmatter, type SkillExecution, SkillFrontmatterError } from './frontmatter.js';
 import { type PayloadValidator, PayloadValidationError, type ValidatedPayload } from './payload-validator.js';
 import { type SecretScanner } from './secret-scanner.js';
+
+/**
+ * Extensões que denotam código executável. Lista deliberadamente CURTA e explícita — um
+ * "tudo que não for texto" transformaria a guarda num imposto sobre skill normal, e o
+ * objetivo não é proibir arquivo: é impedir que uma skill com script se declare remota.
+ */
+const SCRIPT_EXTENSIONS: readonly string[] = [
+  '.sh', '.bash', '.zsh', '.fish',
+  '.py', '.rb', '.pl', '.php', '.lua',
+  '.js', '.mjs', '.cjs', '.ts', '.mts', '.cts',
+  '.ps1', '.bat', '.cmd', '.exe',
+];
+
+/**
+ * Arquivos do pacote que são código executável.
+ *
+ * Dois sinais, porque um só deixa passar: a EXTENSÃO pega o caso comum, e o SHEBANG pega
+ * `bin/tool` sem sufixo — que é exatamente como um script costuma ser empacotado.
+ */
+function scriptsNoPayload(files: readonly { readonly path: string; readonly content: string }[]): string[] {
+  return files
+    .filter((f) => {
+      const p = f.path.toLowerCase();
+      if (SCRIPT_EXTENSIONS.some((ext) => p.endsWith(ext))) return true;
+      return f.content.startsWith('#!');
+    })
+    .map((f) => f.path);
+}
 
 export interface SkillValidationDeps {
   readonly payloadValidator: PayloadValidator;
@@ -21,6 +49,10 @@ export interface SkillValidationOk {
   readonly ok: true;
   readonly name: string;
   readonly description: string;
+  /** Eixo de descoberta declarado pelo autor (texto livre). */
+  readonly category?: string;
+  /** Onde a skill executa — governa o que o registry entrega ao agente. */
+  readonly execution: SkillExecution;
   readonly frontmatter: Record<string, unknown>;
   readonly validated: ValidatedPayload;
 }
@@ -55,8 +87,9 @@ export async function validateSkillPayload(
   let name: string;
   let description: string;
   let frontmatter: Record<string, unknown>;
+  let fm: ReturnType<typeof parseFrontmatter>;
   try {
-    const fm = parseFrontmatter(validated.skillMd);
+    fm = parseFrontmatter(validated.skillMd);
     name = fm.name;
     description = fm.description;
     frontmatter = { ...fm.fields };
@@ -78,5 +111,34 @@ export async function validateSkillPayload(
     };
   }
 
-  return { ok: true, name, description, frontmatter, validated };
+  // 4. execução × payload — uma skill com SCRIPT não pode se declarar remota.
+  //
+  // O agente remoto receberia instruções referenciando um arquivo que ele não tem, e o
+  // sintoma não é um erro: é o agente seguindo passos que não existem. Falha plausível, que
+  // é a pior. A guarda vive AQUI, na fronteira de publicação, e não no consumo: barrar na
+  // hora de publicar dá o erro a quem pode corrigi-lo.
+  //
+  // Ela não proíbe script — exige honestidade. Declarar `execution: local` é a saída.
+  if (fm.execution === 'remote') {
+    const scripts = scriptsNoPayload(validated.files);
+    if (scripts.length > 0) {
+      return {
+        ok: false,
+        code: 'execution_requires_local',
+        message: `payload contains executable script(s); declare \`execution: local\` in the frontmatter`,
+        details: scripts,
+      };
+    }
+  }
+
+
+  return {
+    ok: true,
+    name,
+    description,
+    ...(fm.category !== undefined ? { category: fm.category } : {}),
+    execution: fm.execution,
+    frontmatter,
+    validated,
+  };
 }
