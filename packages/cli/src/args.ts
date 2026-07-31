@@ -8,7 +8,8 @@ export type CliCommand =
   | 'status'
   | 'get'
   | 'list'
-  | 'revisions';
+  | 'revisions'
+  | 'install';
 
 export interface ParsedCli {
   readonly command: CliCommand;
@@ -18,6 +19,8 @@ export interface ParsedCli {
   readonly skillId?: string;
   /** Auth token (init flag, or carried from config at dispatch time). */
   readonly auth?: string;
+  /** `install --global` → instala em `~/.claude/skills` em vez de no projeto. */
+  readonly global?: boolean;
 }
 
 export class CliUsageError extends Error {}
@@ -30,6 +33,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   'get',
   'list',
   'revisions',
+  'install',
 ]);
 
 /**
@@ -51,6 +55,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCli {
       registry: { type: 'string' },
       'skill-id': { type: 'string' },
       auth: { type: 'string' },
+      global: { type: 'boolean' },
     },
   });
   const path = positionals[0];
@@ -60,6 +65,7 @@ export function parseCliArgs(argv: readonly string[]): ParsedCli {
     ...(values.registry !== undefined ? { registry: values.registry } : {}),
     ...(values['skill-id'] !== undefined ? { skillId: values['skill-id'] } : {}),
     ...(values.auth !== undefined ? { auth: values.auth } : {}),
+    ...(values.global === true ? { global: true } : {}),
   };
 }
 
