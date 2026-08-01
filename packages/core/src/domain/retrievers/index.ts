@@ -9,4 +9,5 @@ export {
 export { ParamBuilder } from './param-builder.js';
 export { createVectorRetriever, type VectorRetrieverDeps } from './vector-retriever.js';
 export { createKeywordRetriever, type KeywordRetrieverDeps } from './keyword-retriever.js';
-export { createHybridRetriever, type HybridRetrieverDeps, rrfFuse, RRF_K, FUSION_POOL } from './hybrid-retriever.js';
+export { createHybridRetriever,
+  RetrieverTimeoutError, type HybridRetrieverDeps, rrfFuse, RRF_K, FUSION_POOL } from './hybrid-retriever.js';

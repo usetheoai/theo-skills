@@ -28,6 +28,7 @@ export {
   createKeywordRetriever,
   type KeywordRetrieverDeps,
   createHybridRetriever,
+  RetrieverTimeoutError,
   type HybridRetrieverDeps,
   rrfFuse,
   RRF_K,
