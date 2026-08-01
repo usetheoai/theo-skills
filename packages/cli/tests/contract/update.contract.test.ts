@@ -193,6 +193,7 @@ describe('update escreve no MESMO runtime de onde leu', () => {
     const code = await runUpdate('minha-skill', {
       out: (s: string) => linhas.push(s),
       fetch: fetchOf('rev_2'),
+      registry: 'ignorado',
       extract: extractStub,
       runtime: 'theokit',
       apply: true,
