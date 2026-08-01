@@ -22,7 +22,16 @@ export interface RetrieveRoutesDeps {
    * um retriever, então a rota não consegue buscar "em tudo" nem por descuido. Mesmo
    * contrato dos `*StoreFor(ws)` vizinhos.
    */
-  readonly retrieverFor: (workspaceId: string) => DispatchingRetriever;
+  /**
+   * Constrói o retriever para o inquilino, com um coletor de degradação POR REQUISIÇÃO.
+   *
+   * O coletor é parâmetro e não estado do módulo de propósito: duas buscas simultâneas, uma
+   * degradada e outra não, não podem trocar de diagnóstico.
+   */
+  readonly retrieverFor: (
+    workspaceId: string,
+    onDegraded?: (perna: 'vector' | 'keyword') => void,
+  ) => DispatchingRetriever;
   readonly logger: Logger;
   readonly clock?: LatencyClock;
 }
@@ -54,7 +63,11 @@ export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDe
     const workspaceId = workspaceOf(c);
 
     const start = clock.now();
-    const results = await deps.retrieverFor(workspaceId).retrieve({
+    // Coletor POR REQUISIÇÃO — o sinal de degradação precisa chegar a ESTA resposta, e não
+    // a um estado compartilhado entre requisições concorrentes. Duas buscas simultâneas, uma
+    // degradada e outra não, não podem trocar de diagnóstico.
+    const degradadas: string[] = [];
+    const results = await deps.retrieverFor(workspaceId, (perna) => degradadas.push(perna)).retrieve({
       query,
       topK: top_k,
       strategy,
@@ -73,6 +86,20 @@ export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDe
       },
       'retrieve',
     );
-    return c.json({ trace_id: `trc_${createId()}`, results }, 200);
+    // ADITIVO e ausente-significa-íntegro: se o campo viesse sempre, o consumidor teria de
+    // inspecioná-lo a cada resposta para descobrir que está tudo bem. Assim o caso normal
+    // fica silencioso e o anormal, explícito.
+    //
+    // O log de degradação serve quem OPERA; este campo serve quem INTEGRA. Um agente escolhe
+    // qual skill carregar pelo ranking — com metade da busca fora ele escolhe pior e, sem
+    // isto, sem saber que escolheu pior.
+    return c.json(
+      {
+        trace_id: `trc_${createId()}`,
+        results,
+        ...(degradadas.length > 0 ? { degraded: { legs: degradadas } } : {}),
+      },
+      200,
+    );
   });
 }

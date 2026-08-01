@@ -248,7 +248,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const retrieveExecutor = createPgExecutor(opts.pool);
   const retrieveEmbedder = opts.embedder ?? selectEmbedder();
   registerRetrieveRoutes(app, {
-    retrieverFor: (ws: string) =>
+    retrieverFor: (ws: string, onDegradedDaRequisicao?: (perna: 'vector' | 'keyword') => void) =>
       createDispatchingRetriever({
         executor: retrieveExecutor,
         embedder: retrieveEmbedder,
@@ -262,6 +262,9 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
         // busca respondia 200 com resultado pior — o operador só descobriria pela reclamação
         // de quem consome, se descobrisse.
         onDegraded: (perna, err) => {
+          // DOIS destinos, e são públicos diferentes: o log serve quem OPERA o serviço; o
+          // coletor da requisição serve quem o INTEGRA, e chega na resposta.
+          onDegradedDaRequisicao?.(perna);
           logger.error(
             {
               leg: perna,
