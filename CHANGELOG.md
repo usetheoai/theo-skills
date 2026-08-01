@@ -7,6 +7,10 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **O servidor MCP passa a falar HTTP, e não só pelo processo local.** Ele só oferecia o transporte por descritores padrão — a forma de um agente hospedar um servidor MCP na própria máquina. O gateway da plataforma fronta servidores MCP por HTTP, então "ainda não registrado no gateway" não era uma decisão pendente: era um transporte que não existia. Cada sessão HTTP liga o acesso ao registry com a credencial **daquele** inquilino, cunhada pelo gateway e recebida na requisição — uma conexão compartilhada entre sessões faria um cliente ler o catálogo de outro, e o sintoma seria uma resposta plausível, não um erro. Verificado contra o serviço no ar: a mesma consulta devolve o catálogo de quem tem e uma lista vazia para quem não tem.
+
 ### Changed
 
 - **Governança do repositório, não do artefato publicado — nada aqui altera o pacote entregue.** O portão de merge não existia: os workflows rodavam em cada PR e reportavam o resultado, mas `develop` e `main` **não tinham proteção alguma** — nada impedia mergear um PR com teste vermelho. São duas camadas que garantem coisas diferentes, e só a primeira estava de pé: o hook local garante que o trabalho NASCE no lugar certo; a proteção de branch é o que torna o portão OBRIGATÓRIO. Os três checks (build/lint/typecheck, integração contra Postgres real, semgrep + gitleaks) agora são exigidos nas duas branches, com o PR obrigado a estar em dia com a base e **a exigência valendo também para quem tem administração** — sem isso o portão não valeria justamente para quem merge. Force-push e deleção bloqueados.
