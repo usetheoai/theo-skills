@@ -62,7 +62,18 @@ concurrency:
   # ANTES DE "CORRIGIR": confira o `gate-ci` do run de `publish` do mesmo SHA. Remover este
   # bloco ou trocar a chave faria os dois rodarem, dobrando o custo de CI para o mesmo commit
   # — que é precisamente o que ele existe para evitar.
-  group: ci-${{ github.event.pull_request.head.ref || github.ref_name }}
+  # O EVENTO ENTRA NA CHAVE, e isto deixou de ser detalhe em 2026-08-01.
+  #
+  # A chave era só a branch. Num PR de promocao `develop -> main`, `head.ref` vale `develop`
+  # — a MESMA chave de um push em `develop`. Os dois caiam no mesmo grupo e um cancelava o
+  # outro, e ambos reportam para o MESMO nome de check. Enquanto o check era informativo isso
+  # era cosmetico (o proprio comentario daqui dizia "le-se como falha, nao e"). Desde que os
+  # tres viraram EXIGIDOS pela protecao de branch, um run `cancelled` no contexto exigido
+  # BLOQUEIA o merge — foi o que travou a release v0.10.0 ate o rerun manual.
+  #
+  # Com o evento na chave, push e pull_request nao se cancelam; dois pushes na mesma branch
+  # (ou dois updates do mesmo PR) seguem se superpondo, que era a economia pretendida.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
