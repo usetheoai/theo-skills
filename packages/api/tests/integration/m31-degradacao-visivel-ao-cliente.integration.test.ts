@@ -81,4 +81,30 @@ describeIntegration('a degradação da busca é visível para quem CONSOME', () 
     expect(res.status).toBe(200);
     expect((await res.json() as { degraded?: unknown }).degraded).toBeUndefined();
   });
+
+  it('a OUTRA metade caindo produz OUTRO valor — o campo não é decorativo', async () => {
+    // A pergunta que este caso responde: EXISTE UMA IMPLEMENTAÇÃO ERRADA QUE PASSARIA nos
+    // dois casos acima? Existe — uma que devolvesse `['vector']` fixo. Com só a metade
+    // vetorial caindo, "reporta a metade que caiu" e "reporta sempre vector" são
+    // implementações INDISTINGUÍVEIS.
+    //
+    // Aqui a metade LEXICAL cai (executor de consulta quebrado) e a vetorial responde. Se o
+    // campo fosse fixo, este caso o denunciaria.
+    const app = createApp({
+      pool: getPool(),
+      queue: boss,
+      logger: createNoopLogger(),
+      reservationHours: 1,
+      principalResolver: (): Principal => ({ workspaceId: WS, userId: 'u', role: 'member', scopes: ['skills:read'] }),
+      retrieveExecutor: {
+        query: (sql: string) =>
+          sql.includes('search_tsv') ? Promise.reject(new Error('fts fora')) : Promise.resolve([]),
+      },
+    });
+
+    const res = await app.request('/v1/skills:retrieve?query=triagem&limit=5');
+    expect(res.status).toBe(200);
+    const b = (await res.json()) as { degraded?: { legs: string[] } };
+    expect(b.degraded?.legs, 'reporta a metade que DE FATO caiu').toEqual(['keyword']);
+  });
 });

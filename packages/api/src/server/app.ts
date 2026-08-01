@@ -1,4 +1,4 @@
-import { type AuthVerifier } from '@usetheo/skills';
+import { type AuthVerifier, type QueryExecutor } from '@usetheo/skills';
 import {
   DEFAULT_PRINCIPAL,
   type EmbeddingProvider,
@@ -59,6 +59,15 @@ export interface CreateAppOptions {
   readonly dnsResolver?: DnsResolver;
   /** Embedder for the retrieve endpoint (defaults to env-selected). */
   readonly embedder?: EmbeddingProvider;
+  /**
+   * Costura de teste para o executor de consulta, espelhando a do `embedder`.
+   *
+   * Existe pela mesma razão: sem ela não há como derrubar UMA das metades da busca e provar
+   * que o relatório de degradação nomeia a metade certa. Com só a metade vetorial derrubável,
+   * "reporta quem caiu" e "reporta sempre vector" são implementações indistinguíveis — e um
+   * teste que não as distingue protege a aparência do comportamento, não o comportamento.
+   */
+  readonly retrieveExecutor?: QueryExecutor;
   /**
    * Resolve QUEM esta chamando — o inquilino e suas capacidades (M11).
    *
@@ -245,7 +254,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // tenant); o que se cria por requisição é o closure que fixa o workspace. Montar o
   // dispatcher uma única vez no boot foi exatamente o que deixou a rota de descoberta
   // servindo o catálogo inteiro a qualquer tenant.
-  const retrieveExecutor = createPgExecutor(opts.pool);
+  const retrieveExecutor = opts.retrieveExecutor ?? createPgExecutor(opts.pool);
   const retrieveEmbedder = opts.embedder ?? selectEmbedder();
   registerRetrieveRoutes(app, {
     retrieverFor: (ws: string, onDegradedDaRequisicao?: (perna: 'vector' | 'keyword') => void) =>
