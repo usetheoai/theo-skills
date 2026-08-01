@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,6 +6,8 @@ import { createSecretlintScanner, createYauzlPayloadValidator } from '@usetheo/s
 import { startTestRegistry, type TestRegistry } from '@usetheo/skills-api/testkit';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { extractZipTo } from '../../src/commands/extract-zip.js';
+import { runInstall } from '../../src/commands/install.js';
 import { runPublish } from '../../src/commands/publish.js';
 import { runValidate } from '../../src/commands/validate.js';
 
@@ -99,3 +101,75 @@ describeIt('M5 CLI E2E: validate → publish → retrieve (T4.1)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 });
+
+describeIt('M26 DoD #4 — publicar → INSTALAR → o arquivo executável no runtime alvo', () => {
+  let reg: TestRegistry;
+  let origem: string;
+  let projeto: string;
+
+  beforeAll(async () => {
+    reg = await startTestRegistry(PG_URI);
+  });
+  beforeEach(async () => {
+    await reg.truncate();
+    origem = await mkdtemp(join(tmpdir(), 'skill-src-'));
+    projeto = await mkdtemp(join(tmpdir(), 'agente-'));
+    await writeFile(
+      join(origem, 'SKILL.md'),
+      `---\nname: triagem\ndescription: classifica um chamado por urgencia e roteia\ncategory: Ops\nexecution: local\nversion: "1.0.0"\n---\n# triagem\n\n1. rode ./classificar.sh\n`,
+    );
+    await writeFile(join(origem, 'classificar.sh'), '#!/bin/sh\necho P1\n');
+    await chmod(join(origem, 'classificar.sh'), 0o755);
+  });
+  afterAll(async () => {
+    await reg.stop();
+  });
+
+  it('a skill instalada CHEGA no layout do runtime e o script continua EXECUTÁVEL', async () => {
+    // O DoD dizia "publicar → instalar → arquivo no diretório que o runtime lê", e o e2e
+    // parava no publish. O elo que faltava é justamente onde o defeito estava: o modo do
+    // arquivo se perdia entre o empacotador e o extrator, e uma skill `local` — que é
+    // definida por ter script — chegava ao agente sem permissão de execução.
+    const linhas: string[] = [];
+    const out = (l: string): void => {
+      linhas.push(l);
+    };
+
+    expect(await runValidate(origem, { validation, out })).toBe(0);
+    expect(
+      await runPublish(
+        { command: 'publish', path: origem, registry: 'http://local', skillId: 'triagem' },
+        { validation, out, fetch: reg.fetch },
+      ),
+      linhas.join('\n'),
+    ).toBe(0);
+
+    const opId = linhas.join('\n').match(/operation (op_\w+)/)?.[1];
+    let state = 'CREATING';
+    for (let i = 0; i < 200 && state !== 'ACTIVE' && state !== 'FAILED'; i++) {
+      state = ((await (await reg.fetch(`http://local/v1/operations/${opId!}`)).json()) as { state: string }).state;
+      if (state === 'CREATING' || state === 'UPDATING') await sleep(50);
+    }
+    expect(state).toBe('ACTIVE');
+
+    const skillsDir = join(projeto, '.theokit', 'skills');
+    expect(
+      await runInstall('triagem', {
+        out,
+        fetch: reg.fetch,
+        registry: 'http://local',
+        extract: extractZipTo,
+        skillsDir,
+        runtime: 'theokit',
+      }),
+      linhas.join('\n'),
+    ).toBe(0);
+
+    const script = join(skillsDir, 'triagem', 'classificar.sh');
+    const doc = join(skillsDir, 'triagem', 'SKILL.md');
+    expect((await readFile(doc, 'utf8')), 'o corpo chegou').toContain('classificar.sh');
+    expect((await stat(script)).mode & 0o111, 'o script continua executável').not.toBe(0);
+    expect((await stat(doc)).mode & 0o111, 'e o markdown NÃO vira executável').toBe(0);
+  }, 60_000);
+});
+
