@@ -7,7 +7,13 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A imagem passa a carregar o servidor MCP, e não só a API.** Sem isso o ouvinte HTTP entregue na versão anterior não tinha como ser publicado — o transporte existia e o artefato que o hospedaria, não. É a mesma imagem servindo dois processos, de propósito: duas imagens para um repositório divergiriam no primeiro build em que só uma fosse reconstruída, e a divergência apareceria como comportamento diferente entre superfícies do mesmo commit.
+
 ### Fixed
+
+- **Material de TLS vazio era aceito como TLS.** Apontar o certificado para um arquivo vazio satisfazia a checagem que exige criptografia fora da máquina local, e o processo anunciava conexão segura sobre material que não negocia nada. Vazio agora conta como ausente, e a recusa é imediata. Encontrado testando a imagem, não a suíte.
 
 - **Um check cancelado bloqueava o merge, e o cancelamento era o próprio pipeline se atropelando.** Os três workflows agrupavam execuções só pela branch. Num PR de promoção, a branch de origem é a mesma de onde os pushes saem — então a execução do PR e a do push caíam no mesmo grupo, uma cancelava a outra, e ambas reportam sob o mesmo nome. Enquanto o resultado era informativo isso era cosmético, e estava anotado como tal. Deixou de ser no instante em que os três passaram a ser exigidos: um resultado cancelado no nome exigido trava a promoção. Travou a v0.10.0 até uma reexecução manual. O evento passa a compor a chave do grupo — execuções de origens diferentes não se cancelam, e a economia pretendida (duas atualizações seguidas na mesma branch) continua valendo.
 - **A exigência de "estar em dia com a base" foi retirada de `main`.** Ela protege contra um PR testado sobre uma base velha enquanto outra mudança entra — risco real onde vários PRs disputam. Em `main` esse risco não existe: nada além da branch de integração entra ali, e cada promoção deixa `main` com um commit de merge que a origem nunca terá. O efeito era um bloqueio permanente e insatisfazível. Segue valendo na branch de integração, onde ganha o que promete.

@@ -50,6 +50,12 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/api/package.json ./packages/api/
 COPY packages/cli/package.json ./packages/cli/
+# O pacote MCP entra na imagem porque o MESMO artefato serve os dois processos: a API
+# (CMD padrão) e o ouvinte MCP que o gateway fronta (`--transport streamable-http`, via
+# `command:` no compose). Duas imagens para um repositório fariam as duas divergirem no
+# primeiro build em que só uma fosse reconstruída — e a divergência apareceria como
+# comportamento diferente entre superfícies do mesmo commit.
+COPY packages/mcp/package.json ./packages/mcp/
 RUN corepack enable && corepack prepare --activate
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
@@ -68,6 +74,7 @@ COPY --from=production-deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=production-deps --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/packages/core/dist ./packages/core/dist
 COPY --from=build --chown=node:node /app/packages/api/dist ./packages/api/dist
+COPY --from=build --chown=node:node /app/packages/mcp/dist ./packages/mcp/dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
 
 EXPOSE 8080

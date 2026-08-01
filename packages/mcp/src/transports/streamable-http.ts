@@ -137,6 +137,13 @@ const erroJson = (res: ServerResponse, status: number, code: number, message: st
  * construído a partir do bearer da requisição. Devolve um handle para desligar limpo.
  */
 export async function connectStreamableHttp(options: StreamableHttpOptions): Promise<StreamableHttpHandle> {
+  // VAZIO É AUSENTE. `--tls-cert /dev/null` (ou um arquivo que não existe mais) faz a leitura
+  // devolver string vazia; sem esta checagem a guarda abaixo vê `tls !== undefined`, aceita o
+  // host público, e o ouvinte ANUNCIA `https` sobre material que não negocia. Encontrado
+  // testando a imagem, não a suíte.
+  if (options.tls !== undefined && (options.tls.cert.trim() === '' || options.tls.key.trim() === '')) {
+    throw new Error('connectStreamableHttp: material TLS vazio — cert e key precisam ter conteúdo, não só existir.');
+  }
   assertNonLocalhostHasTls(options.host, options.tls !== undefined);
 
   const baseUrl = options.baseUrl ?? '';
