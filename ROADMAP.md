@@ -656,7 +656,7 @@ corpo dela do servidor, sem nada em disco.
 - [x] Recusa com erro tipado (422 `execution_is_local`) quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
 - [x] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
 - [x] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
-- [x] Medido contra o serviço no ar (`develop-4bfdf9b`): descobrir devolve `category=Sales execution=remote`; carregar devolve o corpo com `origin=own`; **p50 6,1 ms · p95 10,8 ms** (alvo do M17: 200 ms). Recusas confirmadas: `local` → 422, outro inquilino → 404, sem credencial → 401.
+- [x] Medido contra o serviço no ar (`develop-4bfdf9b`): descobrir devolve `category=Sales execution=remote`; carregar devolve o corpo com `origin=own`; **p50 5,9 ms · p95 12,6 ms **para a CARGA da instrução** (medido 2026-08-01, n=40, no host, contra `develop-50915b6`). A **descoberta** é outra ordem de grandeza: **p50 9,3 s** com o embedder real, porque cada consulta embute a query chamando um serviço externo (n=12, mesma rodada). Os números anteriores estavam atribuídos à operação errada — ou vinham do embedder stub, que não faz chamada externa. Registrado no board como bottleneck** (alvo do M17: 200 ms). Recusas confirmadas: `local` → 422, outro inquilino → 404, sem credencial → 401.
 
 **Dependencies:** M23.
 
