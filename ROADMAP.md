@@ -667,10 +667,20 @@ corpo dela do servidor, sem nada em disco.
 
 ---
 
-### M28 — [ ] A ponte para o Theokit não existe (bloqueia o cenário-âncora)
+### M28 — [ ] A ponte REMOTA para o Theokit não existe (bloqueia o cenário-âncora)
 
-**Objective:** Tornar uma skill remota, descoberta em runtime, consumível por um agente
-Theokit real. Hoje **não é**, e a razão é estrutural — não é configuração faltando.
+**Objective:** Tornar uma skill **remota, descoberta em runtime**, consumível por um agente
+Theokit real. Hoje não é, e a razão é estrutural — não é configuração faltando.
+
+**Precisão importante — o que JÁ funciona.** A evidência de 2026-07-31
+(`dogfood/evidence/theo-skills-2026-07-31-agentbuilder-theokit-discovery.md`) mediu o caminho
+de **disco** e ele funciona: `theoskill install` materializa a skill em `.theokit/skills/` e o
+agent-builder a carrega dali. Dois defeitos que o bloqueavam foram corrigidos e mergeados.
+Este marco **não** é sobre aquele caminho.
+
+O que falta é o outro: descobrir por **intenção**, em runtime, uma skill que o agente não
+conhecia, e carregar o corpo dela **sem passar pelo disco**. É o que o cenário-âncora pede, e
+é o que o desenho de duas fases deste produto entrega — mas não há consumidor do outro lado.
 
 **O que foi medido em 2026-08-01**, lendo o contrato do `@theokit/agents`
 (`packages/agents/src/skills-resolver.ts` em `usetheodev/theokit`):
@@ -692,11 +702,14 @@ Os dois caminhos são incompatíveis com o que este produto entrega:
 | Lista estática (`createSkill`) | Aceita objetos, mas é **declarada no agente em tempo de compilação**. Descoberta por intenção em runtime não cabe ali. |
 
 Uma busca por `theo-skills` no repositório do Theokit devolve **zero ocorrências**: os dois
-lados não se conhecem.
+lados não se conhecem em código. O que os liga hoje é o **sistema de arquivos** — a CLI
+escreve, o agente lê —, e é justamente o intermediário que a carga remota existe para
+eliminar.
 
 **Consequência honesta para os marcos já fechados.** O item 3 do DoD de M24 diz "o SDK **e o
 provider Theokit** passam a carregar por esta rota". A metade do SDK é verdade e está testada;
-a metade do provider **não tem caminho de execução**. E o cenário-âncora do dogfood
+a do provider **não tem caminho de execução por esta rota** — o provider consome do disco, que
+é outro caminho. E o cenário-âncora do dogfood
 (`theokit-remote-provider` — "um agente Theokit real descobre e carrega uma skill do registry")
 **não é executável hoje**, motivo pelo qual a evidência de 2026-08-01 está registrada como
 `partial` e não como `pass`.
