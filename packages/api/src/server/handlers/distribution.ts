@@ -9,7 +9,33 @@ import { type DistributionGrant, createDistributionResolver } from '../store/bun
  * Acima disto a varredura de buckets vencidos roda. Bem acima do número de credenciais ativas
  * que um publisher real tem, para que o caminho quente quase nunca a pague.
  */
-const DESPEJO_ACIMA_DE = 4096;
+export const DESPEJO_ACIMA_DE = 4096;
+
+/**
+ * Remove os buckets já vencidos, quando a tabela passa do limiar.
+ *
+ * Função pura e exportada porque é a única forma honesta de testá-la: disparar o despejo por
+ * requisições exigiria 4096 chamadas, e um teste desses seria lento e frágil o bastante para
+ * ser desligado no primeiro dia ruim.
+ *
+ * Varre em lote e não a cada requisição: percorrer o mapa inteiro no caminho quente trocaria
+ * um vazamento lento por uma latência constante, que é pior.
+ */
+export function despejarVencidos(
+  buckets: Map<string, QuotaBucket>,
+  agora: number,
+  limiar: number = DESPEJO_ACIMA_DE,
+): number {
+  if (buckets.size <= limiar) return 0;
+  let removidos = 0;
+  for (const [k, v] of buckets) {
+    if (agora >= v.resetAt) {
+      buckets.delete(k);
+      removidos += 1;
+    }
+  }
+  return removidos;
+}
 
 interface QuotaBucket {
   count: number;
@@ -85,9 +111,7 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
     //
     // Varre em lote e não a cada requisição: percorrer o mapa inteiro no caminho quente
     // trocaria um vazamento lento por uma latência constante, que é pior.
-    if (buckets.size > DESPEJO_ACIMA_DE) {
-      for (const [k, v] of buckets) if (t >= v.resetAt) buckets.delete(k);
-    }
+    despejarVencidos(buckets, t);
 
     return { ok: b.count <= limit, retryAfter: Math.max(1, Math.ceil((b.resetAt - t) / 1000)) };
   };
