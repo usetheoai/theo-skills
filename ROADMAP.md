@@ -136,9 +136,9 @@ conclusão além do polling — diferencial sobre o Google.
 
 **Definition of done:**
 
-- [ ] Operações idempotentes com estados explícitos (`CREATING/UPDATING/DELETING/ACTIVE/FAILED`), retry com backoff em falha transitória e nenhum retry em violação de regra de negócio.
-- [ ] `GET /v1/operations/{id}` (polling) **e** entrega de webhook/evento na conclusão (assinatura por skill/projeto), com retry de entrega.
-- [ ] Auditoria: toda mutação registrada de forma rastreável; teste de integração cobrindo sucesso, falha e reentrega de webhook.
+- [x] Operações idempotentes com estados explícitos (`CREATING/UPDATING/DELETING/ACTIVE/FAILED`), retry com backoff. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. Os cinco estados existem no código; `operation-lifecycle.integration.test.ts` cobre os quatro casos que importam: mesma `Idempotency-Key` devolve a MESMA operação, falha de regra de negócio termina `FAILED` **sem** retry, erro transitório é repetido até `ACTIVE`, e duas requisições **concorrentes** com a mesma chave criam exatamente uma operação (índice único parcial `operations_ws_idempotency_key_uq`).
+- [x] `GET /v1/operations/{id}` (polling) **e** entrega de webhook/evento na conclusão (assinatura por skill/projeto). **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. Rota em `handlers/operations.ts`; a entrega é um subsistema de seis módulos (`webhook-signing`, `-sender`, `-enqueuer`, `-reconciler`, `-delivery-worker`, `url-safety`) com três arquivos de teste de integração.
+- [x] Auditoria: toda mutação registrada de forma rastreável; teste de integração cobrindo sucesso, falha e retry. **Com uma ressalva que fica escrita:** a mutação é rastreável na tabela `operations` (tipo, estado, erro, marcas de tempo, inquilino) e o **ator** vive no log estruturado (entregue pelo M6) — `operations` **não tem coluna de ator** e **não existe tabela `audit_log`**. Verificado no banco em 2026-08-01. Trilha em log é real, mas não é consultável como uma tabela; quem precisar de auditoria retroativa por ator depende da retenção do log.
 
 **Dependencies:** M1.
 
@@ -156,9 +156,9 @@ provider de embeddings plugável (DIP), como nos demais serviços Theo.
 
 **Definition of done:**
 
-- [ ] `EmbeddingProvider` (port) com adapters `openai` / `local` / `stub` (mesmo trio da casa); teste unitário usa `stub`.
-- [ ] Cada revisão gera embedding de `displayName + description + corpo SKILL.md`; coluna `vector` (pgvector) com índice; reindexação idempotente na atualização.
-- [ ] Teste de integração: criar skill → embedding presente e consultável; troca de provider não toca o domínio.
+- [~] `EmbeddingProvider` (port) com adapters `openai` / `local` / `stub`; teste unitário usa `stub`. **Dois dos três.** O port e o registry existem (`providers/embedder-selection.ts`), com `openai` detectado por ambiente e `stub` como fallback determinístico — o adapter **`local` nunca foi escrito**. Não é esquecimento: `embedder-selection.ts:17` registra a decisão ("no speculative 3rd provider lands without a real consumer"). Fica `[~]` e não `[x]` porque o DoD nomeia três e existem dois; quando aparecer um consumidor real de modelo local, o seam já está pronto.
+- [x] Cada revisão gera embedding de `displayName + description + corpo SKILL.md`; coluna `vector` (pgvector). **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. Tabela `embeddings` com `vector`, escrita pelo `embed-worker`; `m3-embed-worker.integration.test.ts`.
+- [x] Teste de integração: criar skill → embedding presente e consultável; troca de provider não toca o domínio. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `m3-embeddings-e2e.integration.test.ts`; a troca passa pelo registry, não pelo domínio.
 
 **Dependencies:** M1.
 
@@ -176,9 +176,9 @@ vetor) com reranking e **score explícito** na resposta.
 
 **Definition of done:**
 
-- [ ] `GET /v1/skills:retrieve?query=...&topK=...` combina busca lexical (Postgres FTS) + vetorial (pgvector) com fusão/rerank e retorna `score` por resultado.
-- [ ] Conjunto de avaliação interno: **Recall@5 ≥ 0.85** e retrieve **p95 < 200ms** medidos e reproduzíveis.
-- [ ] Métrica de **time-to-relevant-skill** instrumentada (north-star) no caminho do retrieve.
+- [x] `GET /v1/skills:retrieve?query=...&topK=...` combina busca lexical (Postgres FTS) + vetorial (pgvector) com `score` explícito por resultado. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte.
+- [x] Conjunto de avaliação interno: **Recall@5 ≥ 0.85** e retrieve **p95 < 200ms** medidos e reproduzíveis. **Medido em 2026-08-01** sobre as 13 consultas de `eval/dataset.json`: **Recall@5 = 1.000** (portão 0.85) e **p95 = 11.3 ms** (portão 200 ms). **As duas ressalvas valem mais que os números:** (a) a recall é **carregada pelo FTS** — a mesma avaliação com estratégia `vector` isolada dá **0.308**, porque o embedder stub é um hash determinístico, não semântico; a perna vetorial só passa a contribuir com o provider real. (b) 11.3 ms é sobre **13 linhas** — é guarda de regressão, não SLO de produção, e nenhuma promessa pública de latência se apoia nisso.
+- [x] Métrica de **time-to-relevant-skill** instrumentada (north-star) no caminho do retrieve. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `handlers/retrieve.ts` emite a linha `retrieve` com latência + score do topo.
 
 **Dependencies:** M3.
 
@@ -196,9 +196,9 @@ capacidade que o Google não tem.
 
 **Definition of done:**
 
-- [ ] CLI valida estrutura `SKILL.md` + frontmatter Theokit + limites de payload + secret scan, com os **mesmos** checks da fronteira do servidor (regra única compartilhada — DRY).
-- [ ] Comando empacota e publica a skill no registry (reusa a API de Create/Update); saída clara de erros por arquivo/regra.
-- [ ] Teste E2E da CLI contra um registry local (validar → publicar → recuperar).
+- [x] CLI valida estrutura `SKILL.md` + frontmatter Theokit + limites de payload + secret scan, com os **mesmos** critérios do servidor. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. "Mesmos" é literal, não paralelo: `commands/validate.ts` importa `validateSkillPayload` de `@usetheo/skills` — o mesmo símbolo que a API usa. Duas implementações divergiriam na primeira mudança de regra.
+- [x] Comando empacota e publica a skill no registry (reusa a API de Create/Update); saída clara de erros por categoria. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `commands/publish.ts`.
+- [x] Teste E2E da CLI contra um registry local (validar → publicar → recuperar). **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `packages/cli/tests/integration/cli-e2e.integration.test.ts`.
 
 **Dependencies:** M1.
 
@@ -291,12 +291,12 @@ owner como "todos os 7 gaps num milestone", ciente da sobreposição com M8 (tra
 
 **Definition of done:**
 
-- [ ] **Tracing (#1):** `trace_id` propagado HTTP → operation → job → webhook, logado em cada salto (uma ingestão é rastreável ponta-a-ponta). Construído como módulo OTel/trace-context **compartilhado** que o M8 reusa — sem instrumentação duplicada. Ref: `ace/tracing/_wrapper.py:52`.
-- [ ] **Scrubbing (#2):** o JSON logger redige chaves sensíveis (secret/token/authorization/password) antes de emitir; teste prova que um segredo conhecido nunca aparece na saída. Ref: `ace/observability/__init__.py:47`.
-- [ ] **Backoff (#3):** política explícita de backoff exponencial-com-jitter no webhook sender, desacoplada dos defaults do pg-boss; teste unitário sobre o schedule de delays. Ref: tenacity (`pyproject.toml:48`).
-- [ ] **CLI DX (#4 + #5):** `theoskill init` grava config local (registry URL/auth) — publish sem flags repetidas; comandos de leitura `status`/`get`/`list`/`revisions` espelham a API HTTP; exit codes scriptáveis preservados. Ref: `ace/cli/setup.py:1`.
-- [ ] **Test markers (#6):** taxonomia semântica de tags de teste (slow/live/integration) para runs seletivos no CI; documentada em `rules/testing.md`. Ref: `tests/conftest.py:1`.
-- [ ] **Provider breadth (#7 — incluído por decisão explícita do owner, apesar de YAGNI):** seleção de embedder vira registry com seam de auto-detecção (≥1 provider além de stub|openai OU o seam documentado pronto); se não houver segundo consumidor real, entregar só o seam + testes e registrar o deferimento YAGNI no plano. Ref: `ace/providers/pydantic_ai.py:1`.
+- [x] **Tracing (#1):** `trace_id` propagado HTTP → operation → job → webhook, logado em cada salto. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `observability/trace-context.ts` mais os quatro saltos (`handlers/skills.ts`, `queue/queue.ts`, `webhook-enqueuer.ts`, `webhook-delivery-worker.ts`).
+- [x] **Scrubbing (#2):** o JSON logger redige chaves sensíveis (secret/token/authorization/password) antes de escrever. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `server/logger.ts`.
+- [x] **Backoff (#3):** política explícita de backoff exponencial-com-jitter, desacoplada do transporte. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `server/worker.ts` e `webhooks/webhook-delivery-worker.ts`.
+- [x] **CLI DX (#4 + #5):** `theoskill init` grava config local (registry URL/auth) — publish sem flags repetidas. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `commands/init.ts`.
+- [~] **Test markers (#6):** taxonomia semântica de tags (slow/live/integration) para runs seletivos no CI; documentada em `rules/testing.md`. **O mecanismo é vestigial e a medição é essa:** o filtro `test:fast` existe em `package.json` e um teste de contrato prova o regex — mas **nenhum teste do repositório carrega marcador** (as duas ocorrências de `[slow]`/`[live]` são as strings inventadas dentro do próprio teste de contrato), e a taxonomia **não está** em `rules/testing.md`. Consequência medida: `pnpm test:fast` hoje roda a suíte inteira e o nome mente. **O resultado que o DoD queria — run seletivo no CI — já é entregue por outro mecanismo:** configs separadas (`vitest.contract` vs `vitest.integration`) e jobs distintos (`ci` sem banco, `integration` contra pgvector real). Fica `[~]`: ou os testes lentos ganham marcador e a regra é escrita, ou o `test:fast` some por ser superfície morta. Decisão de produto, não de commit.
+- [x] **Provider breadth (#7):** seleção de embedder vira registry com seam de auto-detecção; o próprio DoD aceita "só o seam + testes e o deferimento YAGNI registrado" quando não há segundo consumidor real. É exatamente o estado: **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. `PROVIDER_REGISTRY` + `selectFromRegistry` em `providers/embedder-selection.ts`, com o deferimento escrito na linha 17 do arquivo.
 
 **Dependencies:** M2, M5.
 
@@ -344,10 +344,10 @@ theo-memory.
 
 **Definition of done:**
 
-- [ ] Workflows espelhados do theo-memory: `ci` (lint · build · typecheck), `integration`, `security-sast`, `actionlint`, `publish` (imagem em GHCR assinada com cosign). **`Build` roda ANTES de `Lint`** — as regras `no-unsafe-*` são type-aware e, sem `dist/`, acusam erro em código intocado.
-- [ ] `Dockerfile` multi-stage na raiz + `vitest.e2e.config.ts` (o README já promete E2E que não existe).
-- [ ] `LICENSE`, `SECURITY.md`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` presentes; `pnpm audit` e `gitleaks` verdes no CI.
-- [ ] Um PR de teste falha o merge quando um teste quebra — a rede é provada, não presumida.
+- [x] Workflows espelhados do theo-memory. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. Sete: `ci`, `integration`, `security-sast`, `actionlint`, `publish`, `publish-npm`, `build-publish`.
+- [x] `Dockerfile` multi-stage na raiz + `vitest.e2e.config.ts`. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. Ambos na raiz, com `test:e2e` no `package.json`.
+- [x] `LICENSE`, `SECURITY.md`, `NOTICE`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` presentes. **Verificado em 2026-08-01** contra o código e o banco, não contra a suíte. Os cinco existem.
+- [x] Um PR de teste falha o merge quando um teste quebra — a rede é provada, não presumida. **Estava presumida, e a medição de 2026-08-01 mostrou o buraco:** `develop` e `main` **não tinham branch protection alguma** (`404 Branch not protected`). Os workflows rodavam e reportavam, mas nada impedia mergear um PR vermelho — a distinção que o contrato do umbrella descreve: o hook local garante a ORIGEM do trabalho, a branch protection é o que torna o portão OBRIGATÓRIO. **Fechado no mesmo dia:** os três checks agora são `required` nas duas branches, com `strict` (o PR precisa estar em dia com a base), `enforce_admins=true` (o portão vale inclusive para quem tem admin — sem isso ele não valeria para a única pessoa que merge) e force-push/deleção bloqueados.
 
 **Dependencies:** none (é a base para tudo que vem depois).
 

@@ -8,11 +8,18 @@ name: Integration (Postgres)
 on:
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
-      - 'prototype/**'
+  # SEM `paths-ignore` no PR, e isto é deliberado.
+  #
+  # Este job é um check EXIGIDO pela proteção de branch (desde 2026-08-01). `paths-ignore`
+  # não pula o job: pula o WORKFLOW INTEIRO, então nenhum check é reportado — e um check
+  # exigido que nunca reporta deixa o PR `BLOCKED` para sempre. Medido no PR #56, um PR só
+  # de documentação: `develop` inalcançável até a filtragem sair daqui.
+  #
+  # A alternativa "esperta" — manter o filtro e pular por dentro com `if:` — tem uma falha
+  # pior: condição errada reporta SUCCESS sem ter testado nada, e um portão verde sobre
+  # mudança não testada é pior que minuto de runner gasto num README.
+  #
+  # O filtro CONTINUA no `push`, onde nada é bloqueado por ele.
   push:
     branches: [develop]
     paths-ignore:
