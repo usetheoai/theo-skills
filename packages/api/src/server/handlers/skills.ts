@@ -288,6 +288,9 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
       jobData['payload_b64'] = ingest.buffer.toString('base64');
       jobData['frontmatter'] = ingest.frontmatter;
       jobData['skill_md'] = ingest.validated.skillMd;
+      // A versão vai junto do resto do que a revisão nova carrega. Omiti-la aqui é o que
+      // fazia a coluna nascer nula depois da primeira publicação.
+      if (ingest.version !== undefined) jobData['version'] = ingest.version;
     }
     return enqueueOperation(deps, c, {
       skillId,

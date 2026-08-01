@@ -12,6 +12,7 @@ ao [Semantic Versioning](https://semver.org/).
 - **A imagem passa a carregar o servidor MCP, e não só a API.** Sem isso o ouvinte HTTP entregue na versão anterior não tinha como ser publicado — o transporte existia e o artefato que o hospedaria, não. É a mesma imagem servindo dois processos, de propósito: duas imagens para um repositório divergiriam no primeiro build em que só uma fosse reconstruída, e a divergência apareceria como comportamento diferente entre superfícies do mesmo commit.
 
 ### Fixed
+- **A segunda publicação nascia sem versão** (M27). O job de CRIAÇÃO carregava a versão declarada; o de ATUALIZAÇÃO, não — e o worker a descartava antes de gravar. Da segunda publicação em diante a coluna nascia nula, e como a listagem de versões só enxerga revisões versionadas, o versionamento funcionava para a primeira publicação de cada skill e para nenhuma outra — **sem erro algum**: um canal simplesmente não tinha para onde apontar. Eram **dois elos**, e corrigir só um reproduzia o mesmo sintoma com a rota já correta. (#M27)
 
 - **Material de TLS vazio era aceito como TLS.** Apontar o certificado para um arquivo vazio satisfazia a checagem que exige criptografia fora da máquina local, e o processo anunciava conexão segura sobre material que não negocia nada. Vazio agora conta como ausente, e a recusa é imediata. Encontrado testando a imagem, não a suíte.
 
