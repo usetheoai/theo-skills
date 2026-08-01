@@ -51,10 +51,27 @@ const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_INITIAL_BACKOFF_MS = 500;
 const DEFAULT_MAX_INPUT_CHARS = 30_000; // ~7500 tokens, safely under 8191
 
+/**
+ * Códigos de erro que NUNCA passam com o tempo, ainda que venham com status 429.
+ *
+ * A OpenAI usa o MESMO 429 para dois casos opostos: limite de taxa (transitório — vale
+ * esperar) e crédito/quota esgotado (permanente — esperar não conserta). Tratar os dois
+ * igual custou 9,3 SEGUNDOS por consulta em produção, medido em 2026-08-01: a API respondia
+ * em ~200 ms com `insufficient_quota` e o backoff insistia quatro vezes.
+ *
+ * Retriar erro permanente não é resiliência — é gastar o orçamento de latência de quem
+ * chama numa tentativa que não pode dar certo.
+ */
+const CODIGOS_PERMANENTES = new Set(['insufficient_quota', 'billing_hard_limit_reached']);
+
 function isTransient(err: unknown): boolean {
   if (err !== null && typeof err === 'object') {
     const status = (err as { status?: number }).status;
+    const code = (err as { code?: string }).code;
+    if (typeof code === 'string' && CODIGOS_PERMANENTES.has(code)) return false;
     if (typeof status === 'number') {
+      // 401/403 tampouco: credencial errada não conserta sozinha entre uma tentativa e outra.
+      if (status === 401 || status === 403) return false;
       return status === 429 || status >= 500;
     }
     const name = (err as { name?: string }).name;

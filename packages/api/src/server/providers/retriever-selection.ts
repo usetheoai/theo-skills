@@ -22,6 +22,13 @@ export interface RetrieverSelectionOptions {
   readonly workspaceId: string;
   /** Per-strategy overrides (test seam). */
   readonly overrides?: Partial<Record<RetrieveStrategy, SkillRetriever>>;
+  /**
+   * Repassado ao híbrido para que a queda de uma perna VIRE LOG.
+   *
+   * Sem isto a falha vira lista vazia e a busca responde 200 com resultado pior — foi assim
+   * que a descoberta semântica ficou morta em produção sem que nada acusasse.
+   */
+  readonly onDegraded?: (perna: 'vector' | 'keyword', err: unknown) => void;
 }
 
 /**
@@ -35,7 +42,7 @@ export function createDispatchingRetriever(opts: RetrieverSelectionOptions): Dis
     createVectorRetriever({ executor: opts.executor, embedder: opts.embedder, workspaceId: opts.workspaceId });
   const keyword =
     opts.overrides?.keyword ?? createKeywordRetriever({ executor: opts.executor, workspaceId: opts.workspaceId });
-  const hybrid = opts.overrides?.hybrid ?? createHybridRetriever({ vector, keyword });
+  const hybrid = opts.overrides?.hybrid ?? createHybridRetriever({ vector, keyword, ...(opts.onDegraded !== undefined ? { onDegraded: opts.onDegraded } : {}) });
   const byStrategy: Record<RetrieveStrategy, SkillRetriever> = { vector, keyword, hybrid };
   return {
     retrieve(params) {

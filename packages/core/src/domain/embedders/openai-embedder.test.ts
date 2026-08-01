@@ -124,3 +124,63 @@ describe('createOpenAIEmbedder', () => {
     expect(out[0]).toHaveLength(EMBEDDING_DIM);
   });
 });
+
+describe('erro PERMANENTE não é retriado — 429 tem dois significados', () => {
+  const erro = (status: number, code?: string): Error => {
+    const e = new Error('falhou') as Error & { status: number; code?: string };
+    e.status = status;
+    if (code !== undefined) e.code = code;
+    return e;
+  };
+
+  it('429 de QUOTA esgotada não é retriado — insistir custa segundos e nunca dá certo', async () => {
+    // Medido em produção 2026-08-01: a conta ficou sem crédito, a API respondeu em ~200ms com
+    // `insufficient_quota`, e o nosso backoff insistiu por 9,3 SEGUNDOS a cada consulta. Erro
+    // de crédito é permanente por definição — retriar é gastar o orçamento de latência do
+    // agente numa chamada que não pode passar.
+    let chamadas = 0;
+    const client = {
+      embeddings: {
+        create: () => {
+          chamadas += 1;
+          return Promise.reject(erro(429, 'insufficient_quota'));
+        },
+      },
+    };
+    const emb = createOpenAIEmbedder({ client: client as unknown as OpenAIEmbeddingsClient, maxRetries: 3, initialBackoffMs: 1 });
+    await expect(emb.embed('texto')).rejects.toThrow();
+    expect(chamadas, 'uma tentativa, não quatro').toBe(1);
+  });
+
+  it('429 de RATE LIMIT continua sendo retriado — esse passa', async () => {
+    let chamadas = 0;
+    const client = {
+      embeddings: {
+        create: () => {
+          chamadas += 1;
+          return Promise.reject(erro(429, 'rate_limit_exceeded'));
+        },
+      },
+    };
+    const emb = createOpenAIEmbedder({ client: client as unknown as OpenAIEmbeddingsClient, maxRetries: 2, initialBackoffMs: 1 });
+    await expect(emb.embed('texto')).rejects.toThrow();
+    expect(chamadas, 'tentou de novo — este erro é transitório').toBeGreaterThan(1);
+  });
+
+  it('401/403 não são retriados — credencial errada não conserta sozinha', async () => {
+    for (const st of [401, 403]) {
+      let chamadas = 0;
+      const client = {
+        embeddings: {
+          create: () => {
+            chamadas += 1;
+            return Promise.reject(erro(st));
+          },
+        },
+      };
+      const emb = createOpenAIEmbedder({ client: client as unknown as OpenAIEmbeddingsClient, maxRetries: 3, initialBackoffMs: 1 });
+      await expect(emb.embed('t')).rejects.toThrow();
+      expect(chamadas, `status ${st}`).toBe(1);
+    }
+  });
+});

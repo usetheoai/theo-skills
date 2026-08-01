@@ -14,6 +14,18 @@ export const FUSION_POOL = 50;
 export interface HybridRetrieverDeps {
   readonly vector: SkillRetriever;
   readonly keyword: SkillRetriever;
+  /**
+   * Avisa que uma das pernas caiu — e por quê.
+   *
+   * Sem isto o `.catch(() => [])` abaixo transformava a falha em lista vazia e a busca
+   * respondia 200 com resultado só lexical. Medido em produção 2026-08-01: a conta do
+   * provedor de embedding ficou sem crédito, a descoberta semântica — a promessa central do
+   * produto — parou, e nada acusou: `/v1/health` seguia `ok`.
+   *
+   * Resiliência sem observabilidade é o defeito, não a solução: quem resolve não fica
+   * sabendo, e quem consome não sabe que recebeu menos.
+   */
+  readonly onDegraded?: (perna: 'vector' | 'keyword', err: unknown) => void;
 }
 
 /**
@@ -85,9 +97,13 @@ export function createHybridRetriever(deps: HybridRetrieverDeps): SkillRetriever
         // (`hybrid`) o descartava, e só a `keyword` — inalcançável pela rota — o honrava.
         ...(params.category !== undefined ? { category: params.category } : {}),
       };
+      const degradar = (perna: 'vector' | 'keyword') => (err: unknown): RetrievedSkill[] => {
+        deps.onDegraded?.(perna, err);
+        return [];
+      };
       const [vectorResults, keywordResults] = await Promise.all([
-        deps.vector.retrieve(poolParams).catch((): RetrievedSkill[] => []),
-        deps.keyword.retrieve(poolParams).catch((): RetrievedSkill[] => []),
+        deps.vector.retrieve(poolParams).catch(degradar('vector')),
+        deps.keyword.retrieve(poolParams).catch(degradar('keyword')),
       ]);
       return rrfFuse(vectorResults, keywordResults, params.topK);
     },
