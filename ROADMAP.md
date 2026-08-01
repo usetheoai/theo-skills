@@ -667,7 +667,7 @@ corpo dela do servidor, sem nada em disco.
 
 ---
 
-### M25 — [x] Servidor de descoberta (MCP) (2026-07-31)
+### M25 — [x] Servidor de descoberta (MCP) — stdio + HTTP, no ar (2026-08-01)
 
 **Objective:** Transformar os descritores de ferramenta numa coisa a que um agente consiga
 conectar — o *discover server*.
@@ -679,7 +679,10 @@ conectar — o *discover server*.
 - [x] São QUATRO ferramentas — `load_skill` entrou junto (a carga do M24). Expõem `category` e `execution`, e `search_skills` aceita filtro por categoria.
 - [x] O cliente **nunca** é argumento de ferramenta — verificado no binário, não só no teste: — vem da credencial do servidor. Já há teste que reprova quem adicionar esse parâmetro; ele passa a valer também no servidor.
 - [x] **Transporte HTTP entregue e verificado contra o registry no ar (2026-08-01).** A pendência anterior dizia "decisão de transporte"; era trabalho não feito: o servidor só falava **stdio**, e o `theo-traefik-mcp` fronta servidores MCP por **HTTP**. `transports/streamable-http.ts` espelha a forma do `theo-rag` (Regra 9) e liga um `RegistryPort` **por sessão** a partir do bearer que o gateway cunha por inquilino — registry compartilhado faria o inquilino B ler o catálogo de A, e o sintoma seria resultado plausível, não erro. **Medido ponta a ponta** com chaves cunhadas pela rota de plataforma: `initialize` sem bearer → `401`; com bearer → sessão aberta; `search_skills` no inquilino `default` devolve `ledger-reconciler` com score; **a mesma consulta, no mesmo ouvinte, num inquilino novo devolve `[]`** — isolamento por sessão provado, não presumido. Onze testes de contrato, incluindo corpo gigante pré-auth (`413`), sem-sessão-sem-initialize (`400`) e a recusa de subir fora de localhost sem TLS.
-- [~] **Registro no gateway continua pendente, e agora o que falta é operação, não código:** o `theo-traefik-mcp` resolve upstreams por `THEO_MCP_UPSTREAMS` (capacidade→URL), então registrar exige publicar o ouvinte como serviço no host e acrescentar a capacidade `skills` àquele mapa — mudança nos repos de operação e do gateway, não neste. A barreira que existia (não havia o que registrar) caiu.
+- [x] **Ouvinte publicável e capacidade registrada (2026-08-01).** A imagem NÃO carregava `packages/mcp` — por isso o ouvinte não podia ser publicado, e era esse o elo que faltava. Mesma imagem, dois processos: a API no `CMD` padrão e o ouvinte via `command:`. Duas imagens para um repositório divergiriam no primeiro build em que só uma fosse reconstruída. **Verificado a partir da imagem de produção:** o ouvinte sobe e devolve `401` sem bearer. O serviço `theoskill_mcp` entra no compose de deploy **sem credencial no ambiente** — de propósito: uma `THEOSKILL_AUTH` ali fixaria todas as sessões num inquilino só. `dev/mcp-up.sh` registra a capacidade `skills` **só quando o ouvinte responde**: declarar sempre daria uma capacidade que erra a cada chamada, e um agente lê isso como "a skill não existe", não como "o serviço está fora". Ausente é melhor que presente-e-quebrado.
+  **NO AR no host (2026-08-01):** `theoskill_mcp` rodando, `ouvindo em http://127.0.0.1:18097 → http://127.0.0.1:8080`. Verificado de dentro do ambiente implantado: `initialize` sem bearer → `401`; com chave cunhada pela rota de plataforma → `200` e `mcp-session-id` emitido.
+  **Dois defeitos do reconciliador achados por este deploy, ambos da família "convergiu sobre nada":** (a) ele nomeia os serviços no `up -d`, e o novo ficou de fora; (b) pior — os três eixos de convergência olham só o contêiner da API, então um serviço **que nunca existiu** não diverge em imagem, nem em execução, nem em proveniência: duas convergências seguidas reportaram sucesso sobre um serviço ausente do host. Quarto eixo acrescentado: **todo serviço declarado no compose existe e roda**, com a lista vinda do próprio compose — uma segunda lista para manter é a que fica para trás, e foi assim que o defeito nasceu.
+  **Achado ao testar a imagem, não a suíte:** `--tls-cert /dev/null` passava pela guarda de não-localhost e o ouvinte anunciava `https` sobre material TLS **vazio**. Vazio agora é ausente, com teste.
 
 **Dependencies:** M24.
 
@@ -722,6 +725,30 @@ afirmam mais do que existe.
 - [x] Caminho de **escrita** de bundle — cinco rotas. **Medido no ar**: bundle criado (`201`), itens definidos (substituem, não mesclam), credencial cunhada com `expires_at`, revogada (`200`). `ttl_days` ausente é `400` com a razão: credencial de terceiro sem prazo é a que ninguém revoga.
 - [x] Rota de distribuição ligada no ambiente — `SKILLS_DISTRIBUTION_QUOTA=600` por credencial em janela de 60s, verificado dentro do contêiner. O nome importa: o `.env` do host usa `SKILLS_*` e o compose o traduz para `THEOSKILL_*`; escrever o nome interno deixaria o arquivo com aparência de configurado e sem efeito algum.
 - [x] Revisados. **M19 e M20 voltam a `[x]`**: as duas metades que faltavam foram entregues e verificadas contra o serviço, não contra a suíte.
+
+**Reverificação de 2026-08-01 — dois defeitos que os checkboxes acima não pegaram.**
+Ambos foram encontrados **exercitando a jornada inteira contra o serviço no ar**, não lendo
+código, e ambos ficam entre o que um checkbox afirma e o que o serviço faz:
+
+1. **A segunda publicação nascia sem versão** (`ceb1736`, no ar em `6750551`). O primeiro DoD
+   acima dizia "a coluna passa a ser escrita" — e era verdade para a **primeira** publicação
+   de cada skill. O job de atualização não carregava a versão, e o worker a descartava antes
+   de gravar. Como a listagem de versões só enxerga revisões versionadas, o versionamento
+   valia para a primeira publicação e para nenhuma outra, **sem erro algum**. Eram dois elos:
+   corrigir só a rota reproduz o mesmo sintoma. Medido no ar: `1.0.0` → `1.1.0` via `PATCH`,
+   promoção e rollback exatos entre as duas.
+
+2. **A adoção estava do lado errado da fronteira de autenticação** (`56ea1ca`, no ar em
+   `8a0002b`). Ela era registrada junto das rotas de distribuição — que ficam **antes** do
+   middleware de auth, com razão, porque quem as consome não é membro de workspace algum. Mas
+   a adoção lê o principal, que ali ainda não existe: **404 permanente**, sem erro e sem log,
+   com o publisher vendo o próprio pacote responder "não existe". Medido no ar após a
+   correção: `200` com uma instalação real contabilizada, distribuição seguindo em `200`, e
+   `401` para o consumidor que tenta ler adoção.
+
+A lição vale além destes dois: **um checkbox marcado sobre uma verificação de caminho único
+afirma mais do que mediu.** Os dois defeitos estavam exatamente na segunda passada — a
+segunda publicação, o segundo lado da fronteira.
 
 **Dependencies:** M19, M20, M24.
 

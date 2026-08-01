@@ -160,6 +160,10 @@ export function createUpdateSkillHandler(
           contentHash: data.content_hash,
           frontmatter: data.frontmatter,
           skillMd: data.skill_md ?? '',
+          // Segundo elo: enfileirar a versão não basta — descartá-la AQUI produzia o mesmo
+          // sintoma, com a rota já correta. `versionsOf` só lista revisões com versão, então
+          // uma coluna nula faz o canal não ter para onde apontar, sem erro algum.
+          ...(data.version !== undefined ? { version: data.version } : {}),
         });
       }
     });

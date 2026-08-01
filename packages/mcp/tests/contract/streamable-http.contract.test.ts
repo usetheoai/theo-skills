@@ -59,6 +59,17 @@ describe('assertNonLocalhostHasTls', () => {
   });
 });
 
+describe('material TLS vazio', () => {
+  it('RECUSA cert/key vazios — a guarda de não-localhost não pode ser satisfeita com nada', async () => {
+    // Encontrado testando a imagem: `--tls-cert /dev/null` faz `readFileSync` devolver string
+    // vazia, a guarda vê `tls !== undefined` e o ouvinte ANUNCIA `https` sobre material que não
+    // negocia. É a família de sempre — parece configurado, não é. Vazio é ausente.
+    await expect(
+      connectStreamableHttp({ host: '0.0.0.0', port: 0, buildRegistry: () => registryVazio, tls: { cert: '', key: '' } }),
+    ).rejects.toThrow(/TLS/);
+  });
+});
+
 describe('bearerFrom', () => {
   it('extrai o token', () => {
     expect(bearerFrom('Bearer tsk_abc')).toBe('tsk_abc');
