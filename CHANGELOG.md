@@ -10,6 +10,7 @@ ao [Semantic Versioning](https://semver.org/).
 ### Security
 
 - **O portão de merge não existia.** Os workflows rodavam em cada PR e reportavam o resultado, mas `develop` e `main` **não tinham proteção alguma** — nada impedia mergear um PR com teste vermelho. São duas camadas que garantem coisas diferentes, e só a primeira estava de pé: o hook local garante que o trabalho NASCE no lugar certo; a proteção de branch é o que torna o portão OBRIGATÓRIO. Os três checks (build/lint/typecheck, integração contra Postgres real, semgrep + gitleaks) agora são exigidos nas duas branches, com o PR obrigado a estar em dia com a base e **a exigência valendo também para quem tem administração** — sem isso o portão não valeria justamente para quem merge. Force-push e deleção bloqueados.
+- **O portão recém-criado bloqueava todo PR de documentação, e o defeito era do próprio portão.** Dois dos três workflows exigidos ignoravam mudanças em Markdown — e ignorar não pula o job, pula o workflow inteiro: nenhum resultado é reportado, e um check exigido que nunca reporta deixa o PR travado para sempre. Medido no primeiro PR só de documentação depois da mudança. O filtro saiu do gatilho de PR (segue valendo depois do merge, onde nada é bloqueado por ele). A alternativa de filtrar por dentro do job foi recusada: condição errada reporta sucesso sem ter testado nada, e portão verde sobre mudança não testada é pior que minuto de runner gasto num README.
 
 ### Changed
 
