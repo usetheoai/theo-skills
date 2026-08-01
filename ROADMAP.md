@@ -667,6 +667,52 @@ corpo dela do servidor, sem nada em disco.
 
 ---
 
+### M28 — [ ] A ponte para o Theokit não existe (bloqueia o cenário-âncora)
+
+**Objective:** Tornar uma skill remota, descoberta em runtime, consumível por um agente
+Theokit real. Hoje **não é**, e a razão é estrutural — não é configuração faltando.
+
+**O que foi medido em 2026-08-01**, lendo o contrato do `@theokit/agents`
+(`packages/agents/src/skills-resolver.ts` em `usetheodev/theokit`):
+
+```
+export type SkillsSelection =
+  | readonly (string | InlineSkill)[]                            // ESTÁTICO
+  | ((ctx) => readonly string[] | Promise<readonly string[]>)    // DINÂMICO: só NOMES
+```
+
+E o comentário do próprio arquivo: *"The resolver returns filesystem skill NAMES (inline
+skills are static — declared on the agent)."*
+
+Os dois caminhos são incompatíveis com o que este produto entrega:
+
+| Caminho do Theokit | Por que não serve |
+|---|---|
+| Resolver dinâmico | Devolve **nomes de skills do filesystem**. Nosso `resolve(query)` devolve objetos com corpo — o narrowing defensivo os rejeita (`must return an array of skill names`). |
+| Lista estática (`createSkill`) | Aceita objetos, mas é **declarada no agente em tempo de compilação**. Descoberta por intenção em runtime não cabe ali. |
+
+Uma busca por `theo-skills` no repositório do Theokit devolve **zero ocorrências**: os dois
+lados não se conhecem.
+
+**Consequência honesta para os marcos já fechados.** O item 3 do DoD de M24 diz "o SDK **e o
+provider Theokit** passam a carregar por esta rota". A metade do SDK é verdade e está testada;
+a metade do provider **não tem caminho de execução**. E o cenário-âncora do dogfood
+(`theokit-remote-provider` — "um agente Theokit real descobre e carrega uma skill do registry")
+**não é executável hoje**, motivo pelo qual a evidência de 2026-08-01 está registrada como
+`partial` e não como `pass`.
+
+**Definition of done:**
+
+- [ ] Decidido *onde* a ponte vive — um provider no Theokit que consome nosso SDK, ou um
+      adaptador aqui que materializa a skill no layout que o Theokit lê. A escolha é de
+      arquitetura entre dois produtos e precisa de ADR, não de código primeiro.
+- [ ] Um agente Theokit real (o `agent-builder`) descobre uma skill que **não conhecia** e
+      carrega o corpo dela do registry no ar.
+- [ ] O cenário-âncora do dogfood sai de `partial` para `pass`, com evidência da execução.
+- [ ] O item 3 do DoD de M24 é reescrito para dizer o que passou a ser verdade.
+
+**Dependencies:** M24 (a rota de carga existe e está testada).
+
 ### M25 — [x] Servidor de descoberta (MCP) — stdio + HTTP, no ar (2026-08-01)
 
 **Objective:** Transformar os descritores de ferramenta numa coisa a que um agente consiga
