@@ -7,6 +7,17 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-08-01
+
+### Fixed
+
+- **O filtro por categoria era descartado em silêncio.** A ferramenta MCP anunciava o filtro ao modelo e o cliente o punha na URL, mas a rota nunca o lia — e um esquema não-estrito remove chave desconhecida **sem erro**. Nenhuma busca era jamais filtrada: o agente recebia skills de qualquer categoria e a resposta parecia certa. O modo mais caro de errar, porque ninguém investiga o que parece funcionar. (#review-m24-m27)
+- **Republicar não atualizava categoria nem modo de execução.** As duas colunas congelavam no valor da **primeira** publicação. `execution` é o que decide se um pacote **com scripts** pode ser servido como instrução remota: uma skill publicada como remota e republicada como local continuava anunciada como remota, e o gate que existe para recusá-la nunca disparava. (#review-m24-m27)
+- **A busca perdia o modo de execução.** A perna vetorial não trazia as colunas, e a fusão — que é a estratégia **padrão** — preservava a linha dela. Para toda skill presente nas duas listas (o caso comum) o campo sumia do resultado, e quem consome trata ausente como permitido. (#review-m24-m27)
+- **Atualizar uma skill escrevia no runtime errado.** O comando usava o runtime para **ler** a procedência e não o repassava para **escrever**: a skill do agente Theokit ficava congelada na revisão antiga enquanto uma cópia nova aparecia noutro diretório — sem erro, e reportando sucesso. (#review-m24-m27)
+- **O SDK nunca carregava a instrução em produção.** A carga remota existia atrás de uma opção que **nenhum caminho de produção ligava**; o próprio runner de evidência media um caminho que nunca a chamava, e o texto de indisponibilidade seguia preenchendo o campo que a carga remota existe para substituir. (#review-m24-m27)
+- **Listar pacotes fazia `1 + 2N` consultas** — com 50 pacotes, 101 idas ao banco numa requisição. Agora são duas. (#review-m24-m27)
+
 ## [0.11.0] - 2026-08-01
 
 ### Added
@@ -14,12 +25,6 @@ ao [Semantic Versioning](https://semver.org/).
 - **A imagem passa a carregar o servidor MCP, e não só a API.** Sem isso o ouvinte HTTP entregue na versão anterior não tinha como ser publicado — o transporte existia e o artefato que o hospedaria, não. É a mesma imagem servindo dois processos, de propósito: duas imagens para um repositório divergiriam no primeiro build em que só uma fosse reconstruída, e a divergência apareceria como comportamento diferente entre superfícies do mesmo commit.
 
 ### Fixed
-- **O filtro por categoria era descartado em silêncio.** A ferramenta MCP anunciava o filtro ao modelo e o cliente o punha na URL, mas a rota nunca o lia — e um esquema não-estrito remove chave desconhecida **sem erro**. Nenhuma busca era jamais filtrada: o agente recebia skills de qualquer categoria e a resposta parecia certa. O modo mais caro de errar, porque ninguém investiga o que parece funcionar. (#review-m24-m27)
-- **Republicar não atualizava categoria nem modo de execução.** As duas colunas congelavam no valor da **primeira** publicação. `execution` é o que decide se um pacote **com scripts** pode ser servido como instrução remota: uma skill publicada como remota e republicada como local continuava anunciada como remota, e o gate que existe para recusá-la nunca disparava. (#review-m24-m27)
-- **A busca perdia o modo de execução.** A perna vetorial não trazia as colunas, e a fusão — que é a estratégia **padrão** — preservava a linha dela. Para toda skill presente nas duas listas (o caso comum) o campo sumia do resultado, e quem consome trata ausente como permitido. (#review-m24-m27)
-- **Atualizar uma skill escrevia no runtime errado.** O comando usava o runtime para **ler** a procedência e não o repassava para **escrever**: a skill do agente Theokit ficava congelada na revisão antiga enquanto uma cópia nova aparecia noutro diretório — sem erro, e reportando sucesso. (#review-m24-m27)
-- **O SDK nunca carregava a instrução em produção.** A carga remota existia atrás de uma opção que **nenhum caminho de produção ligava**; o próprio runner de evidência media um caminho que nunca a chamava, e o texto de indisponibilidade seguia preenchendo o campo que a carga remota existe para substituir. (#review-m24-m27)
-- **Listar pacotes fazia `1 + 2N` consultas** — com 50 pacotes, 101 idas ao banco numa requisição. Agora são duas. (#review-m24-m27)
 - **A adoção estava do lado errado da fronteira de autenticação** (M27). As rotas de distribuição ficam **antes** do middleware de autenticação — e com razão: quem as consome é o cliente de um publisher, que não é membro de workspace algum. A rota de adoção foi junto por proximidade de domínio, mas ela lê o principal autenticado, que naquele ponto ainda não existe. O resultado era um **404 permanente**: sem erro, sem log, apenas o publisher vendo o próprio pacote responder "não existe". Medido contra o serviço no ar. As duas metades agora são registradas separadamente, cada uma do lado a que pertence. (#M27)
 - **A segunda publicação nascia sem versão** (M27). O job de CRIAÇÃO carregava a versão declarada; o de ATUALIZAÇÃO, não — e o worker a descartava antes de gravar. Da segunda publicação em diante a coluna nascia nula, e como a listagem de versões só enxerga revisões versionadas, o versionamento funcionava para a primeira publicação de cada skill e para nenhuma outra — **sem erro algum**: um canal simplesmente não tinha para onde apontar. Eram **dois elos**, e corrigir só um reproduzia o mesmo sintoma com a rota já correta. (#M27)
 
@@ -145,10 +150,8 @@ ao [Semantic Versioning](https://semver.org/).
 ### Changed
 - `Clock` (wall-clock `now(): Date`) consolidado num módulo único `api/server/time/clock.ts`, reusado pelos 3 webhook workers (DRY); o clock de latência do retrieve (`now(): number` monotônico) fica interno e renomeado para evitar confusão (#10)
 
-
 ### Removed
 - Dependências mortas removidas: `@paralleldrive/cuid2` do `core` (não usado lá; o `api` usa+declara) e `zod` do `api` (os schemas vêm via `@usetheo/skillregistry/contract`); export morto `realClock` (#10)
-
 
 ### Security
 - O scrubbing do logger passa a recursar em valores-objeto (um segredo aninhado num campo, ex. `{ context: { authorization } }`, agora também é redigido); arrays/Date/null preservados (#10)
@@ -163,15 +166,12 @@ ao [Semantic Versioning](https://semver.org/).
 - M9: seleção de embedder vira um registry ordenado `{name, detect, create}` (OCP) — adicionar um provider é adicionar uma entrada, sem editar `selectEmbedder`; comportamento atual (openai/stub) preservado; 3º provider deferido por YAGNI (ADR-3) (#9)
 - M9: rastreabilidade ponta-a-ponta — um `trace_id` (W3C `traceparent`-compatível) é originado na fronteira HTTP (ou gerado quando ausente/malformado) e propagado por operação → job → webhook, logado em cada salto e persistido na delivery row (sobrevive ao re-enqueue do reconciler). Seam mínimo (`node:crypto`, sem SDK OpenTelemetry — o M8 adota e adiciona exporters) (#9)
 
-
 ### Changed
 - M9: backoff de entrega de webhook agora é uma política explícita (`WEBHOOK_DELIVERY_BACKOFF`: exponencial + full jitter, base 2s, cap 5min, 5 tentativas) com função pura testável (`computeBackoff`), em vez de números mágicos inline; o pg-boss aplica o exponencial derivado da política (#9)
 - Template de instalação (`.claude/settings.json`): `permissions.defaultMode` passa a `bypassPermissions` e `pnpm`/`npm`/`npx`/`pnpx`/`yarn`/`node`/`corepack` movidos de `ask` para `allow` (lista `ask` esvaziada) — Claude Code deixa de pedir confirmação por padrão; os `deny` destrutivos (rm -rf de paths de sistema, sudo, git checkout/reset --hard/push --force/rebase -i, leitura de `.env`/secrets) permanecem como guarda-corpo
 
-
 ### Fixed
 - `/discover-plan-confidence`: threshold parser read the wrong delimiter (`|`) so every discovery plan scored `INVALID` regardless of quality; now reads the documented `KEY = VALUE` band format (ADR 0001) (#8)
-
 
 ### Security
 - M9: o logger estruturado passa a redigir valores de chaves sensíveis (authorization/password/token/secret e sufixos `_token`/`_secret`/`_key`/`_password`) antes de emitir — segredos nunca vazam para os logs (#9)
@@ -187,7 +187,6 @@ ao [Semantic Versioning](https://semver.org/).
   imprime erros por regra; `publish <path> --registry <url> --skill-id <id>` valida → empacota (yazl)
   → publica reusando a API Create/Update (POST novo / PATCH existente). Args via `node:util parseArgs`
   (sem dep de arg-parser); exit codes scriptáveis (#8)
-
 
 ### Changed
 - M5: a fronteira do servidor (`POST`/`PATCH /v1/skills`) passa a delegar a validação ao
@@ -261,18 +260,15 @@ ao [Semantic Versioning](https://semver.org/).
   (updateMask; nova revisão quando há payload), `DELETE /v1/skills/{id}` + reserva de skillId
   com janela configurável (`THEOSKILL_ID_RESERVATION_HOURS`), `GET .../revisions[/{id}]` (#4)
 
-
 ### Changed
 - M1: parser YAML do frontmatter usa `yaml` (eemeli, ISC) em vez de `gray-matter` — este fixa
   `js-yaml` 3.x, afetado pela CVE GHSA-h67p-54hq-rp68 (DoS quadrático), sem upgrade seguro (#4)
-
 
 ### Fixed
 - M1: um `skillId` deletado pode ser recriado após a janela de reserva expirar (o tombstone
   expirado é purgado atomicamente no create) — corrige bug encontrado no `/review` que tornava
   ids permanentemente irreutilizáveis (#4)
 - M1: índice em `skill_revisions(skill_id, create_time desc)` evita seq-scan no list de revisões (#4)
-
 
 ### Security
 - M1: `POST`/`PATCH /v1/skills` rejeita corpo acima do limite com `413` (guarda de DoS de
@@ -296,11 +292,9 @@ ao [Semantic Versioning](https://semver.org/).
   com máquina de estados de operação e graceful shutdown ordenado (server→queue→pool), validado
   por teste E2E criar→aguardar→obter contra Postgres real (#3)
 
-
 ### Fixed
 - M0: criação de skill com `skillId` duplicado sob concorrência resolve de forma determinística
   (exatamente uma skill criada; demais operações concluem como `failed`) — endurecido após
   `/review` com teste E2E de concorrência (#3)
 - M0: falha ao enfileirar a operação marca-a imediatamente como `failed` em vez de deixá-la
   presa em `CREATING` (#3)
-
