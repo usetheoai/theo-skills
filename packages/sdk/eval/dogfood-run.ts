@@ -51,6 +51,11 @@ async function main(): Promise<void> {
   const manager = createRemoteSkillsManager({
     client,
     onDegraded: (m) => degradacoes.push(m),
+    // LIGADO aqui, e é o ponto: sem isto o runner media um caminho que nunca chama
+    // `instructions()` — ou seja, media a busca e chamava aquilo de evidência da carga
+    // remota. O texto de indisponibilidade seguia preenchendo `instructions`, exatamente o
+    // que o M24 existe para substituir.
+    loadInstructions: true,
   });
 
   const latencias: number[] = [];

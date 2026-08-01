@@ -35,8 +35,27 @@ export function rrfFuse(
       const existing = fused.get(skill.skill_id);
       if (existing !== undefined) {
         existing.score += term;
+        // MESCLA, não descarta. Os dois lados projetam colunas diferentes: `execution` e
+        // `category` vinham só do keyword, e como o vetor é acumulado primeiro a linha dele
+        // — sem os campos — vencia. Para toda skill presente nas DUAS listas (o caso comum)
+        // os campos sumiam do resultado, e o cliente trata ausente como permitido. Nada
+        // errava: a resposta era plausível e incompleta.
+        //
+        // Preenche só o que falta, campo a campo e por nome: o que já veio da lista de
+        // maior precedência fica. Enumerar os campos em vez de varrer o objeto mantém a
+        // mescla visível — um campo novo no contrato aparece aqui como decisão, não é
+        // copiado por acidente.
+        existing.skill = {
+          ...existing.skill,
+          ...(existing.skill.execution === undefined && skill.execution !== undefined
+            ? { execution: skill.execution }
+            : {}),
+          ...(existing.skill.category === undefined && skill.category !== undefined
+            ? { category: skill.category }
+            : {}),
+        };
       } else {
-        fused.set(skill.skill_id, { skill, score: term });
+        fused.set(skill.skill_id, { skill: { ...skill }, score: term });
       }
     }
   };
@@ -59,7 +78,13 @@ export function rrfFuse(
 export function createHybridRetriever(deps: HybridRetrieverDeps): SkillRetriever {
   return {
     async retrieve(params: RetrieveParams): Promise<RetrievedSkill[]> {
-      const poolParams: RetrieveParams = { query: params.query, topK: Math.max(params.topK, FUSION_POOL) };
+      const poolParams: RetrieveParams = {
+        query: params.query,
+        topK: Math.max(params.topK, FUSION_POOL),
+        // O filtro tem de atravessar para as DUAS pernas. Sem isto a estratégia PADRÃO
+        // (`hybrid`) o descartava, e só a `keyword` — inalcançável pela rota — o honrava.
+        ...(params.category !== undefined ? { category: params.category } : {}),
+      };
       const [vectorResults, keywordResults] = await Promise.all([
         deps.vector.retrieve(poolParams).catch((): RetrievedSkill[] => []),
         deps.keyword.retrieve(poolParams).catch((): RetrievedSkill[] => []),

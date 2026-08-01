@@ -57,11 +57,24 @@ describeIntegration('M27 — adoção vive atrás da autenticação', () => {
     });
     const { bundle_id } = (await criar.json()) as { bundle_id: string };
 
+    // SEMEIA instalação real em DOIS inquilinos sobre o mesmo bundle. Sem isto a asserção
+    // seria `Array.isArray([])`, que fica verde tanto com a rota certa quanto com o store
+    // construído no inquilino ERRADO — os dois devolvem lista vazia. É o formato de teste
+    // que já deixou passar três defeitos de inquilino neste repositório.
+    const store = await import('../../src/server/store/adoption-store.js');
+    const db = (await import('../../src/server/db.js')).createDb(getPool());
+    await store.createAdoptionStore(db, 'ws_pub').record({
+      bundleId: bundle_id, tokenId: 'dtk_1', skillId: 'sk_meu', revisionId: 'rev_1', version: '1.0.0',
+    });
+    await store.createAdoptionStore(db, 'ws_outro').record({
+      bundleId: bundle_id, tokenId: 'dtk_2', skillId: 'sk_alheio', revisionId: 'rev_9', version: '9.9.9',
+    });
+
     const res = await a.request(`/v1/bundles/${bundle_id}/adoption`);
     expect(res.status, 'o dono do bundle enxerga a própria adoção').toBe(200);
-    const body = (await res.json()) as { bundle_id: string; adoption: unknown[] };
+    const body = (await res.json()) as { bundle_id: string; adoption: { skillId: string; installs: number }[] };
     expect(body.bundle_id).toBe(bundle_id);
-    expect(Array.isArray(body.adoption), 'sem instalações ainda: lista vazia, não erro').toBe(true);
+    expect(body.adoption.map((a) => a.skillId), 'só a instalação do PRÓPRIO inquilino').toEqual(['sk_meu']);
   });
 
   it('a rota de DISTRIBUIÇÃO continua servindo o consumidor sem Principal — a razão do desenho', async () => {

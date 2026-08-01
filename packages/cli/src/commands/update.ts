@@ -100,5 +100,11 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
     ...(deps.skillsDir !== undefined ? { skillsDir: deps.skillsDir } : {}),
     ...(deps.global !== undefined ? { global: deps.global } : {}),
     ...(deps.now !== undefined ? { now: deps.now } : {}),
+    // O runtime resolve o diretório nas DUAS pontas. Ele era usado só para LER a procedência;
+    // omiti-lo aqui fazia a escrita cair no default (`claude`), então a skill do agente
+    // Theokit ficava congelada na revisão antiga enquanto uma cópia nova aparecia noutro
+    // lugar — sem erro, e com o comando reportando sucesso.
+    ...(deps.runtime !== undefined ? { runtime: deps.runtime } : {}),
+    ...(deps.force !== undefined ? { force: deps.force } : {}),
   });
 }
