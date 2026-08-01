@@ -156,3 +156,25 @@ describe('a busca tem TETO de tempo — uma perna lenta não sequestra a respost
     expect(out.map((s) => s.skill_id)).toEqual(['a']);
   });
 });
+
+describe('o race não pode ser desfeito por um await posterior', () => {
+  it('a resposta sai no teto mesmo que a perna lenta NUNCA termine', async () => {
+    // Hipótese do coordenador, testada: um `Promise.race` não CANCELA a perna lenta — só
+    // deixa de esperar por ela. Se qualquer passo depois do race (a fusão, um `Promise.all`
+    // das duas, um `finally`) voltar a esperá-la, os 9 s reaparecem e o teto vira decoração.
+    //
+    // Aqui a perna lenta nunca resolve. Se a resposta sair, o race não foi desfeito.
+    const nuncaResolve: SkillRetriever = { retrieve: () => new Promise<RetrievedSkill[]>(() => undefined) };
+    const rapida: SkillRetriever = { retrieve: () => Promise.resolve([sk('viva')]) };
+
+    const t0 = Date.now();
+    const out = await createHybridRetriever({ vector: nuncaResolve, keyword: rapida, timeoutMs: 80 }).retrieve({
+      query: 'x',
+      topK: 5,
+    });
+    const gasto = Date.now() - t0;
+
+    expect(out.map((s) => s.skill_id)).toEqual(['viva']);
+    expect(gasto, 'saiu no teto, não esperou o infinito').toBeLessThan(800);
+  });
+});

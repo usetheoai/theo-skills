@@ -92,3 +92,22 @@ describe('resolveAppOptionsFromEnv — credencial de plataforma (M22)', () => {
     expect(resolveAppOptionsFromEnv({ THEOSKILL_PLATFORM_ADMIN_KEY: ' seg-redo ' }).platformAdminKey).toBe('seg-redo');
   });
 });
+
+describe('teto da busca — variável ausente NÃO significa desligado', () => {
+  it('sem a variável, vale o padrão — `Number("")` é 0 e me enganou', async () => {
+    // O DEFEITO, e é meu, escrito hoje: `Number(process.env[X] ?? '')` devolve **0** quando a
+    // variável não existe — e 0 é finito e >= 0, então a guarda `Number.isFinite(raw) && raw >= 0`
+    // o aceitava como valor legítimo. O teto virava 0, o `> 0` a jusante o descartava, e a
+    // busca continuava esperando 9,4 s em produção com o código do teto presente na imagem.
+    //
+    // Ausente e "0" são coisas diferentes: ausente = "não escolhi, use o padrão"; "0" =
+    // "escolhi desligar". Colapsar os dois é o mesmo erro de tratar `undefined` como valor.
+    const { retrieveTimeoutMsFromEnv } = await import('../../src/server/app.js');
+    expect(retrieveTimeoutMsFromEnv({}), 'ausente → padrão').toBe(3_000);
+    expect(retrieveTimeoutMsFromEnv({ THEOSKILL_RETRIEVE_TIMEOUT_MS: '' }), 'vazia → padrão').toBe(3_000);
+    expect(retrieveTimeoutMsFromEnv({ THEOSKILL_RETRIEVE_TIMEOUT_MS: '  ' }), 'só espaços → padrão').toBe(3_000);
+    expect(retrieveTimeoutMsFromEnv({ THEOSKILL_RETRIEVE_TIMEOUT_MS: '0' }), '"0" → desligado, explícito').toBe(0);
+    expect(retrieveTimeoutMsFromEnv({ THEOSKILL_RETRIEVE_TIMEOUT_MS: '500' })).toBe(500);
+    expect(retrieveTimeoutMsFromEnv({ THEOSKILL_RETRIEVE_TIMEOUT_MS: 'abc' }), 'lixo → padrão').toBe(3_000);
+  });
+});
