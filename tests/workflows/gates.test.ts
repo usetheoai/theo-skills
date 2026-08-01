@@ -152,3 +152,34 @@ describe('o publish não pode liberar imagem sobre integração não verificada'
     expect(integration, 'e precisa de um Postgres — sem ele a suíte pula tudo').toMatch(/postgres/i);
   });
 });
+
+describe('a condição do `image` precisa VETAR por cada gate, não só declarar `needs`', () => {
+  it('exige `result == success` de TODOS os gates que declara em `needs`', () => {
+    // O DEFEITO, e é a terceira vez que a mesma classe aparece nesta correção: com
+    // `always()` o `needs` PARA DE VETAR. O job roda mesmo com dependência falha, e o único
+    // veto passa a ser o `result` checado explicitamente na condição. Eu declarei
+    // `needs: [gate-ci, gate-integration]` e checava só o `gate-ci` — então o gate de
+    // integração existia no grafo, aparecia verde no run, e NÃO impedia a imagem de subir
+    // com a integração vermelha.
+    //
+    // `always()` é necessário aqui por outra razão (o guard de release é `skipped` fora de
+    // tag, e o skip se propaga pela cadeia). O preço de usá-lo é este: cada gate precisa ser
+    // vetado à mão. Este teste é o que impede a próxima adição de `needs` de esquecer.
+    const doc = parse(readFileSync(wf('publish.yml'), 'utf8')) as {
+      jobs: Record<string, { needs?: string[] | string; if?: string }>;
+    };
+    const image = doc.jobs['image'];
+    const needs = Array.isArray(image?.needs) ? image.needs : image?.needs !== undefined ? [image.needs] : [];
+    const cond = image?.if ?? '';
+
+    expect(needs.length, 'o job declara gates').toBeGreaterThan(0);
+    if (cond.includes('always()')) {
+      for (const gate of needs) {
+        expect(cond, `\`${gate}\` está em needs mas a condição não o veta`).toContain(
+          `needs.${gate}.result == 'success'`,
+        );
+      }
+    }
+  });
+});
+

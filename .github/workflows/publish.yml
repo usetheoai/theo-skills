@@ -76,7 +76,17 @@ jobs:
     # CADEIA de `needs`, então este job ficava `skipped` mesmo com o `gate-ci` verde — a
     # imagem NUNCA era publicada, e o workflow reportava `success`. Um pipeline que passa sem
     # produzir o artefato é pior que um que falha: ninguém vai investigar o verde.
-    if: ${{ always() && needs.gate-ci.result == 'success' }}
+    #
+    # O PREÇO DE `always()`, e ele me pegou: com `always()` o `needs` PARA DE VETAR. O job
+    # roda mesmo com dependência falha, e o único veto passa a ser o `result` checado aqui.
+    # Eu declarei `needs: [gate-ci, gate-integration]` e checava só o `gate-ci` — o gate de
+    # integração existia no grafo, aparecia verde no run, e NÃO impedia a imagem de subir com
+    # a integração vermelha. É a mesma classe que este arquivo inteiro documenta: uma camada
+    # afirmando sucesso sobre a falha da anterior — desta vez dentro do próprio gate.
+    #
+    # CADA gate declarado em `needs` precisa ser vetado à mão, aqui. `tests/workflows/gates.test.ts`
+    # trava isso: acrescentar um `needs` sem o veto correspondente deixa a suíte vermelha.
+    if: ${{ always() && needs.gate-ci.result == 'success' && needs.gate-integration.result == 'success' }}
     uses: ./.github/workflows/build-publish.yml
     with:
       image: theo-skills
