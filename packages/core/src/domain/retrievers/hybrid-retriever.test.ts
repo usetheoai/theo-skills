@@ -85,3 +85,39 @@ describe('a fusão não pode PERDER campo que só um lado projetou', () => {
     expect(fundido[0]?.category).toBe('Ops');
   });
 });
+
+describe('a degradação da busca precisa ser VISÍVEL', () => {
+  it('quando a perna vetorial falha, o híbrido AVISA — não serve resultado pior com cara de bom', async () => {
+    // Medido em produção 2026-08-01: a conta do provedor de embedding ficou sem crédito, a
+    // perna vetorial passou a falhar, e o `.catch(() => [])` a transformava em lista vazia.
+    // A busca respondia 200 com resultado LEXICAL, e a descoberta semântica — a promessa
+    // central do produto — estava morta sem que nada acusasse. `/v1/health` dizia `ok`.
+    //
+    // Resiliência sem observabilidade é o defeito, não a solução: quem resolve não fica
+    // sabendo, e quem consome não sabe que recebeu menos.
+    const avisos: string[] = [];
+    const explode: SkillRetriever = { retrieve: () => Promise.reject(new Error('sem credito')) };
+    const lista: SkillRetriever = { retrieve: () => Promise.resolve([sk('a')]) };
+
+    const r = createHybridRetriever({
+      vector: explode,
+      keyword: lista,
+      onDegraded: (perna, err) => avisos.push(`${perna}: ${(err as Error).message}`),
+    });
+    const out = await r.retrieve({ query: 'x', topK: 5 });
+
+    expect(out.map((s) => s.skill_id), 'a perna viva ainda responde').toEqual(['a']);
+    expect(avisos, 'e a falha foi ANUNCIADA, com a causa').toEqual(['vector: sem credito']);
+  });
+
+  it('sem falha alguma, ninguém é avisado', async () => {
+    const avisos: string[] = [];
+    const r = createHybridRetriever({
+      vector: { retrieve: () => Promise.resolve([sk('a')]) },
+      keyword: { retrieve: () => Promise.resolve([sk('b')]) },
+      onDegraded: (p) => avisos.push(p),
+    });
+    await r.retrieve({ query: 'x', topK: 5 });
+    expect(avisos).toEqual([]);
+  });
+});

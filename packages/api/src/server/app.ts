@@ -248,7 +248,24 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   const retrieveEmbedder = opts.embedder ?? selectEmbedder();
   registerRetrieveRoutes(app, {
     retrieverFor: (ws: string) =>
-      createDispatchingRetriever({ executor: retrieveExecutor, embedder: retrieveEmbedder, workspaceId: ws }),
+      createDispatchingRetriever({
+        executor: retrieveExecutor,
+        embedder: retrieveEmbedder,
+        workspaceId: ws,
+        // A queda de uma perna vira LOG, com a razão. Sem isto ela virava lista vazia e a
+        // busca respondia 200 com resultado pior — o operador só descobriria pela reclamação
+        // de quem consome, se descobrisse.
+        onDegraded: (perna, err) => {
+          logger.error(
+            {
+              leg: perna,
+              workspace_id: ws,
+              reason: err instanceof Error ? err.message : String(err),
+            },
+            'retrieve degradado',
+          );
+        },
+      }),
     logger,
   });
 
