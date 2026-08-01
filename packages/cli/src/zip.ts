@@ -45,16 +45,28 @@ export async function packageSkill(path: string): Promise<Buffer> {
     files.map(async (f) => ({
       name: relative(path, f).split(sep).join(posix.sep),
       content: await readFile(f),
+      mode: (await stat(f)).mode,
     })),
   );
   return zipEntries(entries);
 }
 
-function zipEntries(entries: readonly { name: string; content: Buffer }[]): Promise<Buffer> {
+function zipEntries(
+  entries: readonly { name: string; content: Buffer; mode?: number }[],
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const zip = new yazl.ZipFile();
     for (const e of entries) {
-      zip.addBuffer(e.content, e.name);
+      // O MODO PRECISA ENTRAR NO ZIP. `addBuffer` sem `mode` grava
+      // `externalFileAttributes = 0`, e aí nem o extrator mais correto tem o que restaurar:
+      // um script publicado com 755 chega ao disco do agente como 644, e ele recebe
+      // "permissão negada" ao seguir a própria instrução da skill. Medido em 2026-08-01, na
+      // jornada completa contra o registry no ar.
+      //
+      // Só o bit de execução viaja, e só quando existe na origem. Propagar o modo inteiro
+      // deixaria um zip de terceiro carregar `setuid`/`setgid` para o disco de quem instala.
+      const exec = ((e.mode ?? 0) & 0o111) !== 0;
+      zip.addBuffer(e.content, e.name, exec ? { mode: 0o100755 } : {});
     }
     zip.end();
     const chunks: Buffer[] = [];
