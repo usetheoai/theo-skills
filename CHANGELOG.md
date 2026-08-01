@@ -7,6 +7,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-01
+
 ### Added
 
 - **A imagem passa a carregar o servidor MCP, e não só a API.** Sem isso o ouvinte HTTP entregue na versão anterior não tinha como ser publicado — o transporte existia e o artefato que o hospedaria, não. É a mesma imagem servindo dois processos, de propósito: duas imagens para um repositório divergiriam no primeiro build em que só uma fosse reconstruída, e a divergência apareceria como comportamento diferente entre superfícies do mesmo commit.
