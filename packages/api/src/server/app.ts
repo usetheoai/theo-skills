@@ -257,7 +257,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
         // instrução leva ~6 ms; a busca com embedder sadio fica bem abaixo disto) e apertado
         // o bastante para que uma perna doente não sequestre a resposta — medido em produção:
         // com o provedor de embedding sem crédito, a busca levava 9,4 s.
-        ...(envRetrieveTimeoutMs() > 0 ? { timeoutMs: envRetrieveTimeoutMs() } : {}),
+        ...(retrieveTimeoutMsFromEnv() > 0 ? { timeoutMs: retrieveTimeoutMsFromEnv() } : {}),
         // A queda de uma perna vira LOG, com a razão. Sem isto ela virava lista vazia e a
         // busca respondia 200 com resultado pior — o operador só descobriria pela reclamação
         // de quem consome, se descobrisse.
@@ -284,9 +284,16 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
  * Configurável porque o valor certo depende do provedor de embedding e da rede de quem opera
  * — fixá-lo no código obrigaria um deploy para ajustar um número operacional.
  */
-function envRetrieveTimeoutMs(): number {
-  const raw = Number(process.env['THEOSKILL_RETRIEVE_TIMEOUT_MS'] ?? '');
-  return Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_RETRIEVE_TIMEOUT_MS;
+export function retrieveTimeoutMsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const bruto = env['THEOSKILL_RETRIEVE_TIMEOUT_MS'];
+  // AUSENTE e "0" são coisas DIFERENTES: ausente = "não escolhi, use o padrão"; "0" =
+  // "escolhi desligar". Colapsá-los foi o defeito: `Number(undefined ?? '')` é **0**, que é
+  // finito e >= 0, então a guarda o aceitava como valor legítimo. O teto virava 0, o `> 0`
+  // a jusante o descartava, e a busca seguia esperando 9,4 s em produção — com o código do
+  // teto presente na imagem, testado e verde. Medido em 2026-08-01.
+  if (bruto === undefined || bruto.trim() === '') return DEFAULT_RETRIEVE_TIMEOUT_MS;
+  const n = Number(bruto);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_RETRIEVE_TIMEOUT_MS;
 }
 
 function envReservationHours(): number {
