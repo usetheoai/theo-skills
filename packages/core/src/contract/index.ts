@@ -107,6 +107,7 @@ export const RetrieveParamsSchema = z.object({
   query: z.string().min(1, 'query is required').max(8192),
   top_k: z.coerce.number().int().min(1).max(50).default(5),
   strategy: RetrieveStrategySchema.default('hybrid'),
+  category: z.string().min(1).max(64).optional(),
 });
 export type RetrieveParamsInput = z.infer<typeof RetrieveParamsSchema>;
 

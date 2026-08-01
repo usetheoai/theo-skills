@@ -291,6 +291,8 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
       // A versão vai junto do resto do que a revisão nova carrega. Omiti-la aqui é o que
       // fazia a coluna nascer nula depois da primeira publicação.
       if (ingest.version !== undefined) jobData['version'] = ingest.version;
+      if (ingest.category !== undefined) jobData['category'] = ingest.category;
+      jobData['execution'] = ingest.execution;
     }
     return enqueueOperation(deps, c, {
       skillId,

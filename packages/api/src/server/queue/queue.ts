@@ -99,6 +99,15 @@ export interface UpdateSkillJobData {
    * versionamento existia para a primeira publicação e para nenhuma outra, sem erro algum.
    */
   readonly version?: string;
+  /**
+   * Categoria e modo de execução da revisão nova.
+   *
+   * Iam junto na CRIAÇÃO e não na atualização — a mesma assimetria que fazia `version` nascer
+   * nula. Aqui o custo é maior: `execution` congelado deixa uma skill republicada com scripts
+   * continuar anunciada como remota, e o gate que existe para recusá-la nunca dispara.
+   */
+  readonly category?: string;
+  readonly execution?: 'remote' | 'local';
 }
 
 export interface DeleteSkillJobData {
