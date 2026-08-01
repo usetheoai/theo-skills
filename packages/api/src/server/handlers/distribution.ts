@@ -5,6 +5,12 @@ import { type AppEnv } from '../principal-context.js';
 import { type DistributionGrant, createDistributionResolver } from '../store/bundles-store.js';
 
 /** Contador de quota por token — janela fixa em memória, como o rate limiter do M17. */
+/**
+ * Acima disto a varredura de buckets vencidos roda. Bem acima do número de credenciais ativas
+ * que um publisher real tem, para que o caminho quente quase nunca a pague.
+ */
+const DESPEJO_ACIMA_DE = 4096;
+
 interface QuotaBucket {
   count: number;
   resetAt: number;
@@ -21,6 +27,19 @@ export interface DistributionRoutesDeps {
     revisionId: string;
     version: string | null;
   }) => Promise<void>;
+  /**
+   * Resolve `canal → revisão + versão` para a telemetria (M21).
+   *
+   * A adoção gravava o NOME do canal na coluna da revisão e `version: null` fixo, e o
+   * relatório agrupa por versão — então ele inteiro colapsava numa linha nula. "Uma
+   * instalação foi contabilizada" era verdade; "com que versão" nunca teria resposta, que é
+   * a única pergunta que o publisher faz do relatório.
+   */
+  readonly resolveChannel?: (
+    workspaceId: string,
+    skillId: string,
+    channel: string,
+  ) => Promise<{ revisionId: string; version: string | null } | null>;
   /** Quota padrão por token, quando o token não declara a própria. */
   readonly defaultQuota: number;
   readonly windowMs: number;
@@ -58,6 +77,18 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
       buckets.set(grant.tokenId, b);
     }
     b.count += 1;
+
+    // DESPEJO dos buckets vencidos. Sem isto o `Map` guarda uma entrada por token JÁ VISTO e
+    // nunca a remove: com um milhão de credenciais ao longo da vida do processo são dezenas
+    // de MB retidos sem uso — um vazamento lento, do tipo que só aparece como reinício
+    // periódico que ninguém sabe explicar.
+    //
+    // Varre em lote e não a cada requisição: percorrer o mapa inteiro no caminho quente
+    // trocaria um vazamento lento por uma latência constante, que é pior.
+    if (buckets.size > DESPEJO_ACIMA_DE) {
+      for (const [k, v] of buckets) if (t >= v.resetAt) buckets.delete(k);
+    }
+
     return { ok: b.count <= limit, retryAfter: Math.max(1, Math.ceil((b.resetAt - t) / 1000)) };
   };
 
@@ -104,17 +135,23 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
     // contagem falhou. O custo assumido é que um evento pode se perder — aceitável para um
     // dado de tendência, inaceitável se fosse cobrança.
     if (deps.recordInstall !== undefined) {
+      const registrar = deps.recordInstall;
+      const resolver = deps.resolveChannel;
       for (const i of items) {
-        void deps
-          .recordInstall({
+        void (async (): Promise<void> => {
+          // Resolve o canal para a revisão que ele aponta. Um canal ainda não promovido não
+          // fabrica revisão: grava o que sabe e a entrega segue — telemetria nunca derruba
+          // a distribuição.
+          const alvo = resolver !== undefined ? await resolver(grant.workspaceId, i.skillId, i.channel) : null;
+          await registrar({
             workspaceId: grant.workspaceId,
             bundleId: grant.bundleId,
             tokenId: grant.tokenId,
             skillId: i.skillId,
-            revisionId: i.channel,
-            version: null,
-          })
-          .catch(() => undefined);
+            revisionId: alvo?.revisionId ?? i.channel,
+            version: alvo?.version ?? null,
+          });
+        })().catch(() => undefined);
       }
     }
 
