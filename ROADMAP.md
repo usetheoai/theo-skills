@@ -750,6 +750,28 @@ A lição vale além destes dois: **um checkbox marcado sobre uma verificação 
 afirma mais do que mediu.** Os dois defeitos estavam exatamente na segunda passada — a
 segunda publicação, o segundo lado da fronteira.
 
+**Review formal de 2026-08-01 — o gate que faltava, e o que ele encontrou.**
+
+M24–M27 foram entregues incrementalmente, com CI verde em cada PR e verificação contra o
+serviço. Faltava o `/review`: seis revisores independentes em paralelo (arquitetura, testes,
+wiring, cross-validation dos DoDs, segurança multi-inquilino, bottlenecks), com estes DoDs
+como contrato.
+
+**22 itens auditados: 12 confirmados, 9 PARCIAIS, 1 DIVERGENTE** — num conjunto de marcos
+todos marcados `[x]`. Sete defeitos corrigidos e publicados em `v0.11.1`; o relatório completo,
+com os achados aceitos e não corrigidos, está em
+`theo-cloud/.claude/knowledge-base/reviews/theo-skills-m24-m27-review-2026-08-01.md`.
+
+O mais grave era uma cadeia de segurança de dois elos: republicar não atualizava `execution`
+**e** a busca o perdia na fusão híbrida — então uma skill republicada **com scripts** seguia
+anunciada como remota, e o gate que existe para recusá-la nunca disparava. Verificado corrigido
+no ar: `PATCH` → coluna vira `local` → `/instructions` responde **422**.
+
+Cinco dos sete são o **mesmo padrão** dos dois defeitos da reverificação acima — verdadeiro na
+primeira passada, falso na segunda — e **dois foram introduzidos pelas próprias correções**
+daquela rodada. Não é descuido pontual: é a forma que o defeito toma neste sistema. Nenhum foi
+encontrado por teste verde.
+
 **Dependencies:** M19, M20, M24.
 
 **Top risks:**

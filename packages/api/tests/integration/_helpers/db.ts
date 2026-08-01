@@ -37,10 +37,19 @@ export async function truncateAll(): Promise<void> {
     // erro que se persegue no arquivo errado.
     'TRUNCATE TABLE embeddings, install_events, webhook_deliveries, webhook_endpoints, operations, distribution_tokens, bundle_items, bundles, skill_channels, skill_revisions, skills, api_keys, workspace_users, users RESTART IDENTITY CASCADE',
   );
-  // Remove APENAS jobs em estado terminal. `TRUNCATE pgboss.job` seria mais simples e está
-  // ERRADO: os workers são registrados uma vez no `beforeAll` e seguem vivos entre os testes,
-  // então truncar a fila apaga o job que o teste CORRENTE acabou de enfileirar — troca uma
-  // corrida por outra (medido: as falhas mudavam de identidade a cada execução).
+  // Esvazia a fila INTEIRA, não só os jobs em estado terminal.
+  //
+  // Isto é seguro AQUI e não seria em qualquer outro ponto: `truncateAll` roda no
+  // `beforeEach`, quando o teste corrente ainda não enfileirou nada. O que sobra na fila
+  // nesse instante pertence a testes ANTERIORES cujas tabelas acabaram de ser truncadas —
+  // são órfãos por definição, e os workers seguem vivos entre os arquivos, então eles são
+  // pescados e processados competindo com o teste que está começando.
+  //
+  // Medido em 2026-08-01: 7 `created` + 1 `active` sobrevivendo ao fim da suíte. Era a causa
+  // de `webhook-delivery` falhar na suíte completa e passar isolado — o orçamento de espera
+  // é o mesmo nos dois casos, mas na suíte completa o worker tem um backlog pela frente.
+  // Um teste intermitente treina o time a ignorar o vermelho, que é como dois defeitos
+  // chegaram ao ar neste repositório.
   //
   // `to_regclass` devolve NULL antes do primeiro `boss.start()`, então isto é seguro em banco
   // recém-criado.
@@ -48,7 +57,7 @@ export async function truncateAll(): Promise<void> {
     DO $$
     BEGIN
       IF to_regclass('pgboss.job') IS NOT NULL THEN
-        DELETE FROM pgboss.job WHERE state IN ('completed', 'failed', 'cancelled');
+        DELETE FROM pgboss.job;
       END IF;
       IF to_regclass('pgboss.archive') IS NOT NULL THEN
         DELETE FROM pgboss.archive;
