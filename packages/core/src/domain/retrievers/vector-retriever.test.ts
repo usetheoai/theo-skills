@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { type EmbeddingProvider } from '../embedders/index.js';
+
 import { type QueryExecutor } from './types.js';
 import { createVectorRetriever } from './vector-retriever.js';
 
@@ -46,5 +48,55 @@ describe('createVectorRetriever', () => {
     expect(sqlVisto).toMatch(/e\.model\s*=/);
     expect(paramsVistos).toContain('openai');
     expect(paramsVistos).toContain('text-embedding-3-small');
+  });
+});
+
+const stubEmbedder: EmbeddingProvider = {
+  provider: 'openai',
+  model: 'text-embedding-3-small',
+  embed: () => Promise.resolve(Array(1536).fill(0.1) as number[]),
+  embedBatch: (xs: readonly string[]) => Promise.resolve(xs.map(() => Array(1536).fill(0.1) as number[])),
+};
+
+describe('o filtro por categoria precisa valer na perna VETORIAL', () => {
+  it('parametriza a categoria no WHERE — nunca interpola', async () => {
+    // O defeito: só o keyword-retriever tinha `AND s.category = $n`. Na estratégia PADRÃO
+    // (`hybrid`) a perna vetorial devolvia skills FORA da categoria pedida, e a fusão as
+    // mantinha — o agente pedia uma categoria e recebia outra, **sem erro**. Resultado
+    // plausível é o modo mais caro de errar: ninguém investiga o que parece certo.
+    //
+    // Parametrizado, nunca interpolado: `category` é texto livre vindo do frontmatter de
+    // terceiro, e concatená-lo no SQL seria injeção.
+    let sqlVisto = '';
+    let paramsVistos: unknown[] = [];
+    const executor: QueryExecutor = {
+      query: (sql, params) => {
+        sqlVisto = sql;
+        paramsVistos = params as unknown[];
+        return Promise.resolve([]);
+      },
+    };
+    const retriever = createVectorRetriever({ executor, embedder: stubEmbedder, workspaceId: 'ws' });
+
+    await retriever.retrieve({ query: 'venda', topK: 5, category: 'Sales' });
+
+    expect(sqlVisto, 'a cláusula existe na perna vetorial').toMatch(/s\.category\s*=/);
+    expect(sqlVisto, 'sem interpolação do valor').not.toContain("'Sales'");
+    expect(paramsVistos).toContain('Sales');
+  });
+
+  it('sem categoria pedida, nenhuma cláusula é adicionada', async () => {
+    let sqlVisto = '';
+    const executor: QueryExecutor = {
+      query: (sql) => {
+        sqlVisto = sql;
+        return Promise.resolve([]);
+      },
+    };
+    await createVectorRetriever({ executor, embedder: stubEmbedder, workspaceId: 'ws' }).retrieve({
+      query: 'venda',
+      topK: 5,
+    });
+    expect(sqlVisto).not.toMatch(/s\.category\s*=/);
   });
 });

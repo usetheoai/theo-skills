@@ -652,7 +652,7 @@ corpo dela do servidor, sem nada em disco.
 
 **Definition of done:**
 
-- [x] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o mesmo filtro de inquilino de toda leitura por id (404 cross-tenant, nunca 403).
+- [x] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o filtro de inquilino da BUSCA — `minhas OU públicas` (404 cross-tenant, nunca 403). **Não** é o mesmo de `GET /v1/skills/:id`, que é own-only: uma skill pública de outro inquilino dá 404 na leitura por id e 200 aqui. É deliberado — carregar instrução pública é o caso de uso — e está coberto por teste.
 - [x] Recusa com erro tipado (422 `execution_is_local`) quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
 - [x] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
 - [x] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
@@ -780,7 +780,7 @@ afirmam mais do que existe.
 **Definition of done:**
 
 - [x] A coluna `version` passa a ser **escrita**: declarada no frontmatter, atravessa validação → fila → worker → coluna. Malformada é erro explícito, e `version: 1.0` sem aspas (float em YAML, viraria `"1"`) é recusada com a razão. **Medido no ar:** `vendas -> 1.4.0`, onde antes `isNotNull(version)` descartava tudo. `assertPublishable` (duplicata/retrocesso) **fica para o milestone da rota de publicação versionada** — ver nota abaixo.
-- [x] Rotas de canal registradas — quatro, sob `skills:publish`. **Medido no ar** (`9caf67a`): `PUT .../channels/stable` promove e grava `previous_revision_id`; `DELETE` volta de fato para a revisão anterior (`1.5.0` → `1.4.0`); `GET .../versions` lista as duas. O `404` de rollback sem promoção anterior é a resposta correta, não rota ausente — foi separado dos dois casos criando uma segunda revisão real.
+- [x] Rotas de canal registradas — quatro; as duas que **mudam** o canal (promover, voltar atrás) sob `skills:publish`, as duas de leitura abertas a qualquer membro autenticado (ler não move canal). **Medido no ar** (`9caf67a`): `PUT .../channels/stable` promove e grava `previous_revision_id`; `DELETE` volta de fato para a revisão anterior (`1.5.0` → `1.4.0`); `GET .../versions` lista as duas. O `404` de rollback sem promoção anterior é a resposta correta, não rota ausente — foi separado dos dois casos criando uma segunda revisão real.
 - [x] Caminho de **escrita** de bundle — cinco rotas. **Medido no ar**: bundle criado (`201`), itens definidos (substituem, não mesclam), credencial cunhada com `expires_at`, revogada (`200`). `ttl_days` ausente é `400` com a razão: credencial de terceiro sem prazo é a que ninguém revoga.
 - [x] Rota de distribuição ligada no ambiente — `SKILLS_DISTRIBUTION_QUOTA=600` por credencial em janela de 60s, verificado dentro do contêiner. O nome importa: o `.env` do host usa `SKILLS_*` e o compose o traduz para `THEOSKILL_*`; escrever o nome interno deixaria o arquivo com aparência de configurado e sem efeito algum.
 - [x] Revisados. **M19 e M20 voltam a `[x]`**: as duas metades que faltavam foram entregues e verificadas contra o serviço, não contra a suíte.
