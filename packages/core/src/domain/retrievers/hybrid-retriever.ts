@@ -26,6 +26,24 @@ export interface HybridRetrieverDeps {
    * sabendo, e quem consome não sabe que recebeu menos.
    */
   readonly onDegraded?: (perna: 'vector' | 'keyword', err: unknown) => void;
+  /**
+   * Teto de tempo por perna, em ms. Ausente = espera (quem não pediu limite não ganha um).
+   *
+   * Medido em produção 2026-08-01: com a conta do provedor de embedding sem crédito, a perna
+   * vetorial levava 9,4 s e a busca inteira ia junto. Detectar o formato do erro do
+   * fornecedor é frágil — `code` mudou entre versões e a mensagem é texto livre. O teto não
+   * depende de adivinhar nada: seja qual for a causa, a descoberta não pode gastar o
+   * orçamento de latência do agente esperando uma metade que não responde.
+   */
+  readonly timeoutMs?: number;
+}
+
+/** Erro do teto — distinguível de uma falha da própria perna no log de degradação. */
+export class RetrieverTimeoutError extends Error {
+  constructor(perna: string, ms: number) {
+    super(`perna '${perna}' excedeu ${String(ms)}ms`);
+    this.name = 'RetrieverTimeoutError';
+  }
 }
 
 /**
@@ -101,9 +119,22 @@ export function createHybridRetriever(deps: HybridRetrieverDeps): SkillRetriever
         deps.onDegraded?.(perna, err);
         return [];
       };
+      const comTeto = (perna: 'vector' | 'keyword', p: Promise<RetrievedSkill[]>): Promise<RetrievedSkill[]> => {
+        if (deps.timeoutMs === undefined) return p;
+        const ms = deps.timeoutMs;
+        return Promise.race([
+          p,
+          new Promise<RetrievedSkill[]>((_, rej) => {
+            const t = setTimeout(() => rej(new RetrieverTimeoutError(perna, ms)), ms);
+            // `unref` para o teto não segurar o processo vivo — um timer pendente num
+            // processo curto (CLI, teste) o faria terminar mais tarde sem razão visível.
+            (t as unknown as { unref?: () => void }).unref?.();
+          }),
+        ]);
+      };
       const [vectorResults, keywordResults] = await Promise.all([
-        deps.vector.retrieve(poolParams).catch(degradar('vector')),
-        deps.keyword.retrieve(poolParams).catch(degradar('keyword')),
+        comTeto('vector', deps.vector.retrieve(poolParams)).catch(degradar('vector')),
+        comTeto('keyword', deps.keyword.retrieve(poolParams)).catch(degradar('keyword')),
       ]);
       return rrfFuse(vectorResults, keywordResults, params.topK);
     },

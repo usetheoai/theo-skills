@@ -121,3 +121,38 @@ describe('a degradação da busca precisa ser VISÍVEL', () => {
     expect(avisos).toEqual([]);
   });
 });
+
+describe('a busca tem TETO de tempo — uma perna lenta não sequestra a resposta', () => {
+  it('perna que demora além do teto é abandonada, e a viva responde', async () => {
+    // Medido em produção 2026-08-01: com a conta do provedor sem crédito, a perna vetorial
+    // levava 9,4 s e a busca inteira ia junto. Detectar o formato do erro do fornecedor é
+    // frágil — ele mudou de `code` entre versões e a mensagem é texto livre. O teto não
+    // depende de adivinhar nada: seja qual for a causa, a descoberta não pode gastar o
+    // orçamento de latência do agente esperando uma metade que não responde.
+    const lenta: SkillRetriever = { retrieve: () => new Promise((r) => setTimeout(() => r([sk('lenta')]), 5_000)) };
+    const rapida: SkillRetriever = { retrieve: () => Promise.resolve([sk('rapida')]) };
+    const avisos: string[] = [];
+
+    const t0 = Date.now();
+    const out = await createHybridRetriever({
+      vector: lenta,
+      keyword: rapida,
+      timeoutMs: 100,
+      onDegraded: (perna) => avisos.push(perna),
+    }).retrieve({ query: 'x', topK: 5 });
+    const gasto = Date.now() - t0;
+
+    expect(out.map((s) => s.skill_id), 'a perna viva responde').toEqual(['rapida']);
+    expect(gasto, 'não esperou a lenta').toBeLessThan(1_000);
+    expect(avisos, 'e o abandono foi anunciado').toEqual(['vector']);
+  });
+
+  it('sem teto configurado, espera — quem não pediu limite não ganha um por surpresa', async () => {
+    const meio: SkillRetriever = { retrieve: () => new Promise((r) => setTimeout(() => r([sk('a')]), 60)) };
+    const out = await createHybridRetriever({
+      vector: meio,
+      keyword: { retrieve: () => Promise.resolve([]) },
+    }).retrieve({ query: 'x', topK: 5 });
+    expect(out.map((s) => s.skill_id)).toEqual(['a']);
+  });
+});

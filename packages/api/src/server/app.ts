@@ -44,6 +44,7 @@ import { createWebhookEndpointsStore } from './store/webhook-endpoints-store.js'
 import { type DnsResolver } from './webhooks/url-safety.js';
 
 const DEFAULT_RESERVATION_HOURS = 24;
+const DEFAULT_RETRIEVE_TIMEOUT_MS = 3_000;
 const DEFAULT_MAX_BODY_BYTES = 35 * 1024 * 1024; // ~25MB zip after base64 envelope
 
 export interface CreateAppOptions {
@@ -252,6 +253,11 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
         executor: retrieveExecutor,
         embedder: retrieveEmbedder,
         workspaceId: ws,
+        // Teto por perna. O padrão de 3 s é folgado para uma consulta sã (a carga de
+        // instrução leva ~6 ms; a busca com embedder sadio fica bem abaixo disto) e apertado
+        // o bastante para que uma perna doente não sequestre a resposta — medido em produção:
+        // com o provedor de embedding sem crédito, a busca levava 9,4 s.
+        ...(envRetrieveTimeoutMs() > 0 ? { timeoutMs: envRetrieveTimeoutMs() } : {}),
         // A queda de uma perna vira LOG, com a razão. Sem isto ela virava lista vazia e a
         // busca respondia 200 com resultado pior — o operador só descobriria pela reclamação
         // de quem consome, se descobrisse.
@@ -270,6 +276,17 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   });
 
   return app;
+}
+
+/**
+ * Teto por perna da busca, em ms. `0` desliga (espera indefinidamente).
+ *
+ * Configurável porque o valor certo depende do provedor de embedding e da rede de quem opera
+ * — fixá-lo no código obrigaria um deploy para ajustar um número operacional.
+ */
+function envRetrieveTimeoutMs(): number {
+  const raw = Number(process.env['THEOSKILL_RETRIEVE_TIMEOUT_MS'] ?? '');
+  return Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_RETRIEVE_TIMEOUT_MS;
 }
 
 function envReservationHours(): number {

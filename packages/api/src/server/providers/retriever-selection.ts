@@ -29,6 +29,8 @@ export interface RetrieverSelectionOptions {
    * que a descoberta semântica ficou morta em produção sem que nada acusasse.
    */
   readonly onDegraded?: (perna: 'vector' | 'keyword', err: unknown) => void;
+  /** Teto por perna, repassado ao híbrido. Ausente = espera. */
+  readonly timeoutMs?: number;
 }
 
 /**
@@ -42,7 +44,7 @@ export function createDispatchingRetriever(opts: RetrieverSelectionOptions): Dis
     createVectorRetriever({ executor: opts.executor, embedder: opts.embedder, workspaceId: opts.workspaceId });
   const keyword =
     opts.overrides?.keyword ?? createKeywordRetriever({ executor: opts.executor, workspaceId: opts.workspaceId });
-  const hybrid = opts.overrides?.hybrid ?? createHybridRetriever({ vector, keyword, ...(opts.onDegraded !== undefined ? { onDegraded: opts.onDegraded } : {}) });
+  const hybrid = opts.overrides?.hybrid ?? createHybridRetriever({ vector, keyword, ...(opts.onDegraded !== undefined ? { onDegraded: opts.onDegraded } : {}), ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}) });
   const byStrategy: Record<RetrieveStrategy, SkillRetriever> = { vector, keyword, hybrid };
   return {
     retrieve(params) {
