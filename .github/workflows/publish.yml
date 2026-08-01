@@ -49,8 +49,20 @@ jobs:
     if: ${{ always() && (needs.guard-release-on-main.result == 'success' || needs.guard-release-on-main.result == 'skipped') }}
     uses: ./.github/workflows/ci.yml
 
+  # GATE DE INTEGRAÇÃO — com Postgres de verdade.
+  #
+  # `gate-ci` roda build+lint+typecheck+test SEM BANCO. Sozinho, ele não vê regressão de
+  # integração; e enquanto a suíte pulava 240 testes em silêncio saindo 0, o portão inteiro
+  # era decorativo. A forma vem do `theo-lens`, cujo gate de contrato reprovou um publish de
+  # verdade em 2026-08-01 18:11, com `image: skipped`.
+  gate-integration:
+    needs: [guard-release-on-main]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/integration.yml
+
   image:
-    needs: [gate-ci]
+    needs: [gate-ci, gate-integration]
     # `if` EXPLÍCITO, e não o default `success()`.
     #
     # O DEFEITO QUE ISTO CORRIGE (run 30572539211): num push de `develop` o

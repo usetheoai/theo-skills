@@ -104,3 +104,33 @@ describe('Dockerfile — coerência com o CI', () => {
     expect(String(setupNode)).toBe(fromMajor![1]);
   });
 });
+
+describe('o publish não pode liberar imagem sobre integração não verificada', () => {
+  it('o job `image` depende do gate de INTEGRAÇÃO, não só do gate sem banco', () => {
+    // Medido em 2026-08-01: `image` dependia apenas de `gate-ci`, que roda
+    // build+lint+typecheck+test SEM BANCO. Some com o outro defeito da mesma data — a suíte
+    // de integração pulava 240 testes em silêncio e saía 0 — e o resultado é um gate que,
+    // por construção, NÃO CONSEGUE reprovar regressão de integração. O reconciliador leva a
+    // imagem ao app-dev a cada ~5 min.
+    //
+    // Fazer o script de teste falhar alto era necessário e não suficiente: enquanto o publish
+    // não roda integração, publicar sobre integração quebrada continua possível. A forma
+    // correta é a do theo-lens, cujo `image` declara os gates todos em `needs` — e cujo gate
+    // de contrato reprovou um publish de verdade em 2026-08-01 18:11, com `image: skipped`.
+    const publish = readFileSync(wf('publish.yml'), 'utf8');
+    const doc = parse(publish) as { jobs: Record<string, { needs?: string[] | string }> };
+    const needs = doc.jobs['image']?.needs ?? [];
+    const lista = Array.isArray(needs) ? needs : [needs];
+
+    expect(lista, 'o gate sem banco continua exigido').toContain('gate-ci');
+    expect(lista, 'e o de integração também — senão o portão não mede o que quebra').toContain(
+      'gate-integration',
+    );
+  });
+
+  it('o gate de integração do publish roda a suíte de verdade, com banco', () => {
+    const integration = readFileSync(wf('integration.yml'), 'utf8');
+    expect(integration, 'precisa ser chamável pelo publish').toContain('workflow_call');
+    expect(integration, 'e precisa de um Postgres — sem ele a suíte pula tudo').toMatch(/postgres/i);
+  });
+});
