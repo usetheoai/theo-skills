@@ -23,7 +23,7 @@
  * — Regra 9, não reinventar o que a casa já resolveu. A diferença é o que se liga por sessão:
  * lá um cliente REST, aqui a porta de registry.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer as createHttpServer } from 'node:http';
 import type { IncomingMessage, Server as HttpServer, ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
@@ -50,6 +50,12 @@ const MAX_BODY_BYTES = 256 * 1024;
 
 /** Teto de sessões concorrentes — cada uma segura um registry e um servidor. */
 const MAX_SESSIONS = 1024;
+/**
+ * Ociosidade que aposenta uma sessão. Generoso de propósito: um agente pode ficar pensando
+ * entre duas chamadas de ferramenta, e derrubar a sessão dele no meio do raciocínio seria
+ * trocar um vazamento por um defeito visível ao usuário.
+ */
+const SESSAO_OCIOSA_MS = 30 * 60 * 1000;
 
 class BodyTooLargeError extends Error {}
 
@@ -124,8 +130,24 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 
 interface Session {
   readonly transport: StreamableHTTPServerTransport;
+  /**
+   * SHA-256 do bearer que abriu a sessão.
+   *
+   * Guardamos o hash, não o segredo: a tabela de sessões vive em memória de um processo que
+   * pode gerar dump, e um bearer em claro ali é um segredo a mais para vazar. A comparação é
+   * em tempo constante — comparação de string sai cedo no primeiro byte diferente e mede o
+   * prefixo acertado.
+   */
+  readonly authHash: Buffer;
+  /** Última vez que a sessão foi usada — base do despejo por ociosidade. */
+  ultimoUso: number;
   close(): Promise<void>;
 }
+
+const sha256 = (v: string): Buffer => createHash('sha256').update(v).digest();
+
+/** Tempo constante sobre digests de tamanho fixo — `timingSafeEqual` exige comprimentos iguais. */
+const mesmoBearer = (a: Buffer, b: Buffer): boolean => a.length === b.length && timingSafeEqual(a, b);
 
 const erroJson = (res: ServerResponse, status: number, code: number, message: string): void => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -167,8 +189,36 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
         if (typeof sessionId === 'string') {
           const sessao = sessions.get(sessionId);
           if (sessao !== undefined) {
+            // A SESSÃO NÃO É CREDENCIAL. Sem esta reverificação o roteamento pós-`initialize`
+            // era feito só pelo id, e o bearer cunhado por inquilino nunca era relido: quem
+            // obtivesse o id de outra sessão — por log, telemetria ou cliente compartilhado —
+            // falava com o registry daquele inquilino. A spec de autorização do MCP é
+            // explícita a respeito.
+            //
+            // 404 e não 403 para bearer divergente ou ausente: um 403 confirmaria que o id
+            // existe, que é a metade da informação que um atacante precisa.
+            const apresentado = bearerFrom(req.headers.authorization);
+            if (apresentado === undefined || !mesmoBearer(sessao.authHash, sha256(apresentado))) {
+              erroJson(res, 404, -32004, 'Not Found: sessão desconhecida');
+              return;
+            }
+            sessao.ultimoUso = Date.now();
             await sessao.transport.handleRequest(req, res);
             return;
+          }
+        }
+
+        // DESPEJO das sessões ociosas, antes de julgar o teto.
+        //
+        // A única remoção era `onclose`. Um cliente que morre, uma queda de rede ou um
+        // reinício do gateway deixam a sessão para trás — e ao chegar em 1024 órfãs TODO
+        // `initialize` novo passava a receber 503, para sempre, até alguém reiniciar o
+        // processo. Um teto sem despejo não é um limite: é uma bomba-relógio.
+        const agora = Date.now();
+        for (const [sid, sessao] of sessions) {
+          if (agora - sessao.ultimoUso > SESSAO_OCIOSA_MS) {
+            sessions.delete(sid);
+            void sessao.close().catch(() => undefined);
           }
         }
 
@@ -196,6 +246,8 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
           onsessioninitialized: (sid: string): void => {
             sessions.set(sid, {
               transport,
+              authHash: sha256(auth),
+              ultimoUso: Date.now(),
               close: async (): Promise<void> => {
                 await server.close();
               },

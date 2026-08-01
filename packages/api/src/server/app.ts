@@ -141,6 +141,16 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
       defaultQuota: opts.distribution.defaultQuota,
       windowMs: opts.distribution.windowMs,
       recordInstall: (e) => createAdoptionStore(db, e.workspaceId).record(e),
+      resolveChannel: async (ws, skillId, channel) => {
+        const canais = createChannelsStore(db, ws);
+        const alvo = await canais.get(skillId, channel);
+        if (alvo === null) return null;
+        const versoes = await canais.versionsOf(skillId);
+        return {
+          revisionId: alvo.revisionId,
+          version: versoes.find((v) => v.revisionId === alvo.revisionId)?.version ?? null,
+        };
+      },
     });
   }
 

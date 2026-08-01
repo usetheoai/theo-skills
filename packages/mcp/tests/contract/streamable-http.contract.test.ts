@@ -166,3 +166,70 @@ describe('connectStreamableHttp', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('a sessão NÃO é credencial — o bearer é reverificado a cada requisição', () => {
+  it('quem apresenta o id de sessão de outro inquilino recebe 404, não o catálogo dele', async () => {
+    // O defeito: depois do `initialize`, o roteamento era feito SÓ pelo `Mcp-Session-Id`, e o
+    // bearer cunhado por inquilino nunca era relido. Quem obtivesse o id de outra sessão —
+    // por log, telemetria ou cliente compartilhado — falava com o registry daquele inquilino.
+    //
+    // A spec de autorização do MCP é explícita: sessão NÃO é autenticação. Aqui o id é
+    // `randomUUID` e o gateway autentica antes de proxiar, então não é exploração anônima —
+    // mas continua sendo uma credencial de segunda classe governando o acesso.
+    //
+    // 404 e não 403: um 403 confirmaria que o id existe.
+    const handle = await connectStreamableHttp({
+      host: '127.0.0.1',
+      port: 0,
+      baseUrl: 'http://registry.invalido',
+      buildRegistry: () => registryVazio,
+    });
+    const url = `http://127.0.0.1:${String(handle.port)}/`;
+    const dono = await conectar(url, 'tsk_do_dono');
+
+    // Descobre o id de sessão do dono e o apresenta com OUTRO bearer.
+    const sid = (dono.transport as { sessionId?: string }).sessionId;
+    expect(sid, 'a sessão tem id').toBeTruthy();
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'mcp-session-id': String(sid),
+        authorization: 'Bearer tsk_de_um_intruso',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/list' }),
+    });
+    expect(res.status, 'bearer divergente não herda a sessão').toBe(404);
+
+    await dono.close();
+    await handle.close();
+  });
+
+  it('sem bearer algum, o id de sessão sozinho não abre a sessão', async () => {
+    const handle = await connectStreamableHttp({
+      host: '127.0.0.1',
+      port: 0,
+      baseUrl: 'http://registry.invalido',
+      buildRegistry: () => registryVazio,
+    });
+    const url = `http://127.0.0.1:${String(handle.port)}/`;
+    const dono = await conectar(url, 'tsk_do_dono');
+    const sid = (dono.transport as { sessionId?: string }).sessionId;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'mcp-session-id': String(sid),
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/list' }),
+    });
+    expect(res.status).toBe(404);
+
+    await dono.close();
+    await handle.close();
+  });
+});
