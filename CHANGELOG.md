@@ -7,7 +7,13 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-(nada pendente — a última versão publicada é a 0.9.1)
+### Security
+
+- **O portão de merge não existia.** Os workflows rodavam em cada PR e reportavam o resultado, mas `develop` e `main` **não tinham proteção alguma** — nada impedia mergear um PR com teste vermelho. São duas camadas que garantem coisas diferentes, e só a primeira estava de pé: o hook local garante que o trabalho NASCE no lugar certo; a proteção de branch é o que torna o portão OBRIGATÓRIO. Os três checks (build/lint/typecheck, integração contra Postgres real, semgrep + gitleaks) agora são exigidos nas duas branches, com o PR obrigado a estar em dia com a base e **a exigência valendo também para quem tem administração** — sem isso o portão não valeria justamente para quem merge. Force-push e deleção bloqueados.
+
+### Changed
+
+- **O ROADMAP afirmava mais do que existia.** Vinte e três itens de definição-de-pronto seguiam desmarcados sob marcos que já se declaravam entregues — o mesmo padrão que escondeu a ausência de autenticação num serviço marcado como pronto. Cada item foi medido contra o código, o banco e o serviço, e não contra a suíte. A maioria estava entregue e só nunca fora marcada; **três não estavam**, e agora dizem isso: o adaptador de modelo local nunca foi escrito (adiado de propósito, com a razão registrada no código), a taxonomia de marcadores de teste é superfície morta (nenhum teste carrega marcador, e o comando "rápido" roda a suíte inteira), e o portão de merge acima. A avaliação de busca foi remedida no mesmo dia: acerto de 100% sobre o conjunto interno, mas **carregado pela busca textual** — a perna vetorial isolada acerta 31% sob o substituto de teste, e o número de latência é sobre treze linhas, não um compromisso de produção.
 
 ## [0.9.1] - 2026-07-31
 
