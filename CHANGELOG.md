@@ -7,6 +7,10 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+(nada pendente — a última versão publicada é a 0.10.0)
+
+## [0.10.0] - 2026-08-01
+
 ### Added
 
 - **O servidor MCP passa a falar HTTP, e não só pelo processo local.** Ele só oferecia o transporte por descritores padrão — a forma de um agente hospedar um servidor MCP na própria máquina. O gateway da plataforma fronta servidores MCP por HTTP, então "ainda não registrado no gateway" não era uma decisão pendente: era um transporte que não existia. Cada sessão HTTP liga o acesso ao registry com a credencial **daquele** inquilino, cunhada pelo gateway e recebida na requisição — uma conexão compartilhada entre sessões faria um cliente ler o catálogo de outro, e o sintoma seria uma resposta plausível, não um erro. Verificado contra o serviço no ar: a mesma consulta devolve o catálogo de quem tem e uma lista vazia para quem não tem.
