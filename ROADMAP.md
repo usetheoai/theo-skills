@@ -726,6 +726,30 @@ afirmam mais do que existe.
 - [x] Rota de distribuição ligada no ambiente — `SKILLS_DISTRIBUTION_QUOTA=600` por credencial em janela de 60s, verificado dentro do contêiner. O nome importa: o `.env` do host usa `SKILLS_*` e o compose o traduz para `THEOSKILL_*`; escrever o nome interno deixaria o arquivo com aparência de configurado e sem efeito algum.
 - [x] Revisados. **M19 e M20 voltam a `[x]`**: as duas metades que faltavam foram entregues e verificadas contra o serviço, não contra a suíte.
 
+**Reverificação de 2026-08-01 — dois defeitos que os checkboxes acima não pegaram.**
+Ambos foram encontrados **exercitando a jornada inteira contra o serviço no ar**, não lendo
+código, e ambos ficam entre o que um checkbox afirma e o que o serviço faz:
+
+1. **A segunda publicação nascia sem versão** (`ceb1736`, no ar em `6750551`). O primeiro DoD
+   acima dizia "a coluna passa a ser escrita" — e era verdade para a **primeira** publicação
+   de cada skill. O job de atualização não carregava a versão, e o worker a descartava antes
+   de gravar. Como a listagem de versões só enxerga revisões versionadas, o versionamento
+   valia para a primeira publicação e para nenhuma outra, **sem erro algum**. Eram dois elos:
+   corrigir só a rota reproduz o mesmo sintoma. Medido no ar: `1.0.0` → `1.1.0` via `PATCH`,
+   promoção e rollback exatos entre as duas.
+
+2. **A adoção estava do lado errado da fronteira de autenticação** (`56ea1ca`, no ar em
+   `8a0002b`). Ela era registrada junto das rotas de distribuição — que ficam **antes** do
+   middleware de auth, com razão, porque quem as consome não é membro de workspace algum. Mas
+   a adoção lê o principal, que ali ainda não existe: **404 permanente**, sem erro e sem log,
+   com o publisher vendo o próprio pacote responder "não existe". Medido no ar após a
+   correção: `200` com uma instalação real contabilizada, distribuição seguindo em `200`, e
+   `401` para o consumidor que tenta ler adoção.
+
+A lição vale além destes dois: **um checkbox marcado sobre uma verificação de caminho único
+afirma mais do que mediu.** Os dois defeitos estavam exatamente na segunda passada — a
+segunda publicação, o segundo lado da fronteira.
+
 **Dependencies:** M19, M20, M24.
 
 **Top risks:**
