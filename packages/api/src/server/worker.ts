@@ -164,6 +164,8 @@ export function createUpdateSkillHandler(
           // sintoma, com a rota já correta. `versionsOf` só lista revisões com versão, então
           // uma coluna nula faz o canal não ter para onde apontar, sem erro algum.
           ...(data.version !== undefined ? { version: data.version } : {}),
+          ...(data.category !== undefined ? { category: data.category } : {}),
+          ...(data.execution !== undefined ? { execution: data.execution } : {}),
         });
       }
     });

@@ -67,3 +67,21 @@ describe('createHybridRetriever', () => {
     expect(out1[0]?.skill_id).toBe('b');
   });
 });
+
+describe('a fusão não pode PERDER campo que só um lado projetou', () => {
+  it('mescla os campos das duas listas em vez de manter só a primeira linha vista', () => {
+    // O defeito: `execution` e `category` vinham só do keyword; o vetor era acumulado
+    // primeiro, e a linha dele — sem os campos — vencia. Para toda skill presente nas DUAS
+    // listas (o caso comum) os campos sumiam do resultado, e o cliente trata ausente como
+    // permitido. Nada erra: a resposta é plausível e incompleta.
+    const doVetor = [{ skill_id: 's1', name: 'a', description: 'd', score: 0.9, origin: 'own' as const }];
+    const doKeyword = [
+      { skill_id: 's1', name: 'a', description: 'd', score: 0.5, origin: 'own' as const, execution: 'local' as const, category: 'Ops' },
+    ];
+
+    const fundido = rrfFuse(doVetor, doKeyword, 10);
+
+    expect(fundido[0]?.execution, 'o campo sobrevive à fusão').toBe('local');
+    expect(fundido[0]?.category).toBe('Ops');
+  });
+});

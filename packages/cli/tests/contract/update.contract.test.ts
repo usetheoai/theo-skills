@@ -173,3 +173,38 @@ describe('runUpdate', () => {
     expect(lines.join(' ')).toContain('escaparia');
   });
 });
+
+describe('update escreve no MESMO runtime de onde leu', () => {
+  it('atualizar uma skill do Theokit não a materializa no diretório do Claude', async () => {
+    // O defeito: `runtime` era usado para RESOLVER de onde ler a procedência, mas não era
+    // repassado ao install que ESCREVE. A skill do agente Theokit ficava congelada na revisão
+    // antiga enquanto uma cópia nova aparecia em `.claude/skills` — sem erro algum, e com o
+    // comando reportando sucesso.
+    // SEM `skillsDir` explícito — é o `runtime` que precisa resolver o diretório nas DUAS
+    // pontas. Com `skillsDir` passado à mão o defeito não aparece: o caminho explícito vence
+    // e a leitura e a escrita coincidem por acidente.
+    const raiz = await tmp();
+    const anterior = process.cwd();
+    process.chdir(raiz);
+    const theokit = join(raiz, '.theokit', 'skills');
+    await instalada(theokit, 'minha-skill', provBase);
+
+    const linhas: string[] = [];
+    const code = await runUpdate('minha-skill', {
+      out: (s: string) => linhas.push(s),
+      fetch: fetchOf('rev_2'),
+      extract: extractStub,
+      runtime: 'theokit',
+      apply: true,
+      now: () => new Date('2026-02-01T00:00:00.000Z'),
+    });
+    process.chdir(anterior);
+    expect(code).toBe(0);
+
+    const noTheokit = await readFile(join(theokit, 'minha-skill', 'SKILL.md'), 'utf8');
+    expect(noTheokit, 'a skill do Theokit recebeu a revisão nova').toBe('novo-conteudo');
+
+    // E não vazou para o outro runtime.
+    await expect(readFile(join(raiz, '.claude', 'skills', 'minha-skill', 'SKILL.md'), 'utf8')).rejects.toThrow();
+  });
+});

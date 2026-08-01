@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import { createId } from '@paralleldrive/cuid2';
 import { bundleItems, bundles, distributionTokens } from '@usetheo/skills/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 
@@ -65,14 +65,34 @@ export function createBundlesStore(db: Db, workspaceId: string): BundlesStore {
       };
     },
 
+    /**
+     * DUAS consultas, não `1 + 2N`.
+     *
+     * O laço anterior chamava `get()` por bundle, e `get()` custa duas idas ao banco: com 50
+     * pacotes eram 101 consultas numa requisição. O store existia desde o M20 sem chamador de
+     * produção, então o custo só passou a ser real quando a rota `GET /v1/bundles` o expôs.
+     */
     async list() {
       const rows = await db.select().from(bundles).where(eq(bundles.workspaceId, workspaceId));
-      const out: Bundle[] = [];
-      for (const b of rows) {
-        const bundle = await this.get(b.bundleId);
-        if (bundle !== null) out.push(bundle);
+      if (rows.length === 0) return [];
+
+      const todos = await db
+        .select()
+        .from(bundleItems)
+        .where(
+          and(
+            eq(bundleItems.workspaceId, workspaceId),
+            inArray(bundleItems.bundleId, rows.map((b) => b.bundleId)),
+          ),
+        );
+
+      const porBundle = new Map<string, { skillId: string; channel: string }[]>();
+      for (const i of todos) {
+        const lista = porBundle.get(i.bundleId) ?? [];
+        lista.push({ skillId: i.skillId, channel: i.channel });
+        porBundle.set(i.bundleId, lista);
       }
-      return out;
+      return rows.map((b) => ({ bundleId: b.bundleId, name: b.name, items: porBundle.get(b.bundleId) ?? [] }));
     },
 
     async setItems(bundleId, items) {

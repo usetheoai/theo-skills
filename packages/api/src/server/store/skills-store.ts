@@ -59,6 +59,16 @@ export interface RevisionPayload {
   readonly frontmatter: Record<string, unknown>;
   /** M3: SKILL.md markdown text — embedding source captured at ingest. */
   readonly skillMd: string;
+  /**
+   * Categoria e modo de execução DESTA revisão.
+   *
+   * Vivem aqui, e não em `updateMetadata`, porque são declarados no frontmatter — quem os
+   * muda é uma publicação nova, não uma edição de metadado por API. Omiti-los congelava as
+   * colunas no valor da PRIMEIRA publicação, e `execution` é o que decide se um payload com
+   * scripts pode ser servido como instrução remota.
+   */
+  readonly category?: string;
+  readonly execution?: 'remote' | 'local';
 }
 
 export interface ListPage {
@@ -246,7 +256,14 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
         });
         await tx
           .update(skills)
-          .set({ latestRevisionId: revisionId, updateTime: new Date() })
+          .set({
+            latestRevisionId: revisionId,
+            updateTime: new Date(),
+            // A revisão nova redefine as duas: republicar declarando `execution: local` tem
+            // de desarmar a carga remota, não conviver com ela.
+            ...(rev.category !== undefined ? { category: rev.category } : {}),
+            ...(rev.execution !== undefined ? { execution: rev.execution } : {}),
+          })
           .where(and(ws, eq(skills.skillId, skillId)));
         await refreshSearchText(tx, workspaceId, skillId);
       });

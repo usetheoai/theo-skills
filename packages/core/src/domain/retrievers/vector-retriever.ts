@@ -44,6 +44,7 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
       // filtro no WHERE corrigiria, porque a linha errada já teria entrado no resultado.
       const sql = `
         SELECT s.skill_id, s.name, s.description, 1 - (e.vector <=> ${vecPh}::vector) AS score,
+               s.category, s.execution,
                CASE WHEN s.workspace_id = ${wsPh} THEN 'own' ELSE 'public' END AS origin
         FROM embeddings e
         JOIN skills s

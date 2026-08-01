@@ -39,18 +39,27 @@ export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDe
       query: c.req.query('query'),
       top_k: c.req.query('topK') ?? c.req.query('top_k'),
       strategy: c.req.query('strategy'),
+      // O filtro que a ferramenta MCP já anunciava ao modelo e que a rota descartava: a
+      // busca voltava sem restrição alguma. Resultado plausível, nunca erro — o modo mais
+      // caro de errar, porque ninguém investiga uma resposta que parece certa.
+      category: c.req.query('category'),
     });
     if (!parsed.success) {
       return c.json({ error: 'invalid_request', details: parsed.error.flatten() }, 400);
     }
-    const { query, top_k, strategy } = parsed.data;
+    const { query, top_k, strategy, category } = parsed.data;
 
     // O tenant vem do Principal resolvido na fronteira — nunca da query string nem do
     // corpo, que o cliente controla (M11 DoD #1).
     const workspaceId = workspaceOf(c);
 
     const start = clock.now();
-    const results = await deps.retrieverFor(workspaceId).retrieve({ query, topK: top_k, strategy });
+    const results = await deps.retrieverFor(workspaceId).retrieve({
+      query,
+      topK: top_k,
+      strategy,
+      ...(category !== undefined ? { category } : {}),
+    });
     const latencyMs = clock.now() - start;
 
     deps.logger.info(
