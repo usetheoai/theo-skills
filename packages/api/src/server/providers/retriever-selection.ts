@@ -1,5 +1,6 @@
 import {
   createHybridRetriever,
+  RetrieverTimeoutError,
   createKeywordRetriever,
   createVectorRetriever,
   type EmbeddingProvider,
@@ -9,6 +10,12 @@ import {
   type RetrieveStrategy,
   type SkillRetriever,
 } from '@usetheo/skills';
+
+/**
+ * Folga do teto por requisição sobre o teto por perna. Pequena de propósito: só o bastante
+ * para que a degradação parcial do híbrido sempre vença a corrida.
+ */
+const MARGEM_TETO_EXTERNO_MS = 500;
 
 /** A strategy-aware retriever: `retrieve` dispatches on `params.strategy`. */
 export interface DispatchingRetriever {
@@ -48,7 +55,30 @@ export function createDispatchingRetriever(opts: RetrieverSelectionOptions): Dis
   const byStrategy: Record<RetrieveStrategy, SkillRetriever> = { vector, keyword, hybrid };
   return {
     retrieve(params) {
-      return byStrategy[params.strategy].retrieve(params);
+      const escolhido = byStrategy[params.strategy].retrieve(params);
+      if (opts.timeoutMs === undefined || opts.timeoutMs <= 0) return escolhido;
+
+      // TETO POR REQUISIÇÃO, na camada de SELEÇÃO — e o lugar é o ponto.
+      //
+      // O teto nasceu dentro do híbrido, por perna, e ali resolve a degradação PARCIAL: uma
+      // perna cai, a outra responde. Mas `strategy=vector` não passava por teto algum e
+      // seguia em ~10 s, medido ao vivo. A causa não era o valor: era o LUGAR. Com o teto
+      // por estratégia, cada uma precisa lembrar de aplicá-lo — e a próxima esquece igual.
+      // Aqui, qualquer retriever escolhido ganha teto de uma vez, inclusive um futuro.
+      //
+      // A MARGEM sobre o teto interno não é enfeite: sem ela os dois disparam no mesmo
+      // instante e o resultado vira corrida — o híbrido, que TEM plano B, poderia falhar
+      // rápido em vez de responder com a metade viva. A margem garante que o interno
+      // (degradação parcial) sempre vença; este aqui é a rede de baixo, para quem não tem
+      // plano B nenhum.
+      const teto = opts.timeoutMs + MARGEM_TETO_EXTERNO_MS;
+      return Promise.race([
+        escolhido,
+        new Promise<RetrievedSkill[]>((_, rej) => {
+          const t = setTimeout(() => rej(new RetrieverTimeoutError(params.strategy, teto)), teto);
+          (t as unknown as { unref?: () => void }).unref?.();
+        }),
+      ]);
     },
   };
 }
