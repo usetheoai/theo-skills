@@ -7,12 +7,15 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-08-01
+
 ### Fixed
 
 - **A sessão MCP era a única credencial após o handshake.** O roteamento pós-`initialize` usava só o identificador de sessão, e a credencial cunhada por inquilino nunca era relida: quem obtivesse o identificador de outra sessão — por log, telemetria ou cliente compartilhado — falava com o catálogo daquele inquilino. A especificação do protocolo é explícita: sessão não é autenticação. Agora a credencial é reverificada a cada requisição, em tempo constante e contra um hash (o segredo em claro na tabela de sessões seria um segredo a mais para vazar). Divergente ou ausente responde 404, nunca 403 — um 403 confirmaria que o identificador existe. (#review-m24-m27)
 - **A adoção não dizia qual versão foi instalada.** A telemetria gravava o **nome do canal** na coluna da revisão e a versão sempre nula; como o relatório agrupa por versão, ele inteiro colapsava numa linha só. "Uma instalação foi contabilizada" era verdade, e *a correção que publiquei chegou aos meus clientes?* — a única pergunta que se faz do relatório — nunca teria resposta. (#review-m24-m27)
 - **O teto de sessões não tinha despejo, e virava recusa permanente.** A única remoção era o encerramento limpo; um cliente que morre, uma queda de rede ou um reinício do gateway deixavam a sessão para trás, e ao encher o teto **todo** handshake novo passava a ser recusado até alguém reiniciar o processo. Um teto sem despejo não é um limite. O mesmo valia para os contadores de quota, que guardavam uma entrada por credencial já vista e nunca a removiam. (#review-m24-m27)
 - **Um teste falhava na suíte completa e passava sozinho.** Não era o teste: a limpeza entre casos removia só os trabalhos já encerrados, e os órfãos dos casos anteriores ficavam na fila para o processador pescar — o caso seguinte esperava atrás de um acúmulo que ele não criou. Verde intermitente treina o time a ignorar o vermelho, que é como dois defeitos chegaram ao ar aqui. (#review-m24-m27)
+
 ## [0.11.1] - 2026-08-01
 
 ### Fixed
