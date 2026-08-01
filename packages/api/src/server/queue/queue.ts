@@ -91,6 +91,14 @@ export interface UpdateSkillJobData {
   readonly frontmatter?: Record<string, unknown>;
   /** M3: SKILL.md text — present when the payload (zippedFilesystem) changed. */
   readonly skill_md?: string;
+  /**
+   * Versão declarada no frontmatter da revisão nova.
+   *
+   * O job de CRIAÇÃO já a carregava; este não, e a assimetria fazia a segunda publicação em
+   * diante nascer sem versão — `versionsOf` só lista revisões com versão, então o
+   * versionamento existia para a primeira publicação e para nenhuma outra, sem erro algum.
+   */
+  readonly version?: string;
 }
 
 export interface DeleteSkillJobData {
