@@ -15,7 +15,7 @@ import type PgBoss from 'pg-boss';
 import { createAuthMiddleware } from './auth/middleware.js';
 import { createDb } from './db.js';
 import { registerAdminKeysRoutes } from './handlers/admin-keys.js';
-import { registerDistributionRoutes } from './handlers/distribution.js';
+import { registerAdoptionRoutes, registerDistributionRoutes } from './handlers/distribution.js';
 import { registerHealthRoutes } from './handlers/health.js';
 import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
@@ -141,7 +141,6 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
       defaultQuota: opts.distribution.defaultQuota,
       windowMs: opts.distribution.windowMs,
       recordInstall: (e) => createAdoptionStore(db, e.workspaceId).record(e),
-      adoptionFor: (ws: string) => createAdoptionStore(db, ws),
     });
   }
 
@@ -196,6 +195,13 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // ator é um publisher autenticado, e sob escopo `skills:publish`: mover um canal aponta
   // todos os consumidores para outro conteúdo, e cunhar credencial de bundle dá acesso ao
   // catálogo a um terceiro. Nenhuma das duas é escrita comum.
+  // ADOÇÃO — atrás da autenticação, ao contrário da distribuição logo acima. Quem lê é o
+  // publisher autenticado; registrada junto da distribuição (como estava), o Principal ainda
+  // não foi resolvido e a rota respondia 404 para sempre.
+  if (opts.distribution !== undefined) {
+    registerAdoptionRoutes(app, { adoptionFor: (ws: string) => createAdoptionStore(db, ws) });
+  }
+
   registerPublishingRoutes(app, {
     channelsStoreFor: (ws) => createChannelsStore(db, ws),
     bundlesStoreFor: (ws) => createBundlesStore(db, ws),

@@ -26,7 +26,6 @@ export interface DistributionRoutesDeps {
   readonly windowMs: number;
   readonly now?: () => number;
   /** Store de adoção escopado ao publisher (M21). */
-  readonly adoptionFor?: (workspaceId: string) => { adoption: (bundleId: string, since: Date) => Promise<unknown[]> };
 }
 
 /**
@@ -129,17 +128,33 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
     );
   });
 
-  /**
-   * `GET /v1/bundles/{id}/adoption` (M21 DoD #2) — só para o DONO do bundle.
-   *
-   * Vive junto das rotas de distribuição por proximidade de domínio, mas o portão é outro:
-   * quem lê adoção é o publisher autenticado, não o cliente com token de distribuição. Um
-   * consumidor NUNCA enxerga adoção — nem a do próprio bundle: saber quantos outros clientes
-   * instalaram é informação do negócio do publisher, não dele.
-   */
+}
+
+/**
+ * `GET /v1/bundles/{id}/adoption` (M21 DoD #2) — só para o DONO do bundle.
+ *
+ * REGISTRADA SEPARADAMENTE, e é o ponto inteiro desta função existir. Ela mora no mesmo
+ * arquivo das rotas de distribuição por proximidade de domínio, mas fica do OUTRO LADO da
+ * fronteira de autenticação — e proximidade de domínio foi exatamente o que a colocou no
+ * lado errado.
+ *
+ * As rotas de distribuição são registradas ANTES do middleware de auth, com razão: quem as
+ * consome é o cliente de um publisher, que não é membro de workspace algum. Esta rota lê o
+ * Principal; registrada ali, ele **nunca** existe, e o resultado era um 404 permanente — sem
+ * erro, sem log, apenas o publisher vendo o próprio pacote responder "não existe". Medido
+ * contra o serviço no ar em 2026-08-01.
+ *
+ * Um consumidor NUNCA enxerga adoção — nem a do próprio bundle: saber quantos outros clientes
+ * instalaram é informação do negócio do publisher, não dele.
+ */
+export interface AdoptionRoutesDeps {
+  readonly adoptionFor: (workspaceId: string) => { adoption: (bundleId: string, since: Date) => Promise<unknown[]> };
+}
+
+export function registerAdoptionRoutes(app: Hono<AppEnv>, deps: AdoptionRoutesDeps): void {
   app.get('/v1/bundles/:bundleId/adoption', async (c) => {
     const principal = c.get('principal') as { workspaceId?: string } | undefined;
-    if (principal?.workspaceId === undefined || deps.adoptionFor === undefined) {
+    if (principal?.workspaceId === undefined) {
       return c.json({ error: 'not_found' }, 404);
     }
     const dias = Number(c.req.query('days') ?? '30');
