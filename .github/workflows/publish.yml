@@ -10,6 +10,16 @@
 name: publish
 
 on:
+  # Disparo manual — existe para PROVAR o gate, e a prova é o motivo dele.
+  #
+  # O gate de integração só demonstra que veta num run em que ele REPROVA e o job da imagem
+  # fica `skipped`. A ordem dos jobs num run verde não prova veto algum — foi a recusa
+  # correta do live-test em 2026-08-01. Sem disparo manual, produzir esse run exigiria
+  # quebrar `develop` de propósito, e é dela que o ambiente de desenvolvimento se serve.
+  #
+  # O poder que ele concede — publicar a imagem — é o mesmo de quem já pode mergear em
+  # `develop`, então não amplia a superfície.
+  workflow_dispatch:
   push:
     branches: [develop]
     tags: ['v*']
