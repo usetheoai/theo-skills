@@ -7,6 +7,11 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **O gate de integração ficava verde sem medir nada.** Sem a variável do banco, a suíte reportava **240 testes pulados e saía com código zero** — um runner de CI sem ela, ou com o nome errado dela, reportava sucesso sobre cobertura zero. É o pior formato de falha: não há erro, não há log, e o portão fica verde sobre nada. Quem roda local sem banco continua atendido por um opt-out explícito; o que muda é de quem é a decisão — pular passa a ser algo que alguém pediu, não o default de quem esqueceu de exportar uma variável. (#LT-006)
+- **A limpeza entre testes deixou de esvaziar a fila inteira.** A purga total foi uma tentativa minha de resolver um teste intermitente, e quebrou outro: vários arquivos registram os processadores antes dos casos, e esvaziar a tabela debaixo de um processador já registrado o deixa sem pescar nada — um teste passou a dar timeout de 46 s. Troquei um teste intermitente por um quebrado, que é pior negócio. O acúmulo que a purga tentava resolver segue aberto. (#LT-005)
+
 ## [0.11.2] - 2026-08-01
 
 ### Fixed
