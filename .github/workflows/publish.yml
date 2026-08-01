@@ -59,6 +59,12 @@ jobs:
     needs: [guard-release-on-main]
     permissions:
       contents: read
+    # A MESMA condição do `gate-ci`, e ela não é opcional: `guard-release-on-main` só roda em
+    # tag, e um job cujo `needs` foi PULADO é pulado junto. Medido no run 30712454039 — a
+    # primeira versão desta correção declarou o `needs` sem o `if`, e o gate apareceu como
+    # `skipped` num publish que mesmo assim publicou a imagem. A correção parecia feita: o
+    # teste passava, a dependência estava lá, e o portão não rodava.
+    if: ${{ always() && (needs.guard-release-on-main.result == 'success' || needs.guard-release-on-main.result == 'skipped') }}
     uses: ./.github/workflows/integration.yml
 
   image:

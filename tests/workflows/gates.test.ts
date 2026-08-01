@@ -128,6 +128,24 @@ describe('o publish não pode liberar imagem sobre integração não verificada'
     );
   });
 
+  it('o gate de integração RODA — não herda o `skipped` do guard de release', () => {
+    // Medido no run 30712454039: `gate-integration: skipped`. O `needs` estava lá e o teste
+    // anterior passava, mas o job NÃO RODOU — `guard-release-on-main` só roda em tag, e um
+    // job cujo `needs` foi pulado é pulado junto, salvo `if: always()`.
+    //
+    // O `gate-ci` tem essa condição desde sempre; eu copiei o `needs` e não o `if`. A correção
+    // PARECIA feita: teste verde, dependência declarada, e o portão sem rodar — exatamente o
+    // formato de falha que este item existe para fechar.
+    const doc = parse(readFileSync(wf('publish.yml'), 'utf8')) as {
+      jobs: Record<string, { if?: string }>;
+    };
+    const cond = doc.jobs['gate-integration']?.if ?? '';
+    expect(cond, 'sem `always()` o gate herda o skip do guard e nunca roda').toContain('always()');
+    expect(cond, 'e precisa aceitar o guard pulado, que é o caso normal fora de tag').toContain(
+      "'skipped'",
+    );
+  });
+
   it('o gate de integração do publish roda a suíte de verdade, com banco', () => {
     const integration = readFileSync(wf('integration.yml'), 'utf8');
     expect(integration, 'precisa ser chamável pelo publish').toContain('workflow_call');
