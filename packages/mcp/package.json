@@ -1,7 +1,7 @@
 {
   "name": "@usetheo/skills-mcp",
   "version": "0.1.0",
-  "description": "Servidor MCP do theo-skills — descoberta e carga de skills por agentes (stdio).",
+  "description": "Servidor MCP do theo-skills — descoberta e carga de skills por agentes (stdio e streamable-HTTP).",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

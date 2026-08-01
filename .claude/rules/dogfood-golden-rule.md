@@ -8,11 +8,18 @@ Without this file, `/dogfood` emits `EVIDENCE_INSUFFICIENT` with flag `golden_ru
 
 The anchor scenario is the single use case that, if you cannot dogfood it, you cannot claim production-ready. Pick one. Be specific.
 
-**Slug:** `<anchor-slug>` (kebab-case identifier referenced in the manifest)
+**Slug:** `theokit-remote-provider`
 
-**Description:** Replace this paragraph with a concrete user-visible scenario in which your team — not synthetic load — exercises the product end-to-end on infrastructure you actually own. The scenario should be uncomfortable: the kind of thing that proves the product works when its creators depend on it, not just when synthetic benchmarks do.
+**Description:** Um agente **Theokit real** — o `agent-builder`, que a equipe usa — descobre e
+carrega uma skill que vive no registry do theo-skills **no ar**: publicada por um publisher de
+verdade, servida por credencial cunhada por inquilino, resolvida em tempo de execução. Não é
+carga de arquivo local nem fixture: o agente precisa achar a skill que não conhecia e usá-la.
 
-**Why this scenario:** Why is THIS the scenario that, if it works, justifies the v1.0 claim? Tie it to the product's primary promise.
+**Why this scenario:** É a promessa central e inteira do produto. Se o agente que a própria
+equipe usa não consegue **achar** e **carregar** uma skill do registry, não existe registry —
+existe um banco de dados com uma API. O cenário é desconfortável de propósito: ele falha se
+qualquer elo (publicação, credencial, descoberta semântica, entrega do corpo, layout de disco
+do runtime) estiver quebrado, e cada um desses elos já quebrou pelo menos uma vez.
 
 ## § 2 — Status vocabulary (LOCKED — do not change without ADR)
 
@@ -39,7 +46,7 @@ In order; first failure short-circuits to `EVIDENCE_INSUFFICIENT`.
 | 3 | At least one evidence file under `knowledge-base/dogfood/evidence/` has frontmatter `scenario:` matching the anchor slug | `no_anchor_evidence` |
 | 4 | The most recent matching evidence file (by frontmatter `date:`) is within the freshness threshold below | `anchor_evidence_stale` |
 
-**Freshness threshold (PER-PROJECT — EDIT THIS):** `30 days` by default. Reduce for fast-moving products; never raise without ADR.
+**Freshness threshold:** `30 days`. Reduce for fast-moving products; never raise without ADR.
 
 ## § 4 — Soft caps (PER-PROJECT — EDIT OR EXTEND)
 
