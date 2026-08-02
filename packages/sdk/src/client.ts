@@ -66,7 +66,37 @@ const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeou
  * Passar `workspaceId` aqui pareceria mais explícito e seria mais frágil: um SDK que aceita
  * o tenant por argumento convida quem o usa a lê-lo de um lugar controlável pelo usuário.
  */
+/**
+ * Remove do endereço APENAS o que duplicaria — o segmento final `/v1` — e nada além.
+ *
+ * O SDK já prefixa `/v1` em todo caminho, então um `--registry` terminando em `/v1` produzia
+ * `/v1/v1/skills/...`. A tentação é apagar todo `/v1` da string; isso quebraria endereços
+ * legítimos onde `v1` é o host (`v1.example.com`), é parte de um nome (`/service-v1`), é
+ * outro segmento (`/v1beta`) ou não é o final (`/v1/extra`, onde o serviço vive abaixo).
+ * Por isso a âncora `$`: o alvo é o segmento final, não a substring.
+ */
+export function normalizeBaseUrl(bruto: string): string {
+  return bruto.replace(/\/+$/, '').replace(/\/v1$/, '');
+}
+
+/**
+ * O 404 veio desta API, ou de uma borda que não conhece este caminho?
+ *
+ * CONSERVADOR de propósito: só afirmo "endereço" com evidência POSITIVA de que não foi a API
+ * que respondeu — um corpo HTML, que é a página do proxy. Exigir corpo tipado seria mais
+ * preciso no papel e pior na prática: um 404 legítimo com corpo enxuto viraria "seu endereço
+ * está errado", e o usuário caçaria configuração enquanto a verdade era que a skill não
+ * existe. Trocar uma mensagem enganosa por outra não é conserto. Na dúvida, o comportamento
+ * antigo permanece. Lê o cabeçalho, não o corpo — consumir o stream quebraria quem já usa o
+ * cliente com respostas que só implementam `json()`.
+ */
+function pareceRespostaDaApi(contentType: string | null): boolean {
+  if (contentType === null || contentType.trim() === '') return true;
+  return !/text\/html|application\/xhtml/i.test(contentType);
+}
+
 export function withWorkspace(opts: SkillsClientOptions): WorkspaceClient {
+  const base = normalizeBaseUrl(opts.baseUrl);
   const doFetch = opts.fetch ?? globalThis.fetch;
   const attempts = Math.max(1, opts.attempts ?? 3);
   const sleep = opts.sleep ?? defaultSleep;
@@ -76,9 +106,23 @@ export function withWorkspace(opts: SkillsClientOptions): WorkspaceClient {
     let ultimo: ClassifiedError | null = null;
     for (let tentativa = 1; tentativa <= attempts; tentativa += 1) {
       try {
-        const res = await doFetch(`${opts.baseUrl}${path}`, { headers });
+        const res = await doFetch(`${base}${path}`, { headers });
         if (res.ok) return (await res.json()) as T;
-        if (res.status === 404) return 'not_found';
+        if (res.status === 404) {
+          // Só é "não encontrado" quando quem respondeu foi o SERVIÇO. Um 404 em HTML veio da
+          // borda: o endereço não serve esta API. Devolver 'not_found' aqui fazia o CLI dizer
+          // "skill não encontrada" — mandando o usuário procurar a skill, republicar e
+          // conferir o nome, tudo no lugar errado, porque o defeito era o endereço.
+          if (pareceRespostaDaApi(res.headers.get('content-type'))) return 'not_found';
+          throw new SkillsApiError({
+            kind: 'permanent',
+            retryable: false,
+            message:
+              `o endereço ${base} não respondeu ${path} como esta API (404 em HTML, não em JSON). ` +
+              'Verifique o --registry: ele é a raiz do serviço, e o /v1 é acrescentado pelo ' +
+              'cliente. A skill pode existir — quem não respondeu foi o endereço.',
+          });
+        }
 
         const c = classifyHttpStatus(res.status);
         if (!c.retryable) throw new SkillsApiError(c);
