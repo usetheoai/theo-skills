@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { createStubEmbedder, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
+import { createStubEmbedder, DEFAULT_WORKSPACE_ID, type EmbeddingProvider } from '@usetheo/skills';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { type EvalCase, type EvalDataset, runRecallEval, seedDataset } from '../../eval/run-recall.js';
@@ -99,10 +99,21 @@ describeIntegration('M4 discriminação semântica (LT-035)', () => {
     // de antes com roupa nova: um gate que diz "sim" mas do qual ninguém verificou se
     // consegue dizer "não".
     //
-    // Quebra deliberada: embedder que devolve vetor CONSTANTE. Todo par de vizinhos fica
-    // equidistante, então a perna vetorial vira ruído puro — a pior quebra possível, e a mais
-    // próxima do que uma troca de provider ou uma conta sem crédito produzem.
-    const constante = { embed: async (t: readonly string[]) => t.map(() => new Array<number>(1536).fill(0.001)) };
+    // Quebra deliberada: vetor CONSTANTE — todo par de vizinhos fica equidistante e a perna
+    // vetorial perde todo o significado.
+    //
+    // Vetor constante, NÃO um embedder que explode: a distinção importa e eu a errei na
+    // primeira tentativa. Um objeto com a assinatura errada fazia a perna vetorial LANÇAR, e
+    // aí a medição era "perna caiu" — que o `.catch` do híbrido já trata — em vez de
+    // "embedding chegou, é válido, e não quer dizer nada". O segundo é o cenário real de uma
+    // troca de provider ou de uma conta sem crédito, e é o que precisa ser medido.
+    const constante: EmbeddingProvider = {
+      provider: 'stub',
+      model: 'constante-sem-significado',
+      embed: () => Promise.resolve(new Array<number>(1536).fill(0.001)),
+      embedBatch: (texts: string[]) =>
+        Promise.resolve(texts.map(() => new Array<number>(1536).fill(0.001))),
+    };
     const comEmbedding = createDispatchingRetriever({
       executor: createPgExecutor(getPool()),
       embedder: createStubEmbedder(),
@@ -127,6 +138,19 @@ describeIntegration('M4 discriminação semântica (LT-035)', () => {
         'se divergiram, o gate deixou de ser cego: inverta este tripwire para exigir a queda.',
     ).toBe(vivo.recallAt5);
     expect(vivo.recallAt5).toBeGreaterThanOrEqual(0.85);
+
+    // E o contraste que fecha o argumento: sob os MESMOS dois embedders, o conjunto novo
+    // RESPONDE. Medido — gate: 1.00 → 1.00 (Δ 0); semânticas: 0.40 → 0.00 (Δ 0.40). Não é
+    // opinião sobre qual conjunto é melhor: um move quando o embedding morre, o outro não se
+    // mexe. Esta asserção é um portão que já sabe reprovar HOJE, sem depender de crédito no
+    // provedor — se alguém quebrar o embedding, ela fica vermelha.
+    const semanticasVivo = await runRecallEval(comEmbedding, { ...dataset, cases: semanticCases }, 'hybrid');
+    const semanticasMorto = await runRecallEval(semEmbedding, { ...dataset, cases: semanticCases }, 'hybrid');
+    expect(
+      semanticasMorto.recallAt5,
+      'o conjunto semântico parou de responder ao embedding — se ele não cai quando o ' +
+        'embedding morre, perdeu o poder de discriminação e virou o gate que ele veio substituir.',
+    ).toBeLessThan(semanticasVivo.recallAt5);
   });
 
   it('HONESTIDADE: sob o stub embedder a busca semântica também não as resolve', async () => {
