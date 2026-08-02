@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 import { afterAll, expect, it } from 'vitest';
 
 import { createPool, idlePoolErrorCount } from '../../src/server/db.js';
+import { createQueue, JOB_NAMES } from '../../src/server/queue/queue.js';
 
 import { describeIntegration } from './_helpers/env.js';
 
@@ -71,4 +72,70 @@ describeIntegration('pool: erro em cliente ocioso não derruba o processo (LT-03
 
     await pool.end();
   });
+
+  it('SEGUNDO POOL: o do pg-boss também sobrevive, e a pré-condição é afirmada (LT-039)', async () => {
+    // A recusa do LT-039 foi por escopo: há DOIS pools no processo. O primeiro teste exercita
+    // só o da API — e um cenário que derruba o Postgres com apenas um pool ocioso passa com o
+    // outro desprotegido. Foi exatamente o que aconteceu.
+    //
+    // A ARMADILHA que este teste evita: com `idleCount === 0` sobreviver a um restart não prova
+    // nada, porque o cenário que mata é o erro no cliente OCIOSO. Sem afirmar a pré-condição, o
+    // teste fica verde mesmo que alguém remova o ouvinte depois — ou seja, cego à mutação que
+    // ele existe para pegar. Por isso as asserções de preparo são explícitas e vêm ANTES.
+    const registrados: string[] = [];
+    const boss = createQueue(PG_URI, {
+      info: () => undefined,
+      error: (_f, msg) => registrados.push(msg),
+    });
+    await boss.start();
+    const pidAntes = process.pid;
+
+    const pool = createPool(PG_URI, { info: () => undefined, error: () => undefined });
+    const { rows } = await pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+    const pidApi = rows[0]?.pid;
+
+    // PRÉ-CONDIÇÃO, afirmada e não presumida: o pool da API tem cliente ocioso.
+    expect(pool.idleCount, 'pool da API sem cliente ocioso — o cenário que mata não foi montado').toBeGreaterThan(0);
+    // E o pg-boss tem conexões próprias abertas (ele mantém as suas após `start()`).
+    const { rows: conns } = await pool.query<{ n: string }>(
+      "SELECT count(*)::text AS n FROM pg_stat_activity WHERE application_name = '@usetheo/skills-api'",
+    );
+    expect(
+      Number(conns[0]?.n ?? '0'),
+      'pg-boss sem conexão própria — sem ela, derrubar o banco não exercita o segundo pool',
+    ).toBeGreaterThan(0);
+
+    const antes = idlePoolErrorCount();
+
+    // Derruba TODOS os backends do processo (API + pg-boss), que é o que um restart faz.
+    carrasco = new Pool({ connectionString: PG_URI, max: 1 });
+    carrasco.on('error', () => undefined);
+    await carrasco.query(
+      "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND (pid = $1 OR application_name = '@usetheo/skills-api')",
+      [pidApi],
+    );
+    await new Promise((r) => setTimeout(r, 800));
+
+    // O processo é o MESMO — sob supervisor, um processo que morreu e voltou também responde.
+    expect(process.pid, 'o PID mudou: o processo morreu e foi reiniciado, não sobreviveu').toBe(pidAntes);
+    expect(idlePoolErrorCount(), 'nenhum erro contado — os ouvintes não viram nada').toBeGreaterThan(antes);
+
+    // A ASSERÇÃO QUE DISCRIMINA, e que eu tinha omitido: o contador é do PROCESSO, então o
+    // ouvinte da API sozinho já o incrementa — com ele, remover o ouvinte do pg-boss deixava
+    // este teste VERDE. Medido: as duas mutações (sem ouvinte, ouvinte vazio) passavam.
+    // O que prova que o SEGUNDO pool foi protegido é o registro vindo DELE.
+    expect(
+      registrados,
+      'o ouvinte do pg-boss não registrou nada — o segundo pool está desprotegido, ' +
+        'e o contador do processo esconde isso porque o pool da API já o incrementou',
+    ).not.toEqual([]);
+
+    // E os dois lados voltam a funcionar.
+    const depois = await pool.query<{ ok: number }>('SELECT 1 AS ok');
+    expect(depois.rows[0]?.ok).toBe(1);
+    await expect(boss.getQueueSize(JOB_NAMES.CREATE_SKILL)).resolves.toBeTypeOf('number');
+
+    await boss.stop({ graceful: false });
+    await pool.end();
+  }, 90_000);
 });
