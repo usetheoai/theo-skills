@@ -132,3 +132,21 @@ checkbox no ROADMAP do repo declarado em `target_project`. Este plano declara
    contraditório no theo-promptly.
 
 Crédito da divergência: sessão theo-promptly-2, que a trouxe em vez de decidir calada.
+
+## ACHADO T1.2 — não copiar o `getRaw` da referência
+
+`theo-cloud/internal/trust/data_client.go:144-149` **não usa** o `UpstreamError` do próprio
+pacote: colapsa a recusa em `fmt.Errorf("...%d: %s", status, truncate(body,300))`. É o mesmo
+defeito que o tipo existe para impedir — o tipo foi criado no M24 e o `getRaw` ficou para trás.
+
+**Consequência para a T1.2:** copiar o `getRaw` da referência porta o defeito junto com o padrão.
+O `getRaw` do skills DEVE construir `&UpstreamError{Status, Body, Method, Path}` em `4xx`.
+O teste que discrimina: upstream 422 tipado → `AsUpstreamError` extrai `code`; a versão com
+`fmt.Errorf` passa em "a mensagem contém INVALID_FRONTMATTER" e falha em extrair o código.
+
+Vale abrir issue no theo-cloud para o `getRaw` do trust (defeito vivo, não meu escopo).
+
+**Segurança estrutural já presente no broker (aproveitar, não reinventar):**
+`Broker.KeyForTenant(ctx, accountID, tenantID)` + `DataClient.WithKeyResolver(func(ctx))` — a
+chave sai de um resolvedor ligado ao contexto, então a UI **não tem como** passar `workspaceId`
+por parâmetro. Manter essa forma: é a diferença entre impedir o erro e testar contra ele.
