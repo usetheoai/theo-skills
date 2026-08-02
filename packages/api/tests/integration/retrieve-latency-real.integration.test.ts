@@ -40,10 +40,22 @@ const TEM_CHAVE = (process.env['OPENAI_API_KEY'] ?? '').trim() !== '';
 const PULAR_PEDIDO = (process.env['THEOSKILL_SKIP_REAL_EMBED'] ?? '') !== '';
 
 /**
+ * A suíte de integração vai mesmo rodar? Só faz sentido exigir a chave se sim.
+ *
+ * Sem esta condição o guard abaixo dispara mesmo quando a integração inteira foi dispensada
+ * (`THEOSKILL_SKIP_INTEGRATION=1`, o caminho de quem não tem Postgres local) — e aí ele
+ * derruba com exit 1 uma execução que o contrato manda sair 0. Foi o que quebrou o
+ * `integration-gate.contract.test.ts`: eu empilhei um segundo portão sobre um opt-out que já
+ * existia, em vez de respeitá-lo.
+ */
+const INTEGRACAO_VAI_RODAR =
+  (process.env['THEOSKILL_PG_URI'] ?? '') !== '' && (process.env['THEOSKILL_SKIP_INTEGRATION'] ?? '') === '';
+
+/**
  * Sem chave o gate NÃO passa em silêncio — mesmo motivo de `_helpers/env.ts`: um portão que
  * não mede nada e diz "passou" é pior que portão nenhum. Pular vira decisão de quem pediu.
  */
-if (!TEM_CHAVE && !PULAR_PEDIDO) {
+if (INTEGRACAO_VAI_RODAR && !TEM_CHAVE && !PULAR_PEDIDO) {
   throw new Error(
     'OPENAI_API_KEY ausente — este gate mede o caminho REAL da descoberta e não mediria nada.\n' +
       '  • Para RODAR: OPENAI_API_KEY=... pnpm test:integration\n' +
