@@ -839,6 +839,72 @@ encontrado por teste verde.
 2. **`assertPublishable` recusando retrocesso pode barrar correção urgente de versão antiga.** Mitigação: decidir e documentar o caminho de exceção (patch em linha antiga) antes de ligar a regra, não depois do primeiro incidente.
 ---
 
+### M29 — [ ] A interface do registro, no padrão do ecossistema
+
+**Objective:** Dar ao `theo-skills` a superfície que todo produto do ecossistema já tem — telas
+no `theo-cloud/dashboard`, menu no mesmo padrão, componentes `usetheo-ui` usados como os
+vizinhos usam. Hoje o produto tem 37 rotas HTTP e **nenhuma** superfície de UI.
+
+**Why now (o que mudou):** três fatos medidos em 2026-08-02, não uma preferência de roadmap.
+
+1. O eixo web do gate de live-test ficou **`não-aplicável` por AUSÊNCIA de tela**, não por
+   aprovação — a cobertura não foi conquistada, ela não existe.
+2. A única entrada "Skills" do menu (`app-sidebar-menus.ts:268`) aponta para `/memory/skills`,
+   que é do **theo-memory**. Quem procura skills chega no produto errado, sem erro algum.
+3. Operações destrutivas só existem por API. **Promover canal aponta TODOS os consumidores do
+   canal para outro conteúdo** — é a operação mais perigosa do produto justamente por não
+   parecer destrutiva, e hoje acontece sem confirmação nem visibilidade de quem é afetado.
+
+**Onde nasce:** `theo-cloud/dashboard`, **nunca aqui**. O `CLAUDE.md` deste repositório é
+explícito, e o `theo-trust` é a implementação de referência — copie o caminho dele (cliente +
+broker, erro tipado do upstream, rotas do BFF, telas, lógica pura fora do React, mocks, e2e).
+Contrato de design em `theo-cloud/dashboard/DESIGN.md`, leia **antes** de desenhar.
+
+**Definition of done:**
+
+- [ ] **A navegação abre PELO MENU, verificada clicando a partir da raiz.** As três peças:
+      entrada em `Capabilities` com `drillsInto: 'skills'`, o objeto `skills:` com as telas, **e
+      a linha em `resolveActiveMenu`**. Chegar na tela digitando a URL **não conta como
+      verificação** — é o único caminho que o usuário real não tem.
+- [ ] Jornada de leitura ponta a ponta: listar skills → abrir detalhe → ver versões e canais →
+      ver a instrução resolvida. Afirmando **conteúdo**, não status HTTP.
+- [ ] Promover canal exige o `ConfirmDialog` canônico com frase digitada, e o texto diz **o que
+      deixa de valer** — quantos consumidores do canal passam a receber outro conteúdo.
+- [ ] Lógica de projeção e validação testada **fora do React**; handlers de mock registrados
+      para a jornada entrar no e2e hermético.
+- [ ] **Um** e2e cobre a jornada inteira, não um por tela.
+
+**Dependencies:** nenhuma nova. Os milestones que fornecem os dados já estão `[x]` — M19
+(canais e versionamento), M20 (bundles + tokens delegados), M21 (telemetria de adoção), M22
+(vertical Model B) e M23 (categoria e execução).
+
+**M7 e M28 NÃO são dependências, e a razão é a mesma para os dois:** eles tratam de um *agente*
+carregar skill sem disco; este trata de um *humano* navegar o registro. Amarrá-los faria a
+interface esperar por uma decisão de arquitetura entre dois produtos, que ainda precisa de ADR.
+
+**Explicitamente FORA deste milestone:** escrita pela tela (publicar/republicar skill). Escopo
+maior; se justificar, vira milestone próprio.
+
+**Top risks:**
+
+1. **A tela mostrar o que o serviço não manda, e o defeito parecer de interface.** Três casos
+   reais do `theo-trust`: campo que a jornada exige ausente na resposta (o painel de detalhe
+   virou código morto em produção); mensagem de erro escrita para terminal (`"Run: theo login"`
+   para quem está num navegador); o mesmo dado em dois formatos (a coluna ficou vazia
+   exatamente nas linhas que o operador criou). *Mitigação:* ao desenhar cada endpoint,
+   perguntar qual é a **próxima ação** de quem lê aquela lista — e devolver o que a torna
+   possível.
+2. **O menu declarado e inalcançável.** Já custou um milestone inteiro no `theo-trust`: quatro
+   telas declaradas, submenu completo, e o menu nunca abriu porque faltava a linha de resolução.
+   Três rodadas de validação passaram por cima porque validavam pela URL. A DoD mitiga, mas o
+   risco persiste porque **a falha é silenciosa** — as telas funcionam, só não há como chegar
+   nelas clicando.
+
+*Adicionado por `/roadmap-feature dashboard-ui` em 2026-08-02. Grill:
+`knowledge-base/grills/dashboard-ui-feature-grill.md`.*
+
+---
+
 ## State-of-the-art references
 
 ### Referência normativa interna (não é peer clonado)
