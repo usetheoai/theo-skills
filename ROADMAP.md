@@ -869,7 +869,18 @@ Contrato de design em `theo-cloud/dashboard/DESIGN.md`, leia **antes** de desenh
 - [ ] Jornada de leitura ponta a ponta: listar skills → abrir detalhe → ver versões e canais →
       ver a instrução resolvida. Afirmando **conteúdo**, não status HTTP.
 - [ ] Promover canal exige o `ConfirmDialog` canônico com frase digitada, e o texto diz **o que
-      deixa de valer** — quantos consumidores do canal passam a receber outro conteúdo.
+      deixa de valer**. **A forma desse texto depende de uma medição feita em 2026-08-02 e
+      registrada aqui para não virar surpresa de implementação:** a telemetria de adoção existe
+      (M21) mas é **por bundle** (`GET /v1/bundles/:bundleId/adoption`) — **não há rota que
+      responda "quantos consumidores deste canal"**. Escolher UMA das duas saídas, com a decisão
+      declarada no plano:
+      **(a)** o diálogo nomeia o que é verificável hoje — a versão que sai, a que entra, e o
+      bundle afetado — sem afirmar contagem de consumidores; ou
+      **(b)** a contagem por canal entra no escopo, e então isto deixa de ser só UI: exige rota
+      nova no `theo-skills` e vira dependência real deste milestone.
+      **Não é aceitável a terceira via** — a tela exibir uma contagem derivada por conta própria
+      a partir de dados de bundle: seria a interface inventando um número que o serviço não
+      afirma, que é literalmente o Risco 1 abaixo.
 - [ ] Lógica de projeção e validação testada **fora do React**; handlers de mock registrados
       para a jornada entrar no e2e hermético.
 - [ ] **Um** e2e cobre a jornada inteira, não um por tela.
