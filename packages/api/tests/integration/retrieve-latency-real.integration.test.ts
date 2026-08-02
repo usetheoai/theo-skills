@@ -123,4 +123,47 @@ const embedder: EmbeddingProvider = createOpenAIEmbedder({});
       'p95 abaixo de 50ms com embedder "real" — isto não é rede. Verifique se o provider foi trocado.',
     ).toBeGreaterThan(50);
   }, 180_000);
+
+  it('GATE DE RECALL ancorado no conjunto que DISCRIMINA — e prova os dois sentidos', async () => {
+    // LT-035, re-entrega. O gate antigo usava o dataset COMPLETO e media 1.00 com embedding
+    // vivo e 1.00 com embedding MORTO — idênticos. Continuava cego ao motor, que era o defeito
+    // original, só que com casos diferentes: num conjunto onde a maioria casa por léxico, a
+    // média passa mesmo com a perna vetorial morta. O agregado DILUI.
+    //
+    // O conjunto `semantic_cases` (sinônimos, sobreposição léxica zero por construção) dá 1.00
+    // com vivo e 0.00 com morto. É nele que o gate tem poder de reprovar, e é nele que o gate
+    // passa a viver.
+    const sem = { ...dataset, cases: dataset.semantic_cases ?? [] };
+    expect(sem.cases.length, 'sem casos semânticos não há gate').toBeGreaterThanOrEqual(5);
+
+    const vivo = await runRecallEval(
+      createDispatchingRetriever({ executor: createPgExecutor(getPool()), embedder, workspaceId: DEFAULT_WORKSPACE_ID }),
+      sem,
+      'hybrid',
+    );
+    // SENTIDO 1 — com o motor vivo, o portão passa.
+    expect(
+      vivo.recallAt5,
+      `recall semântico=${String(vivo.recallAt5)} com embedder real — abaixo do piso, a descoberta por intenção regrediu`,
+    ).toBeGreaterThanOrEqual(0.85);
+
+    // SENTIDO 2 — com o motor MORTO, o portão REPROVA. Sem esta metade o gate volta a ser o
+    // que era: um número que só sabe dizer sim.
+    const morto: EmbeddingProvider = {
+      provider: 'stub',
+      model: 'constante-sem-significado',
+      embed: () => Promise.resolve(new Array<number>(1536).fill(0.001)),
+      embedBatch: (t: string[]) => Promise.resolve(t.map(() => new Array<number>(1536).fill(0.001))),
+    };
+    const comMotorMorto = await runRecallEval(
+      createDispatchingRetriever({ executor: createPgExecutor(getPool()), embedder: morto, workspaceId: DEFAULT_WORKSPACE_ID }),
+      sem,
+      'hybrid',
+    );
+    expect(
+      comMotorMorto.recallAt5,
+      `com embedding morto o recall foi ${String(comMotorMorto.recallAt5)} — o portão NÃO reprovou, ` +
+        'logo não mede descoberta por intenção. É o defeito do LT-035 de volta.',
+    ).toBeLessThan(0.85);
+  }, 180_000);
 });
