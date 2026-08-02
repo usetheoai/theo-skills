@@ -41,7 +41,19 @@ describeIntegration('M4 eval: Recall@5 + p95 latency (T4.1/T4.2)', () => {
     expect(vectorOnly.recallAt5).toBeLessThan(0.5); // non-semantic stub → poor vector recall
   });
 
-  it('retrieve p95 latency < 200ms over the eval queries', async () => {
+  it('p95 do caminho SEM rede (banco + fusão) < 200ms — NÃO é a latência da descoberta', async () => {
+    // Renomeado no LT-042, porque o nome anterior ("retrieve p95 latency") afirmava o que este
+    // teste não mede. Ele roda com `createStubEmbedder` — hash local, zero rede —, então o que
+    // ele guarda é o custo de banco + fusão RRF, e nada mais.
+    //
+    // Por que isso importou: enquanto o nome dizia "retrieve", este gate ficou VERDE durante
+    // os 9,3 s que a produção levava no LT-026, porque o trecho caro (a chamada de embedding)
+    // nunca esteve no caminho medido. Um teto afirmado sobre um caminho que não se exercita
+    // não é gate, é decoração — e a decoração aqui deu cobertura a um defeito real.
+    //
+    // A latência da descoberta de verdade é medida em `retrieve-latency-real.integration.test.ts`,
+    // com embedder real e teto ancorado no LT-029.
+    //
     // NOTE: smoke/regression guard at toy corpus size (13 rows) — NOT a production-scale
     // SLO. A larger-corpus latency probe is a follow-up before any public SLA claim.
     const retriever = createDispatchingRetriever({ executor: createPgExecutor(getPool()), embedder: createStubEmbedder() , workspaceId: DEFAULT_WORKSPACE_ID });

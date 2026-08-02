@@ -44,7 +44,7 @@ import { createWebhookEndpointsStore } from './store/webhook-endpoints-store.js'
 import { type DnsResolver } from './webhooks/url-safety.js';
 
 const DEFAULT_RESERVATION_HOURS = 24;
-const DEFAULT_RETRIEVE_TIMEOUT_MS = 3_000;
+export const DEFAULT_RETRIEVE_TIMEOUT_MS = 3_000;
 const DEFAULT_MAX_BODY_BYTES = 35 * 1024 * 1024; // ~25MB zip after base64 envelope
 
 export interface CreateAppOptions {
