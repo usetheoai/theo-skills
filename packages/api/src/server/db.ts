@@ -1,11 +1,49 @@
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
+import { type Logger } from './logger.js';
+
 export type Db = NodePgDatabase<Record<string, never>>;
 
-/** Build a Postgres connection pool from a connection URI. */
-export function createPool(uri: string): Pool {
-  return new Pool({ connectionString: uri });
+/**
+ * Quantas vezes um cliente OCIOSO do pool emitiu erro. Exportado porque sem isto a ocorrência
+ * seguinte volta a ser invisível: o processo sobrevive, o pool se recupera, e ninguém fica
+ * sabendo que o banco reiniciou embaixo do serviço.
+ */
+let errosDeClienteOcioso = 0;
+export function idlePoolErrorCount(): number {
+  return errosDeClienteOcioso;
+}
+
+/**
+ * Constrói o pool COM ouvinte de erro — sem ele, o processo inteiro cai.
+ *
+ * No node-postgres, um erro emitido por um cliente **ocioso** do pool sem listener vira
+ * `uncaughtException` e derruba o processo. Não é degradação: é o serviço inteiro caindo por
+ * causa de um restart do banco, que é evento rotineiro de operação.
+ *
+ * O handler NÃO engole. Engolir trocaria "processo morre" por "processo vivo com pool
+ * quebrado", que é pior — some do log, some do alarme, e o serviço passa a errar tudo sem que
+ * nada acuse. Aqui ele registra com contexto e deixa o pool se recuperar sozinho (o
+ * node-postgres descarta o cliente defeituoso e abre outro na próxima aquisição), e conta a
+ * ocorrência para que a próxima não seja invisível.
+ */
+export function createPool(uri: string, logger?: Logger): Pool {
+  const pool = new Pool({ connectionString: uri });
+  pool.on('error', (err: Error) => {
+    errosDeClienteOcioso += 1;
+    logger?.error(
+      {
+        erro: err.message,
+        codigo: (err as { code?: unknown }).code ?? null,
+        ocorrencias: errosDeClienteOcioso,
+        total_no_pool: pool.totalCount,
+        ociosos: pool.idleCount,
+      },
+      'cliente ocioso do pool emitiu erro — pool segue vivo e reabre a conexão na próxima query',
+    );
+  });
+  return pool;
 }
 
 /** Wrap a pool in a Drizzle client. */
