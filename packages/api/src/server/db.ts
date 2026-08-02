@@ -39,11 +39,22 @@ export function registrarErroDePoolOcioso(): void {
  * node-postgres descarta o cliente defeituoso e abre outro na próxima aquisição), e conta a
  * ocorrência para que a próxima não seja invisível.
  */
-export function createPool(uri: string, logger?: Logger): Pool {
+/**
+ * `logger` é OBRIGATÓRIO de propósito — era opcional e a produção o omitiu.
+ *
+ * Com `logger?.error(...)`, esquecer de passá-lo transformava o ouvinte num no-op silencioso:
+ * o processo sobrevivia ao restart do banco e ninguém ficava sabendo. Medido em produção
+ * (LT-039): após dois restarts reais, ZERO linhas dos handlers no log. Resiliência sem
+ * observabilidade é o defeito, não a solução.
+ *
+ * Exigir o parâmetro faz o compilador impedir a omissão, em vez de um teste torcer para que
+ * ela não aconteça — é a diferença entre tornar o erro impossível e tentar detectá-lo.
+ */
+export function createPool(uri: string, logger: Logger): Pool {
   const pool = new Pool({ connectionString: uri });
   pool.on('error', (err: Error) => {
     errosDeClienteOcioso += 1;
-    logger?.error(
+    logger.error(
       {
         erro: err.message,
         codigo: (err as { code?: unknown }).code ?? null,

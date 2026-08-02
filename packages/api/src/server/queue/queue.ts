@@ -52,11 +52,11 @@ export const WEBHOOK_DELIVERY_SINGLETON_SECONDS = 120;
  * Conta na MESMA métrica do pool da API — um operador que vê "erros de cliente ocioso" quer o
  * número do processo, não um por pool, senão a soma some e cada metade parece pequena.
  */
-export function createQueue(uri: string, logger?: Logger): PgBoss {
+export function createQueue(uri: string, logger: Logger): PgBoss {
   const boss = new PgBoss({ connectionString: uri, application_name: '@usetheo/skills-api' });
   boss.on('error', (err: Error) => {
     registrarErroDePoolOcioso();
-    logger?.error(
+    logger.error(
       { erro: err.message, codigo: (err as { code?: unknown }).code ?? null, pool: 'pg-boss' },
       'erro no pool interno do pg-boss — a fila segue viva e reabre a conexão',
     );

@@ -11,7 +11,7 @@ import { PG_URI } from './env.js';
 
 /** Start a real pg-boss bound to the test DB and ensure the job queues. */
 export async function startBoss(): Promise<PgBoss> {
-  const boss = createQueue(PG_URI);
+  const boss = createQueue(PG_URI, { info: () => undefined, error: () => undefined });
   await boss.start();
   await boss.createQueue(JOB_NAMES.CREATE_SKILL);
   await boss.createQueue(JOB_NAMES.UPDATE_SKILL);
