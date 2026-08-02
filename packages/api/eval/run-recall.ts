@@ -17,6 +17,20 @@ export interface EvalCase {
 export interface EvalDataset {
   skills: EvalSkill[];
   cases: EvalCase[];
+  /**
+   * Consultas por SINÔNIMO — o termo não aparece no texto indexado da skill esperada.
+   *
+   * Separadas de `cases` de propósito. `cases` são paráfrases lexicais: medido em 2026-08-01,
+   * 13 de 13 casam por token com a skill esperada, então o gate `Recall@5 >= 0.85` passaria
+   * com o embedding completamente morto — e passa, hoje, com o provedor sem crédito. Um portão
+   * que não pode falhar não é evidência de nada.
+   *
+   * Estas ficam FORA do gate porque sob o stub embedder ninguém as resolve; um teste
+   * eternamente vermelho é desligado na primeira semana. O que elas garantem sem embedder
+   * algum é ESTRUTURAL — overlap léxico zero — e é isso que as torna capazes de distinguir
+   * busca semântica de casamento de substring.
+   */
+  semantic_cases?: EvalCase[];
 }
 
 export interface EvalReport {
