@@ -839,80 +839,32 @@ encontrado por teste verde.
 2. **`assertPublishable` recusando retrocesso pode barrar correção urgente de versão antiga.** Mitigação: decidir e documentar o caminho de exceção (patch em linha antiga) antes de ligar a regra, não depois do primeiro incidente.
 ---
 
-### M29 — [ ] A interface do registro, no padrão do ecossistema
+### M29 — [→] A interface do registro — **entregue no `theo-cloud`, como M26**
 
-**Objective:** Dar ao `theo-skills` a superfície que todo produto do ecossistema já tem — telas
-no `theo-cloud/dashboard`, menu no mesmo padrão, componentes `usetheo-ui` usados como os
-vizinhos usam. Hoje o produto tem 37 rotas HTTP e **nenhuma** superfície de UI.
+**Este milestone não é implementado aqui, e não é cancelado: ele MUDOU DE ROADMAP em 2026-08-02.**
+O conteúdo integral (objective, why-now medido, DoD com as cinco alíneas, dependências, riscos)
+vive agora em **`theo-cloud/ROADMAP.md` § M26 — A interface do registro de skills, no padrão do
+ecossistema**.
 
-**Why now (o que mudou):** três fatos medidos em 2026-08-02, não uma preferência de roadmap.
+**Por que lá e não aqui (mecânico, verificado):** `rules/cycle-release.md` fase
+`roadmap-checkbox-flip` vira o checkbox no ROADMAP do repositório declarado em `target_project`.
+O plano `m29-dashboard-ui` declara `target_project: theo-cloud` — a UI é código do `theo-cloud`,
+como o `CLAUDE.md` deste repo já exige. Mantido aqui, este checkbox ficaria `[ ]` **para sempre**,
+mesmo com a interface no ar. Precedente: a UI do `theo-trust` é o **M23 do `theo-cloud`**, `[x]`.
 
-1. O eixo web do gate de live-test ficou **`não-aplicável` por AUSÊNCIA de tela**, não por
-   aprovação — a cobertura não foi conquistada, ela não existe.
-2. A única entrada "Skills" do menu (`app-sidebar-menus.ts:268`) aponta para `/memory/skills`,
-   que é do **theo-memory**. Quem procura skills chega no produto errado, sem erro algum.
-3. Operações destrutivas só existem por API. **Promover canal aponta TODOS os consumidores do
-   canal para outro conteúdo** — é a operação mais perigosa do produto justamente por não
-   parecer destrutiva, e hoje acontece sem confirmação nem visibilidade de quem é afetado.
+**Por que o ponteiro fica e o bloco não é apagado:** foi exatamente o cross-reference ausente que
+custou cinco semanas de roadmap contraditório no `theo-promptly`. Quem procurar "onde está a UI do
+skills" no roadmap do produto tem de encontrar a resposta, não um vazio.
 
-**Onde nasce:** `theo-cloud/dashboard`, **nunca aqui**. O `CLAUDE.md` deste repositório é
-explícito, e o `theo-trust` é a implementação de referência — copie o caminho dele (cliente +
-broker, erro tipado do upstream, rotas do BFF, telas, lógica pura fora do React, mocks, e2e).
-Contrato de design em `theo-cloud/dashboard/DESIGN.md`, leia **antes** de desenhar.
+| | |
+|---|---|
+| Onde vive agora | `theo-cloud/ROADMAP.md` § M26 |
+| Plano | `../.claude/knowledge-base/plans/m29-dashboard-ui-plan.md` — no **umbrella**, `milestone_id: M26` |
+| Blueprint do DISCOVER | `../.claude/knowledge-base/discoveries/blueprints/m29-dashboard-ui-blueprint.md` — idem |
+| Grill original | `knowledge-base/grills/dashboard-ui-feature-grill.md` (permanece neste repo) |
+| O que ESTE repo ainda decide | a UX que a API torna possível — ver `CLAUDE.md` § *O que ESTE repositório decide sobre a UX* |
 
-**Definition of done:**
-
-- [ ] **A navegação abre PELO MENU, verificada clicando a partir da raiz.** As três peças:
-      entrada em `Capabilities` com `drillsInto: 'skills'`, o objeto `skills:` com as telas, **e
-      a linha em `resolveActiveMenu`**. Chegar na tela digitando a URL **não conta como
-      verificação** — é o único caminho que o usuário real não tem.
-- [ ] Jornada de leitura ponta a ponta: listar skills → abrir detalhe → ver versões e canais →
-      ver a instrução resolvida. Afirmando **conteúdo**, não status HTTP.
-- [ ] Promover canal exige o `ConfirmDialog` canônico com frase digitada, e o texto diz **o que
-      deixa de valer**. **A forma desse texto depende de uma medição feita em 2026-08-02 e
-      registrada aqui para não virar surpresa de implementação:** a telemetria de adoção existe
-      (M21) mas é **por bundle** (`GET /v1/bundles/:bundleId/adoption`) — **não há rota que
-      responda "quantos consumidores deste canal"**. Escolher UMA das duas saídas, com a decisão
-      declarada no plano:
-      **(a)** o diálogo nomeia o que é verificável hoje — a versão que sai, a que entra, e o
-      bundle afetado — sem afirmar contagem de consumidores; ou
-      **(b)** a contagem por canal entra no escopo, e então isto deixa de ser só UI: exige rota
-      nova no `theo-skills` e vira dependência real deste milestone.
-      **Não é aceitável a terceira via** — a tela exibir uma contagem derivada por conta própria
-      a partir de dados de bundle: seria a interface inventando um número que o serviço não
-      afirma, que é literalmente o Risco 1 abaixo.
-- [ ] Lógica de projeção e validação testada **fora do React**; handlers de mock registrados
-      para a jornada entrar no e2e hermético.
-- [ ] **Um** e2e cobre a jornada inteira, não um por tela.
-
-**Dependencies:** nenhuma nova. Os milestones que fornecem os dados já estão `[x]` — M19
-(canais e versionamento), M20 (bundles + tokens delegados), M21 (telemetria de adoção), M22
-(vertical Model B) e M23 (categoria e execução).
-
-**M7 e M28 NÃO são dependências, e a razão é a mesma para os dois:** eles tratam de um *agente*
-carregar skill sem disco; este trata de um *humano* navegar o registro. Amarrá-los faria a
-interface esperar por uma decisão de arquitetura entre dois produtos, que ainda precisa de ADR.
-
-**Explicitamente FORA deste milestone:** escrita pela tela (publicar/republicar skill). Escopo
-maior; se justificar, vira milestone próprio.
-
-**Top risks:**
-
-1. **A tela mostrar o que o serviço não manda, e o defeito parecer de interface.** Três casos
-   reais do `theo-trust`: campo que a jornada exige ausente na resposta (o painel de detalhe
-   virou código morto em produção); mensagem de erro escrita para terminal (`"Run: theo login"`
-   para quem está num navegador); o mesmo dado em dois formatos (a coluna ficou vazia
-   exatamente nas linhas que o operador criou). *Mitigação:* ao desenhar cada endpoint,
-   perguntar qual é a **próxima ação** de quem lê aquela lista — e devolver o que a torna
-   possível.
-2. **O menu declarado e inalcançável.** Já custou um milestone inteiro no `theo-trust`: quatro
-   telas declaradas, submenu completo, e o menu nunca abriu porque faltava a linha de resolução.
-   Três rodadas de validação passaram por cima porque validavam pela URL. A DoD mitiga, mas o
-   risco persiste porque **a falha é silenciosa** — as telas funcionam, só não há como chegar
-   nelas clicando.
-
-*Adicionado por `/roadmap-feature dashboard-ui` em 2026-08-02. Grill:
-`knowledge-base/grills/dashboard-ui-feature-grill.md`.*
+*Movido em 2026-08-02. Adicionado originalmente por `/roadmap-feature dashboard-ui` no mesmo dia.*
 
 ---
 
