@@ -101,8 +101,15 @@ async function main(): Promise<void> {
   }
   const port = Number(process.env['PORT'] ?? '8080');
 
-  const pool = createPool(uri);
-  const queue = createQueue(uri);
+  // O logger VAI JUNTO — sem ele os ouvintes de erro dos dois pools são no-op silencioso.
+  //
+  // Eu construí a observabilidade no LT-039 e não a liguei aqui: `logger?.error(...)` com
+  // `logger` ausente não registra nada, então o processo sobrevivia ao restart do banco e
+  // NINGUÉM ficava sabendo que houve erro. Medido pelo validador: após dois restarts reais,
+  // zero linhas dos handlers em `docker logs`. Resiliência sem observabilidade é o defeito,
+  // não a solução — quem opera não descobre, e o incidente seguinte começa do zero.
+  const pool = createPool(uri, logger);
+  const queue = createQueue(uri, logger);
 
   // O schema da APLICAÇÃO vem antes de tudo — a imagem é autossuficiente.
   //
