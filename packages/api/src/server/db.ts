@@ -16,6 +16,17 @@ export function idlePoolErrorCount(): number {
 }
 
 /**
+ * Incrementa o contador a partir de OUTRO pool do processo (o interno do pg-boss).
+ *
+ * Existe porque o contador precisa ser do PROCESSO, não do pool: dois contadores separados
+ * fariam cada metade parecer pequena e a soma sumir — e foi justamente um segundo pool
+ * invisível que manteve o defeito vivo depois do primeiro conserto.
+ */
+export function registrarErroDePoolOcioso(): void {
+  errosDeClienteOcioso += 1;
+}
+
+/**
  * Constrói o pool COM ouvinte de erro — sem ele, o processo inteiro cai.
  *
  * No node-postgres, um erro emitido por um cliente **ocioso** do pool sem listener vira
