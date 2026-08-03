@@ -51,6 +51,7 @@ function packedFiles(dir) {
 }
 
 const failures = []
+const manifestFailures = []
 let checked = 0
 
 for (const name of readdirSync(PACKAGES_DIR)) {
@@ -60,6 +61,14 @@ for (const name of readdirSync(PACKAGES_DIR)) {
 
   const pkg = JSON.parse(readFileSync(manifest, 'utf8'))
   if (pkg.private === true) continue // nunca vai ao registry
+
+  // `repository.url` é exigido pelo npm ao publicar com provenance: a attestation amarra o
+  // artefato ao repositório que o construiu, e sem o campo o registry recusa com E422. Sem
+  // esta checagem o publish falha no REGISTRY, depois do build e a meio caminho da fila de
+  // pacotes — deixando os seguintes `skipped`. Medido na tag v0.11.4.
+  if (!pkg.repository?.url) {
+    manifestFailures.push({ pkg: pkg.name, campo: 'repository.url', motivo: 'ausente' })
+  }
 
   const packed = packedFiles(dir)
   checked++
@@ -73,6 +82,15 @@ for (const name of readdirSync(PACKAGES_DIR)) {
   }
 }
 
+if (manifestFailures.length > 0) {
+  console.error('\nFALHA: manifesto incompleto para publicar com provenance.\n')
+  for (const f of manifestFailures) {
+    console.error(`  ${f.pkg}`)
+    console.error(`    ${f.campo} ${f.motivo}`)
+  }
+  console.error('\nO npm recusa a attestation sem `repository.url` (E422). Ver issue #116.\n')
+}
+
 if (failures.length > 0) {
   console.error('\nFALHA: manifesto promete arquivo que o tarball nao entrega.\n')
   for (const f of failures) {
@@ -83,7 +101,10 @@ if (failures.length > 0) {
     '\nCausa mais provavel: "declaration": false no tsconfig.build.json de um pacote',
   )
   console.error('que declara "types" no package.json. Ver issues #115 e #116.\n')
-  process.exit(1)
 }
 
-console.log(`OK: ${checked} pacotes publicaveis, todos os pontos de entrada presentes no tarball.`)
+if (failures.length > 0 || manifestFailures.length > 0) process.exit(1)
+
+console.log(
+  `OK: ${checked} pacotes publicaveis — pontos de entrada presentes no tarball e manifesto apto a provenance.`,
+)

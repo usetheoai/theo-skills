@@ -20,7 +20,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: actionlint-${{ github.event.pull_request.head.ref || github.ref_name }}
+  # O EVENTO ENTRA NA CHAVE — mesma correção que `ci`/`integration`/`sast` receberam em
+  # 2026-08-01, e que este arquivo não recebeu por não ser check EXIGIDO.
+  #
+  # Num PR de promoção `develop → main`, `head.ref` vale `develop` — a MESMA chave de um push
+  # em `develop`. Os dois caem no mesmo grupo, um cancela o outro, e o run `cancelled` fica no
+  # SHA. Aqui isso não bloqueia merge (o check não é exigido), mas continua se lendo como
+  # falha na lista de runs — e foi por parecer inofensivo que a versão exigida do mesmo
+  # defeito sobreviveu até bloquear o v0.10.0 e o PR #118. Medido no PR #120.
+  group: actionlint-${{ github.event_name }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
