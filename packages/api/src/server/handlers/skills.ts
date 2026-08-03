@@ -22,7 +22,18 @@ import { type OperationsStore } from '../store/operations-store.js';
 import { type RevisionsStore } from '../store/revisions-store.js';
 import { type SkillsStore } from '../store/skills-store.js';
 
-const UPDATE_MASK_FIELDS = new Set(['displayName', 'description', 'zippedFilesystem']);
+/**
+ * Campos que a `updateMask` do PATCH aceita.
+ *
+ * `skillMd` entra ao lado de `zippedFilesystem` — não no lugar dele. A assimetria entre criar e
+ * atualizar já produziu defeito neste código: `version` e `category` iam no job de CRIAÇÃO e não
+ * no de atualização, e a segunda publicação em diante nascia sem versão, sem erro algum. Aceitar
+ * `SKILL.md` avulso só no `POST` repetiria a forma exata daquele defeito.
+ *
+ * Exportado porque o contrato é testável como CONJUNTO: assertar sobre a resposta HTTP passa por
+ * vacuidade quando a rota morre antes de chegar à máscara.
+ */
+export const UPDATE_MASK_FIELDS = new Set(['displayName', 'description', 'zippedFilesystem', 'skillMd']);
 
 export interface SkillsRoutesDeps {
   readonly skillsStoreFor: (workspaceId: string) => SkillsStore;
@@ -338,16 +349,23 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
     }
 
     const body = (await c.req.json().catch(() => null)) as
-      | { displayName?: unknown; description?: unknown; zippedFilesystem?: unknown }
+      | { displayName?: unknown; description?: unknown; zippedFilesystem?: unknown; skillMd?: unknown }
       | null;
     if (body === null) {
       return c.json({ error: 'invalid_input' }, 400);
     }
 
     let ingest: IngestResult | undefined;
-    if (mask.includes('zippedFilesystem')) {
+    if (mask.includes('zippedFilesystem') || mask.includes('skillMd')) {
       try {
-        ingest = await ingestPayload(deps, body.zippedFilesystem);
+        // Mesmo pipeline dos dois lados: o `SKILL.md` avulso vira zip de um arquivo antes de
+        // entrar no `ingestPayload`, exatamente como no POST e no :validate.
+        ingest = await ingestPayload(
+          deps,
+          typeof body.skillMd === 'string' && body.skillMd.length > 0
+            ? await zipDeUmArquivo(body.skillMd)
+            : body.zippedFilesystem,
+        );
       } catch (err) {
         return fail(c, err);
       }
