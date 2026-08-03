@@ -9,6 +9,7 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **theo-skills:** erro de frontmatter passa a dizer **onde** — `field` e `line` como dados, além de `{code, message}`. Um editor consegue posicionar o cursor sem fazer regex na mensagem (#M30)
 - Roadmap amended: added M30 A API da autoria: validar sem publicar, publicar sem empacotar (`/roadmap-feature skills-authoring-api`)
 - **Roadmap: M29 — a interface do registro, no padrão do ecossistema.** O produto tem 37 rotas HTTP e nenhuma tela; a única entrada "Skills" do menu leva a outro produto, e promover canal — que aponta **todos** os consumidores para outro conteúdo — só existe por API, sem confirmação nem visibilidade de quem é afetado. A tela nasce no dashboard do control plane, nunca aqui, seguindo o caminho já trilhado por um produto vizinho. Escrita pela tela fica de fora deste milestone. (`/roadmap-feature dashboard-ui`)
 
