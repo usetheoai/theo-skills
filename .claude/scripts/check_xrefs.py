@@ -306,7 +306,19 @@ def validate_xrefs(ecosystem_dir: Path, strict: bool = False) -> dict[str, Any]:
     for skills_set in cycle_to_skills.values():
         skills_in_cycles.update(skills_set)
 
-    orphan_skills = existing_skills - skills_in_cycles - AUXILIARY_SKILLS
+    # Skills AUTO-GERADAS pelos proprios cycles nao sao fases de cycle nenhum: sao
+    # ARTEFATOS de uma execucao. `/review` escreve `review-{slug}-{dimensao}-knowledge`
+    # e o discover escreve `*-sepa-knowledge`. O patch_install ja as trata como tal
+    # ("Auto-generated skills (SEPA-knowledge, review-*-knowledge) preserved"), mas
+    # este validador as acusava de orfas -- entao todo consumidor que rodasse /review
+    # passava a falhar --strict, e a falha aparecia longe da causa.
+    # Medido em 2026-08-03: os tres consumidores monitorados falharam exatamente assim
+    # depois de rodarem review, com 26 WARN e nenhum defeito real.
+    auto_generated = {
+        s for s in existing_skills
+        if s.endswith("-knowledge") and (s.startswith("review-") or "-sepa-" in s)
+    }
+    orphan_skills = existing_skills - skills_in_cycles - AUXILIARY_SKILLS - auto_generated
     for skill in sorted(orphan_skills):
         findings.append({
             "severity": "WARN",
