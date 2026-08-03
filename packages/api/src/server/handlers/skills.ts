@@ -8,6 +8,8 @@ import {
   validateSkillPayload,
 } from '@usetheo/skills';
 import { type Context, type Hono } from 'hono';
+import yazl from 'yazl';
+
 import { bodyLimit } from 'hono/body-limit';
 import type PgBoss from 'pg-boss';
 
@@ -61,6 +63,25 @@ class BoundaryError extends Error {
   ) {
     super(code);
   }
+}
+
+/**
+ * Embrulha um `SKILL.md` avulso no zip de um arquivo que o pipeline já sabe validar.
+ *
+ * A maioria das skills é UM arquivo, e obrigar cada cliente — CLI, tela, MCP — a montar um zip
+ * para isso multiplica o mesmo trabalho por três. Mas o caminho de validação continua ÚNICO: o
+ * conteúdo entra pelo mesmo `validateSkillPayload`, com as mesmas regras de zip-safety, segredo
+ * e frontmatter. Um segundo pipeline seria a divergência que o AC1 existe para impedir.
+ */
+function zipDeUmArquivo(skillMd: string): Promise<string> {
+  return new Promise((resolve) => {
+    const zip = new yazl.ZipFile();
+    zip.addBuffer(Buffer.from(skillMd, 'utf8'), 'SKILL.md');
+    zip.end();
+    const chunks: Buffer[] = [];
+    zip.outputStream.on('data', (c: Buffer) => chunks.push(c));
+    zip.outputStream.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+  });
 }
 
 function decodeBase64Zip(b64: unknown): Buffer {
@@ -210,11 +231,17 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
   // descomprime entrada arbitrária, e sem isso seria porta anônima de CPU no plano de dados.
   app.post('/v1/skills:validate', requireScope('skills:read'), limit, async (c) => {
     try {
-      const body = (await c.req.json().catch(() => null)) as { zippedFilesystem?: unknown } | null;
+      const body = (await c.req.json().catch(() => null)) as
+        | { zippedFilesystem?: unknown; skillMd?: unknown }
+        | null;
       if (body === null) {
         throw new BoundaryError(400, 'invalid_body', { message: 'corpo não é JSON' });
       }
-      const ingest = await ingestPayload(deps, body.zippedFilesystem);
+      const payload =
+        typeof body.skillMd === 'string' && body.skillMd.length > 0
+          ? await zipDeUmArquivo(body.skillMd)
+          : body.zippedFilesystem;
+      const ingest = await ingestPayload(deps, payload);
       return c.json(
         { ok: true, name: ingest.name, description: ingest.description, execution: ingest.execution },
         200,

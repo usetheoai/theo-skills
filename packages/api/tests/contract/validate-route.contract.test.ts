@@ -86,3 +86,33 @@ describe('POST /v1/skills:validate (M30)', () => {
     expect((await r.json()) as { error?: string }).toMatchObject({ error: 'invalid_zip' });
   });
 });
+
+describe('SKILL.md avulso, sem ZIP (M30 T4)', () => {
+  it('`:validate` aceita `skillMd` puro e extrai os mesmos campos do caminho zipado', async () => {
+    // A maioria das skills é UM arquivo. Obrigar cada cliente — CLI, tela, MCP — a montar um
+    // zip para um arquivo só multiplica o mesmo trabalho por três.
+    const { app } = appComContador();
+    const md = skillMd('teste-avulso');
+
+    const avulso = await app.request('/v1/skills:validate', {
+      method: 'POST', headers: json, body: JSON.stringify({ skillMd: md }),
+    });
+    const zipado = await app.request('/v1/skills:validate', {
+      method: 'POST', headers: json,
+      body: JSON.stringify({ zippedFilesystem: await buildZipBase64([{ path: 'SKILL.md', content: md }]) }),
+    });
+
+    expect(avulso.status, 'a rota não aceitou SKILL.md avulso').toBe(200);
+    // A asserção que DISCRIMINA: mesmos campos extraídos. Um caminho que só respondesse 200
+    // sem passar pelo mesmo pipeline passaria numa verificação de status.
+    expect(await avulso.json()).toEqual(await zipado.json());
+  });
+
+  it('corpo sem NENHUM dos dois → recusa clara, não 500', async () => {
+    const { app } = appComContador();
+    const r = await app.request('/v1/skills:validate', {
+      method: 'POST', headers: json, body: JSON.stringify({}),
+    });
+    expect(r.status).toBe(400);
+  });
+});

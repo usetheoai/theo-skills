@@ -9,6 +9,7 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **theo-skills:** `skillMd` avulso aceito onde antes só cabia um ZIP — a maioria das skills é um arquivo só, e obrigar CLI, tela e MCP a empacotar multiplicava o mesmo trabalho por três. O caminho de validação continua único (#M30)
 - **theo-skills:** `POST /v1/skills:validate` — valida uma skill **sem publicá-la**. Mesmo pipeline de ingestão das rotas de escrita, mesma recusa tipada, zero efeito colateral. Escopo de leitura: conferir um payload não exige permissão de escrita (#M30)
 - **theo-skills:** o diagnóstico da validação chega ao autor — `POST /v1/skills` e `PATCH` passam a responder `message`, `field` e `line` além do `error`, em vez de só um código. Campos **acrescentados**, nunca renomeados: quem já lê `error` continua funcionando (#M30)
 - **theo-skills:** erro de frontmatter passa a dizer **onde** — `field` e `line` como dados, além de `{code, message}`. Um editor consegue posicionar o cursor sem fazer regex na mensagem (#M30)
