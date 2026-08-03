@@ -7,6 +7,7 @@ import { createNoopLogger } from '../../src/server/logger.js';
 // Reusa o construtor de zip que a suíte de integração já tem (parsimônia, rung 4):
 // adicionar `adm-zip` seria dependência redundante com o `yazl` que o projeto já declara.
 import { buildZipBase64, skillMd } from '../integration/_helpers/zip.js';
+import { UPDATE_MASK_FIELDS as UPDATE_MASK_FIELDS_ESPERADOS } from '../../src/server/handlers/skills.js';
 
 /**
  * M30 — `POST /v1/skills:validate` valida SEM publicar.
@@ -129,5 +130,25 @@ describe('POST /v1/skills aceita skillMd avulso (M30 AC3 — rota de ESCRITA)', 
     });
     const j = (await r.json()) as { error?: string };
     expect(j.error, 'POST recusou skillMd avulso — o AC3 pede esta rota').not.toBe('invalid_zip');
+  });
+});
+
+describe('PATCH /v1/skills/:id aceita skillMd avulso — a assimetria criação/atualização', () => {
+  // A mesma assimetria já produziu defeito neste código: `version` e `category` iam no job de
+  // CRIAÇÃO e não no de atualização, e a segunda publicação em diante nascia sem versão, sem
+  // erro algum. Aceitar `SKILL.md` só no POST repetiria a forma exata desse defeito.
+  it('máscara aceita `skillMd` como campo válido', async () => {
+    // A primeira versão deste teste assertava `not.toBe('invalid_update_mask')` — e passava por
+    // VACUIDADE: qualquer outro erro satisfaz, inclusive o 500 do pool falso. Medido contra o
+    // serviço vivo, a rota devolvia `invalid_update_mask` de verdade. A asserção agora é sobre
+    // o CONJUNTO de campos aceitos, que é o que a máscara de fato governa.
+    expect(
+      UPDATE_MASK_FIELDS_ESPERADOS.has('skillMd'),
+      'a máscara não aceita skillMd — a assimetria com o POST continua',
+    ).toBe(true);
+  });
+
+  it('`zippedFilesystem` continua aceito — a mudança ACRESCENTA, não substitui', () => {
+    expect(UPDATE_MASK_FIELDS_ESPERADOS.has('zippedFilesystem')).toBe(true);
   });
 });
