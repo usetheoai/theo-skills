@@ -1,0 +1,17 @@
+# Como a entrega PUBLICADA deste projeto é alcançada (ver rules/knowledge-base-location.md
+# e rules/cycle-acceptance.md § Target kinds). /cycle-goal recusa armar sem isto.
+
+kind = library
+target = @usetheo/skills-sdk @usetheo/skills-cli @usetheo/skills-mcp @usetheo/skills
+build = pnpm install --frozen-lockfile && pnpm -r build
+verify = npm view @usetheo/skills-cli version
+credentials = NPM_TOKEN
+
+# NPM_TOKEN está em ~/.npmrc (escopo de usuário, fora do repo). NUNCA escreva o valor
+# aqui nem em qualquer arquivo do projeto. Se faltar credencial numa execução, PEÇA ao
+# humano — não pule a fase, não invente resultado, não registre NOT_VALIDATED e siga
+# como se o milestone estivesse pronto.
+#
+# 4 pacotes deste monorepo são publicáveis (private=false): sdk, cli, mcp e o meta
+# @usetheo/skills. @usetheo/skills-api é private=true e NÃO entra na aceitação por
+# publicação — para ele vale a rota interna (build da tag).

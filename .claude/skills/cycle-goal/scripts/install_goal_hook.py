@@ -80,6 +80,56 @@ def _strip_our_hook(settings: dict) -> dict:
     return settings
 
 
+def _acceptance_path_declared(root: Path) -> tuple[bool, str]:
+    """A viable route to ACCEPTED must exist BEFORE a goal is armed.
+
+    Arming a gate whose condition nobody can satisfy is a trap: it blocks every
+    stop attempt until the ceiling, and each block looks like a legitimate verdict.
+    The project therefore declares how its released delivery is reached; without
+    that declaration the goal is refused rather than armed into a dead end.
+    """
+    declaration = root / ".claude" / "rules" / "acceptance-target.txt"
+    if not declaration.exists():
+        return False, f"{declaration} não existe — declare como a entrega publicada é alcançada."
+
+    keys = {}
+    for line in declaration.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if "=" in line:
+            k, _, v = line.partition("=")
+            keys[k.strip()] = v.strip()
+
+    missing = [k for k in ("kind", "target") if not keys.get(k)]
+    if missing:
+        return False, (
+            f"{declaration} não declara {' e '.join(missing)}. Sem isso /acceptance não tem "
+            "como alcançar a entrega, e a meta seria insatisfazível."
+        )
+    return True, f"{keys['kind']} → {keys['target']}"
+
+
+def _milestones_have_dod(roadmap_path: Path, milestones: list[str]) -> list[str]:
+    """Milestones whose Definition of done is missing — acceptance has no criteria."""
+    import re
+
+    text = roadmap_path.read_text(encoding="utf-8")
+    headers = list(re.finditer(r"^###\s+(M\d+)\s+[—\-]{1,2}\s+\[[ x]\]", text, re.MULTILINE))
+    sem = []
+    for wanted in milestones:
+        for index, match in enumerate(headers):
+            if match.group(1) != wanted:
+                continue
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+            block = text[match.end():end]
+            if not re.search(r"^\*\*Definition of done[^*]*:\*\*", block, re.MULTILINE) or \
+               not re.search(r"^-\s+\[[ x]\]", block, re.MULTILINE):
+                sem.append(wanted)
+            break
+        else:
+            sem.append(wanted)
+    return sem
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--milestones", nargs="*", default=[])
@@ -154,12 +204,28 @@ def main() -> int:
             "(use --acceptance-dir quando os artefatos do ciclo moram em outro repo)"
         )
 
+    # Uma meta so pode ser armada se houver rota ate ACCEPTED. Duas condicoes
+    # mecanicamente verificaveis: a entrega tem caminho declarado, e cada milestone
+    # tem Definition of done (que e de onde /acceptance tira os criterios).
+    if roadmap_path.exists():
+        sem_dod = _milestones_have_dod(roadmap_path, args.milestones)
+        if sem_dod:
+            problems.append(
+                f"sem Definition of done: {', '.join(sem_dod)}. /acceptance lê esses bullets COMO "
+                "critérios de aceite — sem eles o milestone nunca pode ser aceito."
+            )
+
+    declarado, detalhe = _acceptance_path_declared(root)
+    if not declarado:
+        problems.append(f"sem rota até ACCEPTED — {detalhe}")
+
     if problems and not args.force:
         for problem in problems:
             print(f"BLOCKED cycle-goal: {problem}", file=sys.stderr)
         print(
-            "Nada foi armado. Corrija os caminhos, ou passe --force se o diretório "
-            "ainda vai ser criado pela primeira execução de /acceptance.",
+            "Nada foi armado. Uma meta sem rota até ACCEPTED é uma armadilha: ela bloqueia "
+            "toda tentativa de parada até o teto, e cada bloqueio parece um veredito legítimo. "
+            "Corrija o que está acima, ou passe --force assumindo esse risco conscientemente.",
             file=sys.stderr,
         )
         return 2
@@ -195,6 +261,7 @@ def main() -> int:
     print(f"  acceptance : {acceptance_path}{'' if acceptance_path.exists() else '   <== NÃO EXISTE (--force)'}")
     print(f"  state      : {state_path}")
     print(f"  hook       : {settings_path}")
+    print(f"  alvo       : {detalhe}")
     print(f"  ceiling    : {args.max_blocks} blocks")
     return 0
 

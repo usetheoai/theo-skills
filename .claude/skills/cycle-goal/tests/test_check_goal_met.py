@@ -164,8 +164,13 @@ class TestInstaller:
     def _arm(self, tmp_path: Path, *milestones: str) -> subprocess.CompletedProcess:
         # O instalador recusa armar com caminhos que não resolvem, então o projeto
         # de teste precisa existir de verdade.
-        (tmp_path / "ROADMAP.md").write_text(roadmap("x"), encoding="utf-8")
-        (tmp_path / "knowledge-base" / "acceptance").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "ROADMAP.md").write_text(
+            "### M2 — [x] Streaming\n\n**Definition of done:**\n\n- [ ] Responde em 1s.\n"
+            "### M3 — [x] Outro\n\n**Definition of done:**\n\n- [ ] Idem em 1s.\n", encoding="utf-8")
+        (tmp_path / ".claude" / "rules").mkdir(parents=True, exist_ok=True)
+        (tmp_path / ".claude" / "rules" / "acceptance-target.txt").write_text(
+            "kind = internal\ntarget = @org/p\n", encoding="utf-8")
+        (tmp_path / ".claude" / "knowledge-base" / "acceptance").mkdir(parents=True, exist_ok=True)
         return subprocess.run(
             [sys.executable, str(INSTALLER), "--project-root", str(tmp_path),
              "--milestones", *milestones],
@@ -268,9 +273,15 @@ class TestInstallerPathValidation:
 
     def _project(self, tmp_path: Path, *, roadmap_file: bool, acc_dir: bool) -> None:
         if roadmap_file:
-            (tmp_path / "ROADMAP.md").write_text(roadmap("x", "M27"), encoding="utf-8")
+            (tmp_path / "ROADMAP.md").write_text(
+                "### M27 — [ ] Gestão\n\n**Definition of done:**\n\n- [ ] Responde em 1s.\n",
+                encoding="utf-8")
         if acc_dir:
             (tmp_path / "knowledge-base" / "acceptance").mkdir(parents=True)
+        rules = tmp_path / ".claude" / "rules"
+        rules.mkdir(parents=True, exist_ok=True)
+        (rules / "acceptance-target.txt").write_text(
+            "kind = internal\ntarget = @org/pacote\n", encoding="utf-8")
 
     def test_recusa_armar_quando_o_diretorio_de_aceitacao_nao_resolve(
         self, tmp_path: Path
@@ -299,17 +310,16 @@ class TestInstallerPathValidation:
         assert result.returncode == 0
         assert "NÃO EXISTE" in result.stdout
 
-    def test_acceptance_dir_customizado_vai_para_o_estado(self, tmp_path: Path) -> None:
-        """O caso multi-repo: roadmap e artefatos num irmão, hook aqui."""
+    def test_acceptance_dir_customizado_dentro_do_projeto_e_aceito(self, tmp_path: Path) -> None:
+        """Relocar DENTRO do projeto é legítimo; sair dele é que não (ver TestAutonomy)."""
         self._project(tmp_path, roadmap_file=True, acc_dir=False)
-        irmao = tmp_path / "irmao" / "knowledge-base" / "acceptance"
-        irmao.mkdir(parents=True)
+        (tmp_path / "pacote" / "knowledge-base" / "acceptance").mkdir(parents=True)
 
-        result = self._arm(tmp_path, "--acceptance-dir", "irmao/knowledge-base/acceptance")
+        result = self._arm(tmp_path, "--acceptance-dir", "pacote/knowledge-base/acceptance")
 
-        assert result.returncode == 0
+        assert result.returncode == 0, result.stderr
         state = json.loads((tmp_path / ".claude" / "cycle-goal.json").read_text())
-        assert state["acceptance_dir"] == "irmao/knowledge-base/acceptance"
+        assert state["acceptance_dir"] == "pacote/knowledge-base/acceptance"
 
 
 class TestAutonomy:
@@ -318,7 +328,12 @@ class TestAutonomy:
     def _project(self, tmp_path: Path) -> Path:
         root = tmp_path / "projeto"
         (root / ".claude" / "knowledge-base" / "acceptance").mkdir(parents=True)
-        (root / "ROADMAP.md").write_text(roadmap("x", "M2"), encoding="utf-8")
+        (root / ".claude" / "rules").mkdir(parents=True)
+        (root / ".claude" / "rules" / "acceptance-target.txt").write_text(
+            "kind = internal\ntarget = @org/pacote\n", encoding="utf-8")
+        (root / "ROADMAP.md").write_text(
+            "### M2 — [x] Streaming\n\n**Definition of done:**\n\n- [ ] Responde em menos de 1s.\n",
+            encoding="utf-8")
         return root
 
     def _arm(self, root: Path, *extra: str) -> subprocess.CompletedProcess:
@@ -354,3 +369,73 @@ class TestAutonomy:
 
         assert result.returncode == 2
         assert "FORA do projeto" in result.stderr
+
+
+class TestGoalRefusesUnsatisfiable:
+    """Armar uma meta sem rota até ACCEPTED é uma armadilha, não um incentivo.
+
+    O gate bloqueia toda parada até o teto, e cada bloqueio parece um veredito
+    legítimo. Se não há como chegar ao verde, a meta não deve ser armada.
+    """
+
+    def _project(self, tmp_path: Path, *, dod: bool = True, target: bool = True) -> Path:
+        root = tmp_path / "projeto"
+        (root / ".claude" / "knowledge-base" / "acceptance").mkdir(parents=True)
+        (root / ".claude" / "rules").mkdir(parents=True)
+        bloco = "### M2 — [ ] Streaming\n\n**Objective:** sse.\n\n"
+        if dod:
+            bloco += "**Definition of done (all must hold):**\n\n- [ ] Responde em menos de 1s.\n\n"
+        (root / "ROADMAP.md").write_text(bloco, encoding="utf-8")
+        alvo = root / ".claude" / "rules" / "acceptance-target.txt"
+        alvo.write_text(
+            "kind = internal\ntarget = @org/pacote\n" if target else "# nada declarado\n",
+            encoding="utf-8",
+        )
+        return root
+
+    def _arm(self, root: Path, *extra: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(INSTALLER), "--project-root", str(root), "--milestones", "M2", *extra],
+            capture_output=True, text=True, check=False,
+        )
+
+    def test_arma_quando_ha_dod_e_alvo_declarado(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path)
+
+        result = self._arm(root)
+
+        assert result.returncode == 0
+        assert "internal → @org/pacote" in result.stdout
+
+    def test_recusa_sem_definition_of_done(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path, dod=False)
+
+        result = self._arm(root)
+
+        assert result.returncode == 2
+        assert "sem Definition of done" in result.stderr
+        assert not (root / ".claude" / "cycle-goal.json").exists()
+
+    def test_recusa_sem_alvo_de_aceitacao_declarado(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path, target=False)
+
+        result = self._arm(root)
+
+        assert result.returncode == 2
+        assert "sem rota até ACCEPTED" in result.stderr
+
+    def test_recusa_quando_o_arquivo_de_alvo_nao_existe(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path)
+        (root / ".claude" / "rules" / "acceptance-target.txt").unlink()
+
+        result = self._arm(root)
+
+        assert result.returncode == 2
+        assert "não existe" in result.stderr
+
+    def test_force_arma_assumindo_o_risco(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path, dod=False, target=False)
+
+        result = self._arm(root, "--force")
+
+        assert result.returncode == 0
