@@ -115,10 +115,14 @@ describe('a métrica de runtime fecha a tríade de wiring (M31)', () => {
             ]),
           ]),
       }),
+      // Sem cast: o literal já satisfaz o tipo do logger. O `as unknown as ...` que estava
+      // aqui era ruído — e o lint type-aware o reprovou, com razão.
       logger: {
         ...createNoopLogger(),
-        info: (obj: unknown) => linhas.push(obj as Record<string, unknown>),
-      } as unknown as ReturnType<typeof createNoopLogger>,
+        info: (obj: Record<string, unknown>) => {
+          linhas.push(obj);
+        },
+      },
     });
 
     await app.request('/v1/skills:retrieve?query=x');
