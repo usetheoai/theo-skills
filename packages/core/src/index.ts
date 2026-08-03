@@ -18,6 +18,7 @@ export {
 } from './domain/embedders/index.js';
 export {
   type RetrieveParams,
+  type MatchedLeg,
   type RetrievedSkill,
   type SkillRetriever,
   type QueryExecutor,

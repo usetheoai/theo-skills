@@ -1,6 +1,7 @@
 /** Public barrel for the skill retrievers domain (port + adapters + RRF). */
 export {
   type RetrieveParams,
+  type MatchedLeg,
   type RetrievedSkill,
   type SkillRetriever,
   type QueryExecutor,

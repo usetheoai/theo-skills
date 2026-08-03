@@ -1,4 +1,4 @@
-import { type RetrievedSkill, type RetrieveParams, type SkillRetriever } from './types.js';
+import { type MatchedLeg, type RetrievedSkill, type RetrieveParams, type SkillRetriever } from './types.js';
 
 /** Reciprocal Rank Fusion constant (standard k=60; calibration-free — no weights). */
 export const RRF_K = 60;
@@ -57,14 +57,24 @@ export function rrfFuse(
   keywordResults: readonly RetrievedSkill[],
   topK: number,
 ): RetrievedSkill[] {
-  const fused = new Map<string, { skill: RetrievedSkill; score: number }>();
-  const accumulate = (list: readonly RetrievedSkill[]): void => {
+  const fused = new Map<
+    string,
+    { skill: RetrievedSkill; score: number; matched: MatchedLeg[] }
+  >();
+  // `leg` é PARÂMETRO, não inferido: a função não tem como saber qual lista recebeu, e
+  // adivinhar por ordem de chamada seria acoplar a atribuição à ordem do código — exatamente o
+  // acidente que este campo existe para tornar visível.
+  const accumulate = (list: readonly RetrievedSkill[], leg: MatchedLeg['leg']): void => {
     for (let rank = 0; rank < list.length; rank++) {
       const skill = list[rank]!;
       const term = 1 / (RRF_K + rank);
+      // 1-based na saída; o laço segue 0-based porque a fórmula depende disso (o 1º colocado
+      // tem de valer 1/RRF_K).
+      const attribution: MatchedLeg = { leg, rank: rank + 1 };
       const existing = fused.get(skill.skill_id);
       if (existing !== undefined) {
         existing.score += term;
+        existing.matched.push(attribution);
         // MESCLA, não descarta. Os dois lados projetam colunas diferentes: `execution` e
         // `category` vinham só do keyword, e como o vetor é acumulado primeiro a linha dele
         // — sem os campos — vencia. Para toda skill presente nas DUAS listas (o caso comum)
@@ -85,16 +95,20 @@ export function rrfFuse(
             : {}),
         };
       } else {
-        fused.set(skill.skill_id, { skill: { ...skill }, score: term });
+        fused.set(skill.skill_id, {
+          skill: { ...skill },
+          score: term,
+          matched: [attribution],
+        });
       }
     }
   };
-  accumulate(vectorResults);
-  accumulate(keywordResults);
+  accumulate(vectorResults, 'vector');
+  accumulate(keywordResults, 'keyword');
   return Array.from(fused.values())
     .sort((a, b) => b.score - a.score || a.skill.skill_id.localeCompare(b.skill.skill_id))
     .slice(0, topK)
-    .map(({ skill, score }) => ({ ...skill, score }));
+    .map(({ skill, score, matched }) => ({ ...skill, score, matched }));
 }
 
 /**

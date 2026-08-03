@@ -1,5 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
-import { skillRevisions, skills } from '@usetheo/skills/db';
+import { embeddings, skillRevisions, skills } from '@usetheo/skills/db';
 import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
@@ -16,6 +16,15 @@ export interface SkillView {
   readonly category?: string;
   /** Onde a skill executa (M23): `remote` (carregada) ou `local` (instalada). */
   readonly execution?: string;
+  /** Quem enxerga a skill (M14). Escrito por `PUT .../visibility`; devolvido desde o M31. */
+  readonly visibility: string;
+  /**
+   * A revisão VIGENTE tem embedding? (M31)
+   *
+   * `false` significa invisível à busca semântica — publicada, não achável. A distinção não
+   * existia na listagem, e sem ela o operador não sabe por que a skill dele nunca aparece.
+   */
+  readonly embedded: boolean;
   readonly create_time: string;
   readonly update_time: string;
 }
@@ -109,6 +118,8 @@ function toView(row: {
   latestRevisionId: string | null;
   category?: string | null;
   execution?: string | null;
+  visibility: string;
+  embedded: boolean;
   createTime: Date;
   updateTime: Date;
 }): SkillView {
@@ -122,6 +133,8 @@ function toView(row: {
     ...(typeof row.execution === 'string' && row.execution !== '' ? { execution: row.execution } : {}),
     state: row.state,
     latest_revision_id: row.latestRevisionId,
+    visibility: row.visibility,
+    embedded: row.embedded,
     create_time: row.createTime.toISOString(),
     update_time: row.updateTime.toISOString(),
   };
@@ -137,6 +150,25 @@ const liveColumns = {
   // diz se ela é carregada ou instalada, e a CLI recusa instalar uma `remote` sem ele.
   category: skills.category,
   execution: skills.execution,
+  // M31 — quem opera precisa distinguir PUBLICADA de ACHÁVEL.
+  //
+  // `visibility` já era escrito (`PUT .../visibility`) e usado num `WHERE`, e nunca devolvido:
+  // o operador mudava e não tinha como conferir.
+  //
+  // `embedded` responde a pergunta que o painel não sabia fazer: uma skill sem embedding é
+  // INVISÍVEL à busca semântica, e a listagem a mostrava idêntica a uma achável. Olha a
+  // revisão VIGENTE de propósito — indexar uma revisão antiga não torna o conteúdo atual
+  // descobrível.
+  //
+  // `EXISTS` correlacionado, não `JOIN`: o join multiplicaria linhas por revisão e exigiria
+  // `DISTINCT`, que força materialização e ordenação numa listagem paginada. O `EXISTS`
+  // curto-circuita no primeiro acerto e não altera a cardinalidade — e o índice único
+  // `embeddings_revision_provider_model_uq` já cobre a coluna procurada.
+  visibility: skills.visibility,
+  embedded: sql<boolean>`EXISTS (
+    SELECT 1 FROM ${embeddings}
+    WHERE ${embeddings.revisionId} = ${skills.latestRevisionId}
+  )`,
   createTime: skills.createTime,
   updateTime: skills.updateTime,
 };

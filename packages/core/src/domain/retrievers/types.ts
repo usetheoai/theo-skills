@@ -44,6 +44,29 @@ export interface RetrievedSkill {
    * referenciam arquivos que não existem.
    */
   readonly execution?: 'remote' | 'local';
+  /**
+   * De QUAL perna da busca este resultado veio, e em que posição nela (M31).
+   *
+   * Um score fundido sozinho não distingue "achou porque as palavras batem" de "achou porque
+   * entendeu" — e essa é justamente a diferença que o produto vende. O M4 mediu o problema: a
+   * recall é carregada pelo FTS, e a perna vetorial isolada dá 0.308 sob o embedder stub. Com
+   * um número só, ninguém enxerga isso.
+   *
+   * `rank` é 1-BASED, ao contrário do laço interno da fusão. O contrato existe para quem lê —
+   * "1º na vetorial" é legível; "0º" é convite a off-by-one.
+   *
+   * Opcional porque é aditivo: `rrfFuse` é exportado do índice público do pacote, e trocar o
+   * tipo de retorno quebraria todo consumidor. Ausente significa "esta origem não foi
+   * informada", nunca "não casou".
+   */
+  readonly matched?: readonly MatchedLeg[];
+}
+
+/** Uma perna da busca híbrida e a posição do resultado dentro dela (M31). */
+export interface MatchedLeg {
+  readonly leg: 'vector' | 'keyword';
+  /** 1-based — ver a nota em `RetrievedSkill.matched`. */
+  readonly rank: number;
 }
 
 /** Strategy-agnostic retriever. */

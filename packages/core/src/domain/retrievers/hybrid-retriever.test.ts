@@ -178,3 +178,39 @@ describe('o race não pode ser desfeito por um await posterior', () => {
     expect(gasto, 'saiu no teto, não esperou o infinito').toBeLessThan(800);
   });
 });
+
+describe('atribuição por perna (M31 — a busca diz de ONDE veio cada resultado)', () => {
+  it('declara as duas pernas quando a skill está nas duas listas', () => {
+    const [a] = rrfFuse([sk('a')], [sk('a')], 10);
+
+    expect(a?.matched).toEqual([
+      { leg: 'vector', rank: 1 },
+      { leg: 'keyword', rank: 1 },
+    ]);
+  });
+
+  // O TESTE QUE DISCRIMINA (R6 do blueprint, marcado NÃO-OPCIONAL no plano).
+  //
+  // Sem ele a atribuição pode MENTIR com aparência de dado: um acumulador alimentado errado
+  // emite `keyword` para uma skill que só a busca vetorial trouxe, e nada acusa — o score
+  // fundido continua correto, os outros testes continuam verdes.
+  //
+  // É a mesma classe do LT-035, onde o portão de qualidade da busca passava com metade do
+  // motor morto porque assertava sobre o agregado. Um teste que não falha quando deveria não
+  // é gate; é decoração com custo de manutenção.
+  it('NÃO alega uma perna que não contribuiu', () => {
+    const [a] = rrfFuse([sk('a')], [], 10);
+
+    expect(a?.matched).toEqual([{ leg: 'vector', rank: 1 }]);
+    expect(a?.matched?.some((m) => m.leg === 'keyword')).toBe(false);
+  });
+
+  it('expõe rank 1-based, embora o laço interno seja 0-based', () => {
+    // O interno PRECISA ser 0-based: a fórmula é 1/(RRF_K + rank), e o primeiro colocado
+    // tem de valer 1/RRF_K. O contrato externo é para humano — "1º" e não "0º".
+    const [, b] = rrfFuse([sk('a'), sk('b')], [], 10);
+
+    expect(b?.matched).toEqual([{ leg: 'vector', rank: 2 }]);
+    expect(b?.score).toBeCloseTo(1 / (RRF_K + 1), 10);
+  });
+});
