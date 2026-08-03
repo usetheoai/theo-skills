@@ -10,6 +10,7 @@ ao [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Roadmap amended: added M31 As jornadas completas, no nível do contrato de design (`/roadmap-feature skills-journeys-sota`)
+- **theo-skills:** zona de estudo restaurada para o DISCOVER do M31 — o catálogo declarava 9 peers `cloned` e o disco tinha zero (symlink pendurado; a zona é gitignored por contrato). Restaurados 4 dos 9, os que servem às perguntas do milestone, com as decisões de licença já registradas no catálogo: [`agentskills/agentskills`](https://github.com/agentskills/agentskills) (Apache-2.0), [`aurelio-labs/semantic-router`](https://github.com/aurelio-labs/semantic-router) (MIT), [`agentic-community/mcp-gateway-registry`](https://github.com/agentic-community/mcp-gateway-registry) (Apache-2.0) e [`IBM/mcp-context-forge`](https://github.com/IBM/mcp-context-forge) (Apache-2.0). Material de estudo, não versionado e nunca copiado — ver `rules/reference-provenance.md` (#125)
 
 ## [theo-skills 0.2.1] - 2026-08-03
 
