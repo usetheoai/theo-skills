@@ -7,6 +7,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [theo-skills 0.2.0] - 2026-08-03
+
 ### Added
 
 - **theo-skills:** `skillMd` avulso aceito onde antes só cabia um ZIP — a maioria das skills é um arquivo só, e obrigar CLI, tela e MCP a empacotar multiplicava o mesmo trabalho por três. O caminho de validação continua único (#M30)
