@@ -388,6 +388,67 @@ def _check_milestone_quality(milestone: Milestone, findings: list[Finding]) -> N
             ))
 
 
+_PLAN_MILESTONE_RE = re.compile(r"^milestone_id:\s*(M\d+)", re.MULTILINE)
+
+
+def _check_phase_coverage(milestones: list[Milestone], knowledge_base: Path, findings: list[Finding]) -> None:
+    """Which cycle phases left an artifact for each released milestone?
+
+    A `[x]` asserts the whole chain ran. The knowledge-base says which phases
+    actually wrote something down. The gap between the two is where the process
+    is being skipped — and the single most common break is a plan with no
+    `milestone_id`: without it the release cannot flip, the roadmap cannot trace,
+    and no report can link a milestone to the work that delivered it.
+    """
+    released = [m for m in milestones if m.done]
+    if not released:
+        return
+
+    plans_dir = knowledge_base / "plans"
+    by_milestone: dict[str, str] = {}
+    orphan_plans = 0
+    if plans_dir.exists():
+        for plan in sorted(plans_dir.glob("*.md")):
+            head = plan.read_text(encoding="utf-8", errors="replace")[:900]
+            match = _PLAN_MILESTONE_RE.search(head)
+            if match:
+                by_milestone.setdefault(match.group(1), plan.stem.removesuffix("-plan"))
+            else:
+                orphan_plans += 1
+
+    if orphan_plans:
+        findings.append(Finding(
+            "plans_without_milestone_id", MAJOR, DETERMINISTIC, f"{plans_dir}",
+            f"{orphan_plans} plano(s) sem `milestone_id` no frontmatter. cycle-roadmap exige esse "
+            "campo para o flip do checkbox e para a rastreabilidade — sem ele o plano existe mas "
+            "ninguém consegue dizer qual milestone ele entregou.",
+        ))
+
+    no_plan = [m.milestone_id for m in released if m.milestone_id not in by_milestone]
+    if no_plan:
+        findings.append(Finding(
+            "released_without_plan", MAJOR, DETERMINISTIC, ", ".join(no_plan),
+            f"{len(no_plan)} de {len(released)} milestones `[x]` não têm plano declarando o "
+            "`milestone_id` deles. O `[x]` afirma que a cadeia inteira rodou; sem o plano, a "
+            "primeira fase já não deixou rastro.",
+        ))
+
+    for phase, folder in (("implementation", "implementations"), ("review", "reviews")):
+        directory = knowledge_base / folder
+        missing = [
+            m.milestone_id for m in released
+            if m.milestone_id in by_milestone
+            and not (directory.exists() and any(directory.glob(f"{by_milestone[m.milestone_id]}*")))
+        ]
+        if missing:
+            findings.append(Finding(
+                f"released_without_{phase}", MINOR, DETERMINISTIC, ", ".join(missing),
+                f"{len(missing)} milestone(s) `[x]` têm plano mas nenhum artefato de "
+                f"cycle-{phase if phase == 'review' else 'implement'} em {directory}. "
+                "Ou a fase foi pulada, ou rodou sem registrar — os dois merecem resposta.",
+            ))
+
+
 def check_evidence(milestones: list[Milestone], knowledge_base: Path, findings: list[Finding]) -> None:
     """Cross-check every `[x]` against the artifacts that are supposed to justify it.
 
@@ -414,6 +475,8 @@ def check_evidence(milestones: list[Milestone], knowledge_base: Path, findings: 
                 "que ler o lado errado reporta ausência onde há evidência. Consolide na raiz "
                 "canônica `.claude/knowledge-base/`.",
             ))
+
+    _check_phase_coverage(milestones, knowledge_base, findings)
 
     runs_dir = knowledge_base / "roadmap-runs"
     acceptance_dir = knowledge_base / "acceptance"

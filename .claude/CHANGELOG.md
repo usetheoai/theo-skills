@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and this proj
 
 ## [Unreleased]
 
+### Added
+- **`/roadmap-review` mede a cobertura de FASES por milestone — onde o cycle está sendo pulado deixa de ser invisível.** Monitorando a execução real, o gargalo dominante não era nenhum dos que o revisor já checava: **planos sem `milestone_id` no frontmatter** (18 de 27 no `theo-skills`, 4 de 8 no `theo-workspace`, 2 de 11 no `theo-promptly`). Sem esse campo o `cycle-release` não flipa, o `cycle-roadmap` não rastreia e nenhum relatório consegue ligar um milestone ao trabalho que o entregou — o plano existe, mas órfão. Quatro checagens novas sob `--knowledge-base`: `plans_without_milestone_id` (MAJOR), `released_without_plan` (MAJOR), `released_without_implementation` e `released_without_review` (MINOR — a fase pode ter rodado sem registrar, e as duas hipóteses merecem resposta). 5 testes novos (49 na skill).
+
 ### Fixed
 - **Causa-raiz do knowledge-base dividido: `flip_milestone_checkbox.py` gravava o run-file na RAIZ.** Seu `--roadmap-runs-dir` tinha default `knowledge-base/roadmap-runs` relativo ao CWD, então todo flip de release escrevia o registro no root do projeto enquanto todos os outros cycles escreviam sob `.claude/`. Metade da trilha de auditoria pousava ao lado da outra metade e ninguém percebia. Confirmado no `theo-promptly`: os run-files da raiz são os stubs auto-gerados pelo flip (371 bytes, sem `slug`/`implementation`/`review`/`tag`), e os canônicos são as versões completas escritas depois — o mesmo milestone registrado duas vezes, em dois lugares, com fidelidade diferente. O default agora resolve o canônico pelo layout. 2 testes.
 

@@ -305,8 +305,9 @@ class TestEvidenceDrift:
         text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
 
         _v, findings = review(text, self._kb(tmp_path, runs=["M0"], accepted=["M0"]))
+        deriva = {"released_without_roadmap_run", "released_without_acceptance"}
 
-        assert not [f for f in findings if f.check.startswith("released_without")]
+        assert not [f for f in findings if f.check in deriva]
 
     def test_sem_aceitacao_e_apenas_minor(self, tmp_path, make_roadmap, make_milestone) -> None:
         """Milestones fechados ANTES do cycle-acceptance existir não são defeito."""
@@ -321,8 +322,9 @@ class TestEvidenceDrift:
         text = make_roadmap(make_milestone("M0", "Skeleton", state=" ", dependencies="none"))
 
         _v, findings = review(text, self._kb(tmp_path))
+        deriva = {"released_without_roadmap_run", "released_without_acceptance"}
 
-        assert not [f for f in findings if f.check.startswith("released_without")]
+        assert not [f for f in findings if f.check in deriva]
 
     def test_sem_knowledge_base_a_checagem_nao_roda(self, make_roadmap, make_milestone) -> None:
         """Compatível para trás: sem o caminho, só o documento é revisado."""
@@ -370,3 +372,66 @@ class TestSplitKnowledgeBase:
         _v, findings = review(text, kb)
 
         assert not [f for f in findings if f.check == "split_knowledge_base"]
+
+
+class TestPhaseCoverage:
+    """O [x] afirma que a cadeia inteira rodou; o knowledge-base diz o que deixou rastro."""
+
+    def _kb(self, tmp_path, plans=(), impls=(), reviews=(), orphan_plans=0):
+        kb = tmp_path / ".claude" / "knowledge-base"
+        for d in ("plans", "implementations", "reviews", "roadmap-runs", "acceptance"):
+            (kb / d).mkdir(parents=True, exist_ok=True)
+        for mid, slug in plans:
+            (kb / "plans" / f"{slug}-plan.md").write_text(
+                f"---\nslug: {slug}\nmilestone_id: {mid}\n---\n", encoding="utf-8")
+        for i in range(orphan_plans):
+            (kb / "plans" / f"orfao{i}-plan.md").write_text("---\nslug: orfao\n---\n", encoding="utf-8")
+        for slug in impls:
+            (kb / "implementations" / f"{slug}-implementation.md").write_text("x", encoding="utf-8")
+        for slug in reviews:
+            (kb / "reviews" / f"{slug}-review-2026-08-03.md").write_text("x", encoding="utf-8")
+        return kb
+
+    def test_plano_sem_milestone_id_e_major(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path, plans=[("M0", "skel")],
+                                             impls=["skel"], reviews=["skel"], orphan_plans=3))
+        f = [x for x in findings if x.check == "plans_without_milestone_id"]
+
+        assert len(f) == 1 and f[0].severity == "MAJOR"
+        assert "3 plano" in f[0].message
+
+    def test_milestone_marcado_sem_plano_e_major(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path))
+        f = [x for x in findings if x.check == "released_without_plan"]
+
+        assert len(f) == 1 and f[0].severity == "MAJOR" and "M0" in f[0].where
+
+    def test_plano_sem_implementation_e_sem_review(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path, plans=[("M0", "skel")]))
+        checks_ = {x.check for x in findings}
+
+        assert "released_without_implementation" in checks_
+        assert "released_without_review" in checks_
+
+    def test_cadeia_completa_nao_gera_finding_de_fase(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path, plans=[("M0", "skel")],
+                                             impls=["skel"], reviews=["skel"]))
+        fases = {"released_without_plan", "released_without_implementation",
+                 "released_without_review", "plans_without_milestone_id"}
+
+        assert not [f for f in findings if f.check in fases]
+
+    def test_milestone_aberto_nao_exige_fases(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state=" ", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path))
+
+        assert not [f for f in findings if f.check == "released_without_plan"]
