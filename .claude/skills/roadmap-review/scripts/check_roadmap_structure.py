@@ -397,6 +397,24 @@ def check_evidence(milestones: list[Milestone], knowledge_base: Path, findings: 
     drift is invisible to every text-level check and is exactly what turns a roadmap
     into decoration within a quarter.
     """
+    # Um segundo knowledge-base nao quebra nada ruidosamente: ele so divide os
+    # artefatos em dois lugares, e cada sessao escreve num deles. Descobrimos isso
+    # auditando tres consumidores -- um usava a raiz, dois usavam .claude/, e o
+    # relatorio que leu o lado errado acusou "0 reviews" num repo com 12.
+    # O canonico e .claude/knowledge-base/ (ver rules/knowledge-base-location.md).
+    project_root = knowledge_base.parent.parent if knowledge_base.name == "knowledge-base" else None
+    if project_root is not None and knowledge_base.parent.name == ".claude":
+        rival = project_root / "knowledge-base"
+        if rival.exists() and any(rival.rglob("*.md")):
+            n = len(list(rival.rglob("*.md")))
+            findings.append(Finding(
+                "split_knowledge_base", MAJOR, DETERMINISTIC, str(rival),
+                f"Existe um SEGUNDO knowledge-base na raiz com {n} arquivo(s), além do canônico "
+                f"em {knowledge_base}. Artefatos divididos entre os dois se perdem: um relatório "
+                "que ler o lado errado reporta ausência onde há evidência. Consolide na raiz "
+                "canônica `.claude/knowledge-base/`.",
+            ))
+
     runs_dir = knowledge_base / "roadmap-runs"
     acceptance_dir = knowledge_base / "acceptance"
 

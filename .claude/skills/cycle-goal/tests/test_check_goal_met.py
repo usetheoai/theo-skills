@@ -310,3 +310,47 @@ class TestInstallerPathValidation:
         assert result.returncode == 0
         state = json.loads((tmp_path / ".claude" / "cycle-goal.json").read_text())
         assert state["acceptance_dir"] == "irmao/knowledge-base/acceptance"
+
+
+class TestAutonomy:
+    """Consumidores são autônomos: cada um tem o próprio roadmap e knowledge-base."""
+
+    def _project(self, tmp_path: Path) -> Path:
+        root = tmp_path / "projeto"
+        (root / ".claude" / "knowledge-base" / "acceptance").mkdir(parents=True)
+        (root / "ROADMAP.md").write_text(roadmap("x", "M2"), encoding="utf-8")
+        return root
+
+    def _arm(self, root: Path, *extra: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, str(INSTALLER), "--project-root", str(root), "--milestones", "M2", *extra],
+            capture_output=True, text=True, check=False,
+        )
+
+    def test_default_e_o_knowledge_base_canonico_dentro_de_claude(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path)
+
+        assert self._arm(root).returncode == 0
+        state = json.loads((root / ".claude" / "cycle-goal.json").read_text())
+        assert state["acceptance_dir"] == ".claude/knowledge-base/acceptance"
+
+    def test_recusa_acceptance_dir_de_outro_projeto(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path)
+        irmao = tmp_path / "irmao" / ".claude" / "knowledge-base" / "acceptance"
+        irmao.mkdir(parents=True)
+
+        result = self._arm(root, "--acceptance-dir", "../irmao/.claude/knowledge-base/acceptance")
+
+        assert result.returncode == 2
+        assert "FORA do projeto" in result.stderr
+        assert not (root / ".claude" / "cycle-goal.json").exists()
+
+    def test_recusa_roadmap_de_outro_projeto(self, tmp_path: Path) -> None:
+        root = self._project(tmp_path)
+        (tmp_path / "irmao").mkdir(exist_ok=True)
+        (tmp_path / "irmao" / "ROADMAP.md").write_text(roadmap("x", "M2"), encoding="utf-8")
+
+        result = self._arm(root, "--roadmap", "../irmao/ROADMAP.md")
+
+        assert result.returncode == 2
+        assert "FORA do projeto" in result.stderr

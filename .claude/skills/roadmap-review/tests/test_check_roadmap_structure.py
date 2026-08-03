@@ -331,3 +331,42 @@ class TestEvidenceDrift:
         _v, findings = review(text)
 
         assert not [f for f in findings if f.check.startswith("released_without")]
+
+
+class TestSplitKnowledgeBase:
+    """Um segundo knowledge-base nunca dá erro; ele só acumula metade da verdade."""
+
+    def _canonical(self, tmp_path):
+        kb = tmp_path / ".claude" / "knowledge-base"
+        (kb / "roadmap-runs").mkdir(parents=True)
+        (kb / "acceptance").mkdir(parents=True)
+        return kb
+
+    def test_detecta_knowledge_base_rival_na_raiz(self, tmp_path, make_roadmap, make_milestone) -> None:
+        kb = self._canonical(tmp_path)
+        rival = tmp_path / "knowledge-base" / "reviews"
+        rival.mkdir(parents=True)
+        (rival / "algum-review.md").write_text("# review\n", encoding="utf-8")
+
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+        _v, findings = review(text, kb)
+        split = [f for f in findings if f.check == "split_knowledge_base"]
+
+        assert len(split) == 1 and split[0].severity == "MAJOR"
+
+    def test_rival_vazio_nao_e_findings(self, tmp_path, make_roadmap, make_milestone) -> None:
+        kb = self._canonical(tmp_path)
+        (tmp_path / "knowledge-base" / "reviews").mkdir(parents=True)
+
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+        _v, findings = review(text, kb)
+
+        assert not [f for f in findings if f.check == "split_knowledge_base"]
+
+    def test_sem_rival_nao_e_findings(self, tmp_path, make_roadmap, make_milestone) -> None:
+        kb = self._canonical(tmp_path)
+
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+        _v, findings = review(text, kb)
+
+        assert not [f for f in findings if f.check == "split_knowledge_base"]

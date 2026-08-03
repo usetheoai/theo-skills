@@ -30,7 +30,21 @@ from pathlib import Path
 
 HOOK_MARKER = "cycle-goal/scripts/check_goal_met.py"
 DEFAULT_MAX_BLOCKS = 40
-DEFAULT_ACCEPTANCE_DIR = "knowledge-base/acceptance"
+#: Canonico: o knowledge-base mora DENTRO de .claude/ (plugin install). O layout
+#: standalone -- o proprio repo do kit -- e o unico onde ele fica na raiz. Escolher
+#: errado nao quebra ruidosamente: cria um segundo knowledge-base vazio ao lado do
+#: real, e os artefatos passam a se perder entre os dois.
+PLUGIN_ACCEPTANCE_DIR = ".claude/knowledge-base/acceptance"
+STANDALONE_ACCEPTANCE_DIR = "knowledge-base/acceptance"
+
+
+def default_acceptance_dir(root: Path) -> str:
+    """Resolve o knowledge-base canonico para o layout deste projeto."""
+    if (root / ".claude" / "knowledge-base").exists():
+        return PLUGIN_ACCEPTANCE_DIR
+    if (root / ".claude").exists():
+        return PLUGIN_ACCEPTANCE_DIR  # plugin install; o scaffold ainda vai nascer
+    return STANDALONE_ACCEPTANCE_DIR
 
 
 def _load_settings(path: Path) -> dict:
@@ -74,11 +88,11 @@ def main() -> int:
     parser.add_argument("--roadmap", default="ROADMAP.md")
     parser.add_argument(
         "--acceptance-dir",
-        default=DEFAULT_ACCEPTANCE_DIR,
+        default=None,
         help=(
             "Where cycle-acceptance writes its records, relative to --project-root. "
-            "Override when the roadmap and the cycle artifacts live in another repo — "
-            "e.g. a workspace repo whose ROADMAP.md is a sibling."
+            "Defaults to the canonical .claude/knowledge-base/acceptance. Must stay INSIDE "
+            "the project — consumers are autonomous and do not share a knowledge-base."
         ),
     )
     parser.add_argument("--max-blocks", type=int, default=DEFAULT_MAX_BLOCKS)
@@ -117,10 +131,21 @@ def main() -> int:
     # aceitacao que nao existe bloqueia para sempre por um motivo falso ("acceptance
     # never ran") que parece um veredito legitimo. Descobrir isso depois custa uma
     # sessao inteira; descobrir agora custa uma linha.
+    acceptance_rel = args.acceptance_dir or default_acceptance_dir(root)
     roadmap_path = (root / args.roadmap).resolve()
-    acceptance_path = (root / args.acceptance_dir).resolve()
+    acceptance_path = (root / acceptance_rel).resolve()
 
     problems = []
+
+    # Autonomia: cada projeto tem o SEU knowledge-base e o SEU roadmap. Um gate que
+    # aponta para fora acopla dois repos autonomos e faz o milestone de um depender
+    # do estado do outro -- exatamente o que a arquitetura proibe.
+    for label, path in (("roadmap", roadmap_path), ("diretório de aceitação", acceptance_path)):
+        if root not in path.parents and path != root:
+            problems.append(
+                f"{label} está FORA do projeto: {path}. Os consumidores são autônomos — "
+                "cada um tem o próprio ROADMAP.md e o próprio .claude/knowledge-base/."
+            )
     if not roadmap_path.exists():
         problems.append(f"roadmap não existe: {roadmap_path}")
     if not acceptance_path.exists():
@@ -145,7 +170,7 @@ def main() -> int:
     state_path.write_text(json.dumps({
         "milestones": args.milestones,
         "roadmap": args.roadmap,
-        "acceptance_dir": args.acceptance_dir,
+        "acceptance_dir": acceptance_rel,
         "blocks": 0,
         "max_blocks": args.max_blocks,
     }, indent=2) + "\n", encoding="utf-8")
