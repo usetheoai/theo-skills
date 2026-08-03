@@ -95,3 +95,36 @@ describe('GET /v1/skills:retrieve — a atribuição chega ao cliente (M31)', ()
     expect(body.results[0]).not.toHaveProperty('matched');
   });
 });
+
+describe('a métrica de runtime fecha a tríade de wiring (M31)', () => {
+  it('o log do retrieve conta quantos resultados cada perna trouxe', async () => {
+    // Sem isto a atribuição viveria só na RESPOSTA: quem integra enxergaria, quem OPERA não.
+    // O M4 mediu o desequilíbrio entre as pernas numa avaliação offline; em produção não
+    // havia sinal. Uma linha de log com dois inteiros torna o mesmo desequilíbrio observável
+    // no ambiente onde ele de fato importa.
+    const linhas: Record<string, unknown>[] = [];
+    const app = new Hono<AppEnv>();
+    registerRetrieveRoutes(app, {
+      retrieverFor: () => ({
+        retrieve: () =>
+          Promise.resolve([
+            skill('a', [{ leg: 'vector', rank: 1 }]),
+            skill('b', [
+              { leg: 'vector', rank: 2 },
+              { leg: 'keyword', rank: 1 },
+            ]),
+          ]),
+      }),
+      logger: {
+        ...createNoopLogger(),
+        info: (obj: unknown) => linhas.push(obj as Record<string, unknown>),
+      } as unknown as ReturnType<typeof createNoopLogger>,
+    });
+
+    await app.request('/v1/skills:retrieve?query=x');
+
+    const retrieve = linhas.find((l) => 'latency_ms' in l);
+    expect(retrieve?.['matched_vector']).toBe(2);
+    expect(retrieve?.['matched_keyword']).toBe(1);
+  });
+});
