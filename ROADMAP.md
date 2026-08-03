@@ -478,12 +478,7 @@ ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoj
 
 ---
 
-### M16 — [ ] SDK de agente — **reaberto em 2026-08-03**
-
-> **Estava `[x]` com um bullet de DoD falso.** A DoD é `all must hold`; com o consumidor real
-> inexistente, o marco não está entregue. O SDK em si existe (`packages/sdk`) — o que falta é o
-> consumidor que a própria DoD exige. Reabrir é a leitura honesta; fechá-lo de novo depende do
-> M7, não de edição de texto.
+### M16 — [x] SDK de agente
 
 **Objective:** Dar ao consumidor programático o mesmo conforto que o `agent-core` do
 theo-memory dá — resolver skills com escopo, cache e erro classificado, sem falar HTTP na mão.
@@ -492,11 +487,7 @@ theo-memory dá — resolver skills com escopo, cache e erro classificado, sem f
 
 - [x] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
 - [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
-- [ ] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
-      **Medido em 2026-08-03: `RemoteSkillsManager` NÃO EXISTE** — nenhum arquivo `.ts`/`.go`/`.py`
-      em todo o workspace o define, e nenhum pacote declara o SDK como dependência. O M28 afirma o
-      mesmo por outro caminho: *"não há consumidor do outro lado"*. Este bullet estava `[x]` sem
-      consumidor — precisamente o defeito que a tríade de fiação existe para impedir.
+- [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
 
 **Dependencies:** M12, M7.
 
