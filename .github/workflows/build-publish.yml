@@ -104,6 +104,39 @@ jobs:
           ignore-unfixed: true
           trivyignores: .trivyignore
 
+      # SMOKE: a imagem SOBE? — o gate que faltava, e que custou 27h de indisponibilidade.
+      #
+      # Até aqui o pipeline publicava um artefato que NUNCA tinha sido executado. Trivy examina
+      # o conteúdo; nada verificava que o processo levanta. Em 2026-08-02 o `theo-skills` ficou
+      # fora do ar por 27h com a esteira inteira verde: `packages/api` importava `yazl`
+      # declarado em `devDependencies`, o estágio `production-deps` roda `pnpm install --prod`,
+      # e o symlink nunca foi criado. O pacote estava fisicamente na imagem, em
+      # `/app/node_modules/.pnpm/yazl@3.3.1`, e mesmo assim não resolvia.
+      #
+      # POR QUE SEM DEPENDÊNCIA NENHUMA (sem Postgres, sem rede): medido nas duas imagens, a
+      # quebrada e a corrigida. O grafo de módulos ESM é resolvido antes de qualquer validação
+      # de ambiente, então a diferença aparece sem subir nada em volta:
+      #
+      #   quebrada  -> Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'yazl'
+      #   corrigida -> {"level":"error","msg":"THEOSKILL_PG_URI is required — refusing to start"}
+      #
+      # Uma recusa TIPADA por configuração faltante é sucesso aqui: prova que o binário
+      # carregou, o grafo resolveu e o código chegou a rodar. Exigir Postgres para provar isso
+      # acoplaria um construtor de imagem genérico ao banco de UM produto, por cobertura que
+      # este passo já entrega.
+      - name: Smoke — a imagem levanta (falha de empacotamento)
+        if: ${{ inputs.trivy }}
+        run: |
+          set -o pipefail
+          out=$(timeout 60 docker run --rm "${{ inputs.image }}:scan-target" 2>&1 | head -40 || true)
+          echo "$out"
+          if printf '%s' "$out" | grep -qE 'ERR_MODULE_NOT_FOUND|Cannot find (package|module)|ERR_DLOPEN_FAILED|MODULE_NOT_FOUND'; then
+            echo "::error::A imagem nao levanta — dependencia ausente no artefato publicavel."
+            echo "::error::Causa tipica: import de producao cujo pacote esta em devDependencies."
+            echo "::error::Rode 'node scripts/check-declared-deps.mjs' para localizar."
+            exit 1
+          fi
+
       # O login vem DEPOIS do build-para-scan (lento a frio) para o token do GHCR estar FRESCO
       # na hora do push. Um build longo sobreviveria ao token pego no início do job, o buildkit
       # re-autenticaria anonimamente e o push levaria 403.

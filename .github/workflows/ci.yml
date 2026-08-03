@@ -136,6 +136,13 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # Roda ANTES do lint porque é mais barato e falha por uma causa mais específica: um
+      # import de produção cujo pacote está em `devDependencies` passa build, lint, typecheck e
+      # a suíte inteira — tudo com a árvore de desenvolvimento, onde ele existe — e só morre na
+      # imagem, no boot. Foi assim que o serviço ficou 27h fora do ar com a esteira verde.
+      - name: Dependências de produção declaradas
+        run: node scripts/check-declared-deps.mjs
+
       - name: Lint
         run: pnpm run lint
 
