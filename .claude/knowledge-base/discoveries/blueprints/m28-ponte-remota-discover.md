@@ -52,3 +52,19 @@ pequeno: configurar um servidor MCP num agente que já fala o protocolo.
 
 Tirar o cenário-âncora de `partial` é o que alimenta as evidências de dogfood que o M7 espera.
 Os dois milestones estão acoplados por esse bullet.
+
+## MEDIÇÃO — nossa metade da ponte SUBIU (2026-08-03)
+
+```
+$ node packages/mcp/dist/bin.js --transport streamable-http
+  theo-skills mcp: ouvindo em http://127.0.0.1:18097 → http://127.0.0.1:18740
+$ curl :18097/                       -> 400   (handshake MCP exigido, não GET raso)
+```
+
+O ouvinte **do build** está no ar, apontando para a API que serviu a aceitação do M30. Antes
+desta sessão ele não estava (`curl → 000`), e eu quase reportei "ponte inexistente" quando o que
+faltava era ligá-lo.
+
+**Consequência para o M28:** nossa metade está viva e alcançável. O que resta do bullet 2 é
+configurar o `agent-builder` para falar com este endereço — trabalho de um arquivo de config, em
+outro repositório. Confirma o diagnóstico: **configuração ausente, não lacuna estrutural.**
