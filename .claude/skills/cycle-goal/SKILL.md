@@ -4,7 +4,7 @@ version: 0.1.0
 requires: [auto-plan, to-plan, implement, code-quality, review, release, acceptance]
 description: 'Turn one or more ROADMAP.md milestones into an active session goal. Validates the requested M<N> ids against ROADMAP.md (exists, still open, dependency order honoured), composes a termination condition whose single stop criterion is a green /acceptance run (ACCEPTED or ACCEPTED_WITH_CAVEATS) and which names the artifact each cycle phase must produce on the way there, and hands it to Claude Code''s built-in /goal — which registers a session-scoped Stop hook so the agent cannot stop until the condition is evaluated as met. Milestones run sequentially, one in flight at a time, per the single-flip invariant. Use AFTER /roadmap-init or /roadmap-feature have created the milestones and BEFORE driving them with /auto-plan. Refuses on unknown, already-released, or dependency-blocked milestones, and on a condition over /goal''s 4000-char cap.'
 user-invocable: true
-allowed-tools: Read Glob Grep Bash
+allowed-tools: Read Glob Grep Bash Write Edit
 argument-hint: "M<N> [M<N> ...]"
 ---
 
@@ -31,7 +31,7 @@ Do NOT invoke when:
 - `ROADMAP.md` is missing — run `/roadmap-init` first.
 - The milestone is already `[x]` — a goal over finished work is met before any work happens.
 - A dependency of the requested milestone is neither released nor part of the same call — resolve the wall first.
-- A goal is already active — `/goal clear` cancels it before setting a new one.
+- A goal is already active — clear it first (`install_goal_hook.py --clear`).
 
 ## Unbreakable rules of the goal
 
@@ -45,14 +45,17 @@ These are stated inside the composed condition itself, not merely here — the S
 
 The other six phases are in the condition as the honest path to that verdict — an acceptance run reached by skipping `/review` is not the same fact — but the terminator is one and only one thing.
 
-## What `/goal` actually is
+## Why this does not use `/goal`
 
-Getting this wrong produces a skill that looks right and does nothing, so it is stated plainly:
+The first version of this skill printed a `/goal` command for the user to paste. That was a dead end, and the reason is worth stating so nobody re-litigates it:
 
-- `/goal <condition>` registers a **session-scoped Stop hook**. Every time the agent tries to stop, a small fast model judges the condition and re-prompts if it is not met.
-- The evaluator reads the **transcript**, not the filesystem. A condition is only enforceable if the transcript would show the evidence — which is why the composed condition names artifacts the phases report.
-- The condition has a **hard 4000-character cap**. Overflow is a gate violation here, never a truncation.
-- `/goal` is a **termination condition, not a system prompt**. Persona and process discipline belong in this file, read into the session at invocation; only the verifiable condition goes to `/goal`.
+- **A skill cannot invoke `/goal`.** It is a built-in command; the `SlashCommand` tool does not expose built-ins, and in many environments the tool is absent entirely.
+- **The settings route is closed.** `type: "prompt"` hooks — what `/goal` registers internally — are only valid on `PreToolUse`, `PostToolUse` and `PermissionRequest`. Never on `Stop`.
+- **And `/goal` judges the transcript.** A small model reads what was *said*. A confident sentence can satisfy it, which is precisely the failure mode this cycle exists to prevent.
+
+So the skill arms a **`Stop` hook of type `command`** instead, and that is an upgrade rather than a consolation prize: the gate reads the **filesystem** — the acceptance record's `verdict:` line and the `ROADMAP.md` checkbox. An assertion cannot forge either. No 4000-char cap applies, and no human paste is needed.
+
+The composed condition text is still produced: it goes into the session as the operating contract, where the persona and the process discipline belong.
 
 ## Process
 
@@ -70,19 +73,26 @@ Milestones are normalized to ascending order — never parallel. If the caller's
 
 Restate the contract below to the user, naming the specific milestones. This is the persona-and-discipline half, which `/goal` cannot carry.
 
-### 3. Invoke `/goal`
+### 3. Arm the gate
 
-Pass the script's stdout verbatim as the condition:
-
-```
-/goal <composed condition>
+```bash
+python3 skills/cycle-goal/scripts/install_goal_hook.py --milestones M2 M3
 ```
 
-If the environment exposes the `SlashCommand` tool for built-in commands, issue it directly. Otherwise print the exact one-line command for the user to run — and say which of the two happened. Never report the goal as active without confirming the CLI acknowledged it (`A session-scoped Stop hook is now active with condition: …`).
+Writes `.claude/cycle-goal.json` (the goal state) and a `Stop` hook in `.claude/settings.local.json` — personal and gitignored, so arming a goal never lands in a teammate's checkout. Existing settings are merged, never replaced, and re-arming replaces our hook instead of stacking duplicates.
+
+From then on, every attempt to end the session runs `check_goal_met.py`, which blocks with a per-milestone reason until each one has a green `verdict:` in its acceptance record **and** an `[x]` in `ROADMAP.md`.
+
+Two safety properties, both deliberate:
+
+- **Fail-open.** Any error in the gate allows the stop. A gate that bricks the session is worse than one that misses once.
+- **Bounded.** Each block increments a counter; past `max_blocks` (default 40) the gate releases with a warning that says plainly the milestone is **not** done. An impossible goal cannot trap a session forever.
+
+To cancel: `python3 skills/cycle-goal/scripts/install_goal_hook.py --clear`.
 
 ### 4. Report
 
-State: the ordered milestone chain, the condition's character count against the 4000 cap, whether `/goal` is confirmed active, and that `/goal clear` cancels at any time.
+State: the ordered milestone chain, that the Stop hook is armed and where, the block ceiling, and how to clear it. The hook may need `/hooks` opened once (or a restart) if the settings watcher was not already watching `.claude/` this session — say so rather than assuming it took effect.
 
 ## The operating contract
 

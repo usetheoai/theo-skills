@@ -103,6 +103,17 @@ When a criterion cannot be exercised with any available instrument, its status i
 ## Output
 
 - `knowledge-base/acceptance/{milestone-id}-{YYYY-MM-DD}.md` — the acceptance record: target, criteria, per-criterion result, evidence paths, defects, computed verdict.
+
+  The record MUST carry the verdict in its frontmatter as `verdict: <TOKEN>`. This is not cosmetic: `cycle-goal`'s Stop-hook gate reads that line off disk to decide whether a session may end. A record whose verdict lives only in prose is invisible to the gate, and the milestone will read as never accepted.
+
+  ```yaml
+  ---
+  milestone_id: M2
+  verdict: ACCEPTED        # or ACCEPTED_WITH_CAVEATS | REJECTED | NOT_VALIDATED
+  target: https://app.example.com
+  date: YYYY-MM-DD
+  ---
+  ```
 - `knowledge-base/acceptance/evidence/` — screenshots, console dumps, network logs, command transcripts cited by the record.
 - `knowledge-base/roadmap-runs/{milestone-id}-{date}.md` — updated with the acceptance verdict when the flip happens.
 

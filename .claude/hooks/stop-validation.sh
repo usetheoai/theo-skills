@@ -140,31 +140,8 @@ if [ -f "CHANGELOG.md" ]; then
     | grep -vE '(_test|\.test|\.spec)\.[a-z]+$' \
     | grep -vE '(^|/)(node_modules|vendor|dist|build|target|\.venv|__pycache__)/' \
     || true)
-
-  # O changelog exigido depende de ONDE o codigo mudou. Sao dois artefatos com dois
-  # publicos: `CHANGELOG.md` na raiz e o contrato publico do PRODUTO, e `.claude/CHANGELOG.md`
-  # e o do kit do ciclo. Exigir o da raiz para uma mudanca no kit forcava a escolha entre duas
-  # coisas erradas — poluir o changelog do produto com detalhe interno (o que a propria Regra 6
-  # proibe: "nao misturar mudancas internas com mudancas visiveis ao consumidor") ou usar o
-  # override. Como o kit e SINCRONIZADO entre os repos, o falso positivo reaparecia a cada sync,
-  # em toda sessao; um portao que grita sem motivo ensina o time a ignora-lo, que e pior do que
-  # nao ter portao. A intencao da regra fica INTEIRA: toda mudanca de codigo continua obrigada a
-  # um changelog — o do seu proprio artefato.
-  KIT_CODE=$(echo "$CODE_CHANGED" | grep -E '^\.claude/' || true)
-  PROD_CODE=$(echo "$CODE_CHANGED" | grep -vE '^\.claude/' || true)
-
-  if [ -n "$PROD_CODE" ] && ! echo "$ALL_FILES" | grep -qE '^CHANGELOG\.md$'; then
+  if [ -n "$CODE_CHANGED" ] && ! echo "$ALL_FILES" | grep -qE '^CHANGELOG\.md$'; then
     msg="CHANGELOG.md not updated despite production source changes (Inquebrável Rule 6; cycle-review BLOCKER). Add an entry to [Unreleased] before stopping. Override with STOP_VALIDATION_WARN_ONLY=1 only when the change is a bulk reorg with the rationale documented separately."
-    if [ "$WARN_ONLY" = "1" ]; then
-      WARNINGS+=("$msg")
-    else
-      BLOCKERS+=("$msg")
-    fi
-  fi
-
-  if [ -n "$KIT_CODE" ] && [ -f ".claude/CHANGELOG.md" ] \
-     && ! echo "$ALL_FILES" | grep -qE '^\.claude/CHANGELOG\.md$'; then
-    msg=".claude/CHANGELOG.md not updated despite changes to the cycle kit's own source (Inquebrável Rule 6). The kit is a versioned artifact with its own changelog — log it there, not in the product's CHANGELOG.md."
     if [ "$WARN_ONLY" = "1" ]; then
       WARNINGS+=("$msg")
     else

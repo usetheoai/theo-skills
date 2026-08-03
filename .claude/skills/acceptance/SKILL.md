@@ -61,6 +61,8 @@ Log every defect observed along the way with a severity (`blocker` | `major` | `
 
 `knowledge-base/acceptance/{milestone}-{date}.md`, plus artifacts under `knowledge-base/acceptance/evidence/`. Cite evidence by path; the paths must resolve.
 
+The frontmatter MUST carry `verdict: <TOKEN>` — `cycle-goal`'s Stop-hook gate reads that exact line to decide whether the session may end (`rules/cycle-acceptance.md § Output`). A verdict stated only in prose leaves the milestone looking never-accepted.
+
 ### 5. Compute the verdict — do not name it
 
 ```bash
