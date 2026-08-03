@@ -81,17 +81,51 @@ def _resolve_thresholds(arg: Path | None, plan_path: Path) -> Path:
 
 
 def _parse_thresholds(path: Path) -> dict[str, int]:
+    """Read verdict bands from the thresholds file.
+
+    Accepts the documented `KEY = VALUE` format — only `band.*` keys, mapped to the
+    upper-cased suffix (`band.shippable` -> `SHIPPABLE`). Per ADR
+    `0001-discover-plan-threshold-parse`: the parser previously split on `|` only, while
+    every checked-in file uses `KEY = VALUE`, so no line ever parsed. With `bands` empty,
+    `_verdict_for` fell through to its final `return "INVALID"` — every plan scored INVALID
+    regardless of quality, and a gate that cannot be passed is decorative.
+
+    The legacy `NAME | VALUE` form stays supported (the sibling `discover-confidence` uses
+    it). Strictly additive: no known consumer loses support.
+
+    Non-`band.*` keys (`soft_cap.*`, `hard_cap.*`) are ignored here on purpose — they are
+    not verdict bands, and admitting them would put `SOFT_CAP.QUESTION_COUNT_LOW` in the
+    verdict vocabulary.
+    """
     bands: dict[str, int] = {}
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) >= 2:
-            try:
-                bands[parts[0]] = int(parts[1])
-            except ValueError:
-                continue
+
+        # Legacy pipe form first: `SHIPPABLE|90|sunset|adr`.
+        if "|" in stripped:
+            parts = [p.strip() for p in stripped.split("|")]
+            if len(parts) >= 2:
+                try:
+                    bands[parts[0]] = int(parts[1])
+                except ValueError:
+                    pass
+            continue
+
+        # Documented form: `band.shippable = 90`.
+        if "=" not in stripped:
+            continue
+        key, _, raw_value = stripped.partition("=")
+        key = key.strip()
+        if not key.lower().startswith("band."):
+            continue
+        # Strip trailing inline comments before parsing the number.
+        value = raw_value.split("#", 1)[0].strip()
+        try:
+            bands[key[len("band.") :].upper()] = int(value)
+        except ValueError:
+            continue
     return bands
 
 

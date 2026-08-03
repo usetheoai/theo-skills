@@ -183,3 +183,52 @@ describe('a condição do `image` precisa VETAR por cada gate, não só declarar
   });
 });
 
+
+describe('o artefato publicado é EXECUTADO antes de a tag mover', () => {
+  // DEFEITO QUE ISTO PREVINE (2026-08-02, 27h de indisponibilidade em dev, issue #122):
+  // `packages/api/src/server/handlers/skills.ts` importava `yazl`, declarado em
+  // `devDependencies`. No monorepo resolvia por hoisting, através do `packages/cli`, que o
+  // declara em `dependencies`. O estágio `production-deps` do Dockerfile roda
+  // `pnpm install --prod`: as devDependencies somem, o symlink nunca é criado, e o processo
+  // morre no boot com ERR_MODULE_NOT_FOUND — com o pacote FISICAMENTE presente na imagem, em
+  // `/app/node_modules/.pnpm/yazl@3.3.1`.
+  //
+  // Build, lint, typecheck e a suíte inteira passaram: todos rodam na árvore de
+  // desenvolvimento, onde a devDependency existe. O pipeline publicava um artefato que nunca
+  // tinha sido executado, e o Trivy só examina conteúdo — não levanta o processo.
+
+  it('build-publish roda um smoke na imagem carregada ANTES do push', () => {
+    const doc = readDoc('build-publish.yml');
+    const steps = (doc.jobs['build-publish'].steps as { name?: string; run?: string }[]).map(
+      (s) => ({ name: s.name ?? '', run: s.run ?? '' }),
+    );
+
+    const smoke = steps.findIndex((s) => /smoke/i.test(s.name));
+    const push = steps.findIndex((s) => /build \+ push/i.test(s.name));
+
+    expect(smoke, 'step de smoke não encontrado em build-publish.yml').toBeGreaterThanOrEqual(0);
+    expect(push, 'step de push não encontrado').toBeGreaterThanOrEqual(0);
+    expect(smoke, 'o smoke tem de rodar ANTES do push — depois, a tag já moveu').toBeLessThan(
+      push,
+    );
+
+    // O smoke precisa REPROVAR em falha de resolução de módulo. Sem esta asserção o step
+    // poderia virar um `docker run` que ignora a saída e reporta verde.
+    expect(
+      steps[smoke]?.run,
+      'o smoke tem de detectar ERR_MODULE_NOT_FOUND e sair diferente de zero',
+    ).toMatch(/ERR_MODULE_NOT_FOUND/);
+    expect(steps[smoke]?.run, 'o smoke tem de falhar o job (exit 1)').toMatch(/exit 1/);
+  });
+
+  it('ci.yml exige que todo import de produção esteja em dependencies', () => {
+    const runs = (readDoc('ci.yml').jobs.static.steps as { run?: string }[])
+      .map((s) => s.run ?? '')
+      .join('\n');
+
+    expect(runs, 'check-declared-deps.mjs não é executado no CI').toMatch(
+      /check-declared-deps\.mjs/,
+    );
+    expect(existsSync(join(ROOT, 'scripts/check-declared-deps.mjs')), 'script ausente').toBe(true);
+  });
+});

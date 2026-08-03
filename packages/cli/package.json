@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/skills-cli",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "bin": {
     "theoskill": "./dist/index.js"

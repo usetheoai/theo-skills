@@ -257,15 +257,28 @@ dogfood real — é o critério de "shipped".
 - [x] `toTheokit` produz um objeto que o `Skill.create` do `@theokit/sdk` 4.36.0 aceita sem erro:
       chaves `{ name, description, instructions }` presentes e não vazias, `instructions` como
       string. Exercitável contra o SDK real, sem ler este roadmap.
-- [ ] **`npm view @usetheo/skills-sdk version` resolve** (hoje: `E404`) e um projeto novo, fora
+- [x] **`npm view @usetheo/skills-sdk version` resolve** (hoje: `E404`) e um projeto novo, fora
       deste repositório, faz `npm install @usetheo/skills-sdk` e importa `createRemoteSkillsManager`
       **do pacote publicado** — não do `dist/` local. Entrega declarada em
-      `rules/acceptance-target.txt`.
+      `rules/acceptance-target.txt`. **Medido em 2026-08-03** contra `0.2.1`: projeto novo em
+      diretório temporário, `npm install @usetheo/skills-sdk`, import do símbolo e **`tsc`
+      `strict` saindo 0**. A checagem em JavaScript sozinha teria mentido — passava desde
+      `0.2.0`, enquanto o consumidor TypeScript quebrava com `TS7016` porque o pacote subia sem
+      nenhum `.d.ts` (#115). O erro intermediário do consumidor de teste foi `TS2353`, sobre uma
+      opção que eu escrevi errado: é a prova de que o TypeScript passou a checar o pacote.
 - [ ] Contra o registry no ar, o `RemoteSkillsManager` **do pacote publicado** resolve por intenção:
       `retrieve` devolve **≥ 1** skill para uma consulta sem sobreposição léxica com o nome dela, e
       `isDegraded() === false` — provando que a perna semântica respondeu, não o fallback local.
-- [ ] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `isDegraded() === true`
-      em **≤ 5 s** — o caminho de degradação exercitado, não presumido.
+      *Bloqueado por DUAS coisas, verificadas em 2026-08-03: (a) não há instância no ar — só os
+      containers de Postgres sobem localmente, e `app-dev` responde `401`; (b) mesmo com o
+      serviço no ar, "sem sobreposição léxica" exige a perna vetorial, e o embedder padrão é um
+      hash determinístico — o M4 já mede recall vetorial isolado em **0.308** com ele. Este AC
+      precisa de um provider de embedding real, não só do serviço de pé.*
+- [x] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `isDegraded() === true`
+      em **≤ 5 s** — o caminho de degradação exercitado, não presumido. **Medido em 2026-08-03**
+      contra o pacote **publicado** `0.2.1`, apontando o cliente para uma porta fechada
+      (`127.0.0.1:9`, `attempts: 1`): devolveu o fallback local, `isDegraded() === true`, em
+      **14 ms**. Exercitado de fora do repositório, com o SDK vindo do registry.
 - [ ] **Dogfood com `status: running`**, conforme `rules/dogfood-golden-rule.md`: **≥ 3** arquivos
       em `.claude/knowledge-base/dogfood/evidence/` com `scenario: theokit-remote-provider`, em
       **≥ 3 datas distintas** no campo `date:`, e **≥ 1** com `outcome: fail`. Uma sessão não é uso
@@ -1018,6 +1031,69 @@ autoria neles seria atraso por parentesco temático, não por necessidade técni
 
 > Adicionado por `/roadmap-feature skills-authoring-api` em 2026-08-03.
 > Grill: `knowledge-base/grills/skills-authoring-api-feature-grill.md`.
+
+---
+
+### M31 — [ ] As jornadas completas, no nível do contrato de design
+
+**Objective:** Fechar a distância entre o que a API oferece e o que alguém consegue fazer numa
+tela. Hoje a capacidade tem **1 de 7 escritas** com superfície, e a razão de existir do produto
+— um agente achar a skill certa por intenção — não tem tela alguma.
+
+**Why now (o que mudou):** três fatos medidos em 2026-08-03, navegando o `app-dev` por clique a
+partir da raiz. Registro completo em `knowledge-base/audits/2026-08-03-skills-ux-journeys.md`.
+
+1. **A `<main>` de `/skills` não tem um único botão** — verificado na árvore de acessibilidade.
+   O `DESIGN.md` §1 exige que toda tela responda "qual é a ação principal?" e "o que eu faço
+   agora?" em ≤3s. Ela não responde nenhuma das duas, o que a torna uma *dead page* pelo §4.1.
+2. **A jornada termina num beco.** Detalhe → "Ver versões e canais" → *0 versões* → "publique
+   pela CLI", sem CTA e sem comando copiável. O último passo aponta para fora do produto.
+3. **O M30 entregou a API da autoria e ela não tem consumidor.** `POST /v1/skills:validate`
+   valida sem publicar, o erro traz `field` e `line` — e nada disso alcança um autor, porque não
+   há tela de autoria. O acervo tem hoje uma skill que se descreve como *"pode ser removida"* e
+   não há como removê-la, embora `DELETE /v1/skills/:id` exista há milestones.
+
+**Definition of done (all must hold):**
+
+- [ ] **Nenhuma tela morta.** Toda tela da capacidade tem ao menos uma ação; todo `EmptyState`
+      tem os quatro elementos do `DESIGN.md` §5.1 **incluindo CTA in-app**; todo erro tem ação
+      (Retry); toda rota aninhada tem breadcrumb com volta à origem, não ao overview. Exercitado
+      **por clique a partir da raiz** — uma tela alcançada só digitando URL não conta.
+- [ ] **Descoberta observável.** Uma consulta em linguagem natural devolve, na tela, os
+      resultados com `score` **e qual perna casou** — léxica (FTS) ou vetorial. Sem a segunda
+      informação o painel mostra um número sem dizer de onde veio, e a diferença entre "achou
+      porque as palavras batem" e "achou porque entendeu" é justamente o que o produto vende.
+- [ ] **Autoria sem publicar às cegas.** É possível escrever uma skill na tela, validá-la **sem
+      efeito colateral** (`:validate`), ver o erro posicionado por `field`/`line`, publicar
+      acompanhando a operação, e o sucesso oferece testar a descoberta — não "voltar à lista".
+- [ ] **Governança com coreografia.** Excluir e alterar visibilidade existem na tela sob o
+      contrato do `DESIGN.md` §16: `DangerZone`, frase digitada, declaração de reversibilidade.
+      Promover canal diz **o que deixa de valer**, não "o item será alterado".
+- [ ] **O acervo aguenta escala.** Busca e paginação reais na lista — `next_page_token` hoje
+      está **tipado e não usado**, então acima de 100 skills o excedente some sem erro algum.
+- [ ] **O contrato de leitura sustenta as telas.** `GET /v1/skills` devolve `visibility` e se a
+      revisão tem embedding — sem isso a métrica "descobríveis" não existe e o operador não
+      distingue *publicada* de *achável*. Mudanças **aditivas**: nenhum consumidor quebra.
+
+**Dependencies:** M4 (busca híbrida — `[x]`) e M30 (API da autoria — `[x]`). Ambos fechados, o
+milestone é elegível de imediato.
+
+**Top risks:**
+
+1. **Atravessa dois repositórios.** As telas nascem em `theo-cloud/dashboard` (o `CLAUDE.md`
+   deste repo proíbe frontend aqui) e o contrato de leitura é daqui. Um plano só não serve — e
+   entregar as telas **antes** da API deixa o playground mostrando score sem explicar a perna,
+   que é metade do valor. *Mitigação:* o contrato de leitura vai primeiro; a DoD do playground
+   depende dele explicitamente. O checkbox vira por `/acceptance M31` navegando o `app-dev`,
+   que independe de onde o código mora.
+2. **"SOTA" é aspiração, não critério.** Sem âncora objetiva, vira opinião na revisão.
+   *Mitigação:* o critério é o `DESIGN.md` do dashboard (v1.0, locked, 18 seções) — e a DoD cita
+   nominalmente as seções hoje violadas (§1, §4.1, §5.1, §6.1, §10.2, §11.1), cada uma com
+   evidência na auditoria. "SOTA" aqui significa *o contrato que já escrevemos, cumprido*.
+
+> Adicionado por `/roadmap-feature skills-journeys-sota` em 2026-08-03.
+> Grill: `knowledge-base/grills/skills-journeys-sota-feature-grill.md`.
+> Auditoria de origem: `knowledge-base/audits/2026-08-03-skills-ux-journeys.md`.
 
 ---
 

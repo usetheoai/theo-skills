@@ -82,6 +82,18 @@ export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDe
         query_len: query.length,
         result_count: results.length,
         top_score: results[0]?.score ?? null,
+        // M31 — quantos resultados cada perna trouxe, NESTA requisição.
+        //
+        // Fecha a tríade de wiring: sem isto a atribuição existiria só na resposta, e quem
+        // OPERA continuaria sem enxergar o equilíbrio entre as pernas. O M4 mediu que a recall
+        // é carregada pelo FTS (perna vetorial isolada em 0.308 sob o embedder stub) — mas
+        // isso foi medido numa AVALIAÇÃO, offline. Em produção não havia sinal algum.
+        //
+        // Cardinalidade fixa de propósito: dois inteiros, não a lista de skills. Uma métrica
+        // por skill viraria alta cardinalidade e o custo apareceria no armazenamento de
+        // métricas, não aqui.
+        matched_vector: results.filter((r) => r.matched?.some((m) => m.leg === 'vector')).length,
+        matched_keyword: results.filter((r) => r.matched?.some((m) => m.leg === 'keyword')).length,
         latency_ms: latencyMs,
       },
       'retrieve',
