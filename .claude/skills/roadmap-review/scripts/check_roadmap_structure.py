@@ -250,13 +250,28 @@ def _check_malformed_headers(text: str, milestones: list[Milestone], findings: l
 def _check_milestone_set(
     milestones: list[Milestone], declared_ids: list[str], findings: list[Finding]
 ) -> None:
-    # Cap and M0 are judged on every DECLARED milestone, well-formed or not. A roadmap whose
-    # headers are all malformed still has too many milestones, and saying only "nothing parsed"
-    # would bury the structural problem behind a formatting one.
-    if len(set(declared_ids)) > MILESTONE_CAP:
+    # The cap counts OPEN milestones, not every milestone ever written.
+    #
+    # The rule it enforces is roadmap-init anti-pattern 1 — "inflating milestones to look
+    # ambitious; 12 milestones with vague objectives are worse than 5 sharp ones". That is a
+    # statement about UNDELIVERED scope: how much the team is holding at once. Counting delivered
+    # milestones toward it measures a different thing entirely — a roadmap with 26 `[x]` and 4
+    # `[ ]` is not a backlog wearing a roadmap's clothes, it is a HISTORY, and the prescription
+    # ("split the project") does not apply to work that already shipped.
+    #
+    # Measured consequence of the old counting: a long-lived roadmap fires this BLOCKER on every
+    # review, forever, and can never be cleared by any action the team takes — which trains the
+    # team to ignore the reviewer. A gate that cannot be satisfied is a gate that gets ignored.
+    #
+    # The original intent stays fully enforced: a roadmap written with 12 open milestones still
+    # blocks, because 12 open > cap. Only delivered milestones stop counting.
+    delivered = {m.milestone_id for m in milestones if m.done}
+    open_ids = set(declared_ids) - delivered
+    if len(open_ids) > MILESTONE_CAP:
         findings.append(Finding(
             "milestone_cap_exceeded", BLOCKER, DETERMINISTIC, "document",
-            f"{len(set(declared_ids))} milestones, cap is {MILESTONE_CAP} (M0–M8). Above the cap this "
+            f"{len(open_ids)} OPEN milestones ({len(set(declared_ids))} declared, "
+            f"{len(delivered)} delivered), cap is {MILESTONE_CAP} (M0–M8). Above the cap this "
             "is a backlog wearing a roadmap's clothes — split the project (roadmap-init anti-pattern 1).",
         ))
 

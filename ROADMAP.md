@@ -77,6 +77,14 @@ HTTP) em uso interno de verdade, não sintético.
 
 > Example shape: "100 req/s sustained P95 < 200ms across 3 providers, with zero retries hidden from caller", NOT "feels fast".
 
+> **Honestidade sobre a primeira cláusula (2026-08-03).** `Recall@5 ≥ 0.85` **não é verificado
+> por nenhum PR hoje.** O gate no CI roda com `createStubEmbedder` — hash determinístico, não
+> motor semântico —, então ele passa mesmo com a perna vetorial morta; o gate real, com embedder
+> de verdade, existe em `retrieve-latency-real.integration.test.ts` e está **desligado por opção
+> de custo** (`THEOSKILL_SKIP_REAL_EMBED=1`), rastreado em `theo-skills#106`. O número acima
+> segue sendo o critério; o que não existe é a medição contínua dele. Ligar o gate é decisão de
+> custo do dono, não lacuna de engenharia.
+
 **North-star metric (tracked post-launch):** **Time-to-relevant-skill** — latência +
 precisão combinadas: quão rápido e certo um agente Theokit encontra a skill correta para a
 intenção do usuário.
@@ -273,7 +281,11 @@ SLO e cobertura E2E.
 - [x] Rate limiting por principal e SLO de retrieve documentado — M17 DoD #2 e #5. **Medido no ar em 2026-07-31: p95 = 30.4 ms** (60 amostras), contra SLO de 200 ms.
 - [x] Suíte E2E verde no CI + documentação de operação — M17 DoD #3 e #4.
 
-**Dependencies:** M2, M4, M7.
+**Dependencies:** M2, M4.
+
+> *Histórico: a lista original também declarava a dependência do provider remoto. O marco foi
+> **substituído** pelo M17, que entregou este DoD sem ela — a linha acima reflete o que de fato
+> foi exercido, e não a intenção de 2026-06. Corrigido em 2026-08-03.*
 
 **Top risks:**
 
@@ -466,7 +478,12 @@ ecossistema consomem capacidades — o mesmo lugar que o `theo-memory` ocupa hoj
 
 ---
 
-### M16 — [x] SDK de agente
+### M16 — [ ] SDK de agente — **reaberto em 2026-08-03**
+
+> **Estava `[x]` com um bullet de DoD falso.** A DoD é `all must hold`; com o consumidor real
+> inexistente, o marco não está entregue. O SDK em si existe (`packages/sdk`) — o que falta é o
+> consumidor que a própria DoD exige. Reabrir é a leitura honesta; fechá-lo de novo depende do
+> M7, não de edição de texto.
 
 **Objective:** Dar ao consumidor programático o mesmo conforto que o `agent-core` do
 theo-memory dá — resolver skills com escopo, cache e erro classificado, sem falar HTTP na mão.
@@ -475,7 +492,11 @@ theo-memory dá — resolver skills com escopo, cache e erro classificado, sem f
 
 - [x] Pacote de SDK com binding de workspace (`withWorkspace`) e as operações de descoberta e obtenção, tipadas.
 - [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
-- [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
+- [ ] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
+      **Medido em 2026-08-03: `RemoteSkillsManager` NÃO EXISTE** — nenhum arquivo `.ts`/`.go`/`.py`
+      em todo o workspace o define, e nenhum pacote declara o SDK como dependência. O M28 afirma o
+      mesmo por outro caminho: *"não há consumidor do outro lado"*. Este bullet estava `[x]` sem
+      consumidor — precisamente o defeito que a tríade de fiação existe para impedir.
 
 **Dependencies:** M12, M7.
 
@@ -839,7 +860,14 @@ encontrado por teste verde.
 2. **`assertPublishable` recusando retrocesso pode barrar correção urgente de versão antiga.** Mitigação: decidir e documentar o caminho de exceção (patch em linha antiga) antes de ligar a regra, não depois do primeiro incidente.
 ---
 
-### M29 — [→] A interface do registro — **entregue no `theo-cloud`, como M26**
+> ### ↪ M29 — A interface do registro — **entregue no `theo-cloud`, como M26**
+>
+> **Não é um milestone deste roadmap.** É o rastro da migração, deliberadamente fora da forma
+> `### M<N> — [ ]`: um `[→]` naquele lugar não é checkbox, e o parser do `/roadmap-review` o
+> reportava como BLOCKER (`missing_checkbox`) — o que fazia TODA revisão deste roadmap voltar
+> `INVALID` e esconder o que as demais checagens teriam achado. Corrigido em 2026-08-03.
+> Remover o rastro não é opção: foi exatamente a ausência dele que custou cinco semanas de
+> roadmap contraditório no `theo-promptly`.
 
 **Este milestone não é implementado aqui, e não é cancelado: ele MUDOU DE ROADMAP em 2026-08-02.**
 O conteúdo integral (objective, why-now medido, DoD com as cinco alíneas, dependências, riscos)
