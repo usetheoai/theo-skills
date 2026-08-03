@@ -14,12 +14,24 @@ Acrescentar, **sem remover o existente**:
   "mcpServers": {
     "add-fixture": { "...": "manter como está" },
     "theo-skills": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "http://127.0.0.1:18097"
     }
   }
 }
 ```
+
+> **`"type": "http"`, não `"streamable-http"`** — medido em
+> `@theokit/sdk/dist/types/mcp.d.ts:67-71`:
+> `McpHttpServerConfig = { type?: "http" | "sse"; url: string; headers?: Record<string,string> }`.
+>
+> A primeira versão deste documento dizia `"streamable-http"`, por analogia com a flag do nosso
+> binário (`--transport streamable-http`). São coisas diferentes: aquela é a nossa flag de
+> processo; esta é a chave que o SDK do outro lado desserializa. Entregar config por analogia é
+> o mesmo erro que me fez reportar um defeito inexistente antes nesta sessão.
+>
+> O tipo também expõe `headers?` — é por onde o bearer por inquilino entra quando a auth
+> estiver ligada (`initialize` sem ele devolve `401`, verificado).
 
 ## Como levantar o ouvinte do nosso lado
 
