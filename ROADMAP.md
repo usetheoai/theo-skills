@@ -932,7 +932,7 @@ skills" no roadmap do produto tem de encontrar a resposta, não um vazio.
 
 ---
 
-### M30 — [ ] A API da autoria: validar sem publicar, publicar sem empacotar
+### M30 — [x] A API da autoria: validar sem publicar, publicar sem empacotar
 
 **Objective:** Dar a QUALQUER cliente — CLI, tela, MCP — a capacidade de autorar uma skill sem
 publicar às cegas. Hoje o único jeito de descobrir que o frontmatter tem um erro é **publicar e
