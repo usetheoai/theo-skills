@@ -45,8 +45,24 @@ O job completa sem erro e `addRevision` não cria revisão nova. Descartado no c
   código antigo. Encerrei todos e reproduzi com uma instância só, já corrigida — mesmo resultado.
 - **As guardas estão no `dist`**, verificadas por grep no compilado.
 
-**Hipótese não testada:** `addRevision` pode deduplicar por `contentHash`, ou o `skill_md` do job
-não estar sendo propagado. Não medi nenhuma das duas.
+## Hipóteses TESTADAS e descartadas (2026-08-03, segunda rodada)
+
+| hipótese | como foi descartada |
+|---|---|
+| `addRevision` deduplica por `contentHash` | **falso** — `skills-store.ts:244` insere incondicionalmente, com `revisionId` novo a cada chamada |
+| worker antigo competindo pela fila | **era real, e não bastou.** Sobreviviam `:18740` e `:18750`, de antes da correção, contra o mesmo banco. Encerrados; com **uma única** instância corrigida o defeito persiste |
+| job incompleto | **falso** — `pgboss.job` confirma `mask=["skillMd"]`, `payload_b64`, `content_hash` e `frontmatter` todos presentes |
+| guarda de estado terminal em `runOperationJob:92` | **falso** — a operação sai de `PENDING`, e `create_time != update_time` prova que `updateState` rodou, logo `action()` executou |
+| guardas ausentes no `dist` | **falso** — `grep` no compilado acha a condição nos dois arquivos |
+
+**Onde parei:** `action()` comprovadamente executa e a revisão não aparece. Resta instrumentar o
+bloco `if` dentro do handler de update — logar cada subcondição — ou verificar se `data` no
+handler é o payload do job ou o envelope do pg-boss (uma mudança de assinatura faria `data.mask`
+ser `undefined`, e `undefined.includes` lançaria… ou não, se houver captura silenciosa acima).
+
+**Custo até aqui:** ~2h. O defeito é de baixo impacto (ninguém usa `PATCH` com `skillMd` hoje,
+porque acabou de ser adicionado) e **alto risco de leitura errada** — por isso o CHANGELOG diz
+PARCIAL.
 
 ## Por que isto está registrado como incompleto
 
