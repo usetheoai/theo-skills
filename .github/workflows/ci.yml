@@ -33,7 +33,24 @@ on:
   # pior: condição errada reporta SUCCESS sem ter testado nada, e um portão verde sobre
   # mudança não testada é pior que minuto de runner gasto num README.
   #
-  # SEM gatilho `push` — deliberado desde 2026-08-03, e o oposto do que parece.
+  # `workspace` é a branch onde TODO trabalho nasce, e até 2026-08-03 ela não tinha portão
+  # algum: o CI só rodava em PR e em push para `develop`. Consequência medida — 92 commits
+  # acumulados sem lint, e três `async` sem `await` só apareceram no PR de promoção, onde
+  # bloquearam um release. Descobrir na promoção é descobrir sob pressão.
+  #
+  # Só o gate SEM BANCO roda aqui. A suíte de integração continua exclusiva de PR e do
+  # `schedule`: ela leva ~10 min e subir pgvector a cada push pagaria caro por um sinal que
+  # o PR dá de qualquer forma. Este job é curto, e o par push/pull_request cai em grupos de
+  # concorrência distintos (o evento está na chave), então nenhum cancela o outro.
+  push:
+    branches: [workspace]
+    paths-ignore:
+      - '.claude/**'
+      - '**/*.md'
+      - 'docs/**'
+      - 'prototype/**'
+
+  # SEM gatilho `push` para `develop` — deliberado desde 2026-08-03, e o oposto do que parece.
   #
   # `publish.yml` dispara em TODO push para `develop` (sem filtro de paths) e invoca este
   # arquivo por `workflow_call` no job `gate-ci`. O gatilho `push` daqui rodava o MESMO

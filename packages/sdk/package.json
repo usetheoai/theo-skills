@@ -3,6 +3,11 @@
   "version": "0.2.1",
   "description": "SDK do theo-skills — descoberta e obtenção de skills, com binding de workspace.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheoai/theo-skills.git",
+    "directory": "packages/sdk"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

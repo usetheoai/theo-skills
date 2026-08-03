@@ -63,5 +63,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheoai/theo-skills.git",
+    "directory": "packages/core"
+  }
 }
