@@ -1,6 +1,9 @@
 # Discovery Plan: M31 — as jornadas de skills, no nível do contrato de design
 
-- **Version:** 1.0
+- **Version:** 1.1 — absorve os 2 MUST FIX de
+  `knowledge-base/reviews/m31-skills-journeys-edge-cases-2026-08-03.md` (métodos de Q3 e Q7).
+  Nenhuma pergunta mudou; nenhum escopo mudou. Só o caminho de busca, que nos dois casos
+  produziria conclusão falsa em vez de erro visível.
 - **Slug:** `m31-skills-journeys`
 - **Milestone:** M31
 - **Owner:** Paulo (sponsor)
@@ -100,11 +103,11 @@ extraímos **o que informar**; o **como renderizar** é nosso.
 |---|---|---|---|---|
 | Q1 | Como o `semantic-router` combina score esparso e denso, e o resultado **preserva a contribuição de cada perna** ou colapsa num número só? | Techniques | `Read knowledge-base/references/semantic-router/semantic_router/routers/hybrid.py`; `Grep 'alpha\|sparse\|dense\|score' semantic_router/routers/` | Trecho + veredito: preserva / colapsa, e onde |
 | Q2 | Que forma de dado o `semantic-router` usa para devolver um resultado de rota (classe? dataclass? dict?), e o que ela carrega além do score? | Techniques | `Read knowledge-base/references/semantic-router/semantic_router/schema.py` | Assinatura do tipo + campos |
-| Q3 | O `mcp-gateway-registry` expõe ao operador **por que** um servidor casou com a busca, ou só o ranking? | Techniques | `Grep -r 'score\|similarity\|rank' knowledge-base/references/mcp-gateway-registry/registry/` | Sim/não + evidência do caminho |
+| Q3 | O `mcp-gateway-registry` expõe ao operador **por que** um servidor casou com a busca, ou só o ranking? | Techniques | **(v1.1)** `Read knowledge-base/references/mcp-gateway-registry/registry/embeddings/client.py`; `Grep 'score\|similarity' registry/services/ registry/static/`. O `-r` em `registry/` inteiro foi retirado: casava com `utils/iam_manager.py` e `utils/url_normalize.py`, que não são busca. `registry/static/` entrou porque a pergunta é o que o **operador** vê | Sim/não + evidência do caminho. **Ausência de score na UI É resposta válida**, não falha de busca |
 | Q4 | Como o `agentskills-spec` define o que é validável **antes** de publicar, e o erro carrega posição (campo/linha)? | Techniques | `Read knowledge-base/references/agentskills-spec/docs/specification.mdx` | Lista de regras + veredito sobre posição do erro |
 | Q5 | Que declaração de impacto o `mcp-context-forge` escreve para ação que afeta consumidores já conectados (desativar/remover um gateway registrado)? | Techniques | `Grep -ri 'confirm\|delete\|deactivate' knowledge-base/references/mcp-context-forge/mcpgateway/admin_ui/ knowledge-base/references/mcp-context-forge/mcpgateway/templates/` | Texto literal + o que ele nomeia como consequência |
 | Q6 | Que dependências os peers usam para a perna léxica/esparsa, e alguma é alternativa real ao Postgres FTS que já temos? | Dependencies | `Read knowledge-base/references/semantic-router/pyproject.toml`; `Grep -i 'bm25\|sparse\|tfidf' semantic_router/` | Tabela dep → papel → aplicável a nós? |
-| Q7 | Como o `semantic-router` testa que o híbrido de fato mistura as duas pernas — existe teste que falha se uma delas morrer? | Integration tests | `find knowledge-base/references/semantic-router -path '*test*' -name '*hybrid*'`; ler o que casar | Nome do teste + o que ele discrimina |
+| Q7 | Como o `semantic-router` testa que o híbrido de fato mistura as duas pernas — existe teste que falha se uma delas morrer? | Integration tests | **(v1.1)** `grep -rl 'hybrid' knowledge-base/references/semantic-router/tests/` + `Read .../tests/unit/test_bm25_functional.py`. O `find -name '*hybrid*'` da v1.0 devolvia **zero** — não há arquivo com esse nome — e teria produzido um `blocked` falso. O `grep` acha três testes reais, e o BM25 é o análogo direto do nosso FTS | Nome do teste + o que ele discrimina |
 | Q8 | Que ferramenta de build/lint/typecheck os peers de registro usam, e alguma resolve problema que hoje resolvemos à mão? | Tools | `Read knowledge-base/references/mcp-gateway-registry/pyproject.toml`; `Read knowledge-base/references/mcp-context-forge/package.json` | Tabela ferramenta → papel → adotar/dispensar + motivo |
 
 **Orçamento:** 8 perguntas. Techniques 5, Dependencies 1, Integration tests 1, Tools 1 — dentro
@@ -133,6 +136,16 @@ Antes de marcar qualquer pergunta como `done`, TODAS têm de valer:
 3. Quando a resposta contradiz a expectativa registrada no Context, a contradição é escrita —
    não apagada.
 4. Pergunta sem resposta após o orçamento vira `blocked` **com o motivo**, jamais silêncio.
+
+**(v1.1) Dois checkpoints vindos do edge-case review:**
+
+5. **Q2 é respondida ANTES da Q1.** A Q1 pergunta se a contribuição de cada perna sobrevive ao
+   resultado — e isso só se responde conhecendo o tipo devolvido, que é a Q2. Na ordem inversa,
+   `hybrid.py` é lido duas vezes dentro de um orçamento de 3h.
+6. **A Q6 só conta como `done` se disser, por dependência, se o Postgres FTS que já temos cobre
+   aquilo.** O peer é Python com BM25; nós somos TypeScript com FTS nativo. Uma tabela de
+   pacotes que não vamos usar preenche o corner e não informa nada — cobertura falsa é mais cara
+   que corner vazio, porque ninguém volta nela.
 
 ## Acceptance Criteria
 
