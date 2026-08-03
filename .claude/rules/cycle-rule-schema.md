@@ -60,7 +60,7 @@ Each cycle has its own verdict vocabulary because the **shape of the decision** 
 | `cycle-plan` | `SHIPPABLE` | `SHIPPABLE_WITH_CAVEATS` | `NEEDS_REVISION` | `INVALID` |
 | `cycle-implement` | `IMPLEMENTATION_COMPLETE` (completion promise) | — | (halt-loop pauses for human) | — |
 | `cycle-code-quality` | `PASS` | `PASS_WITH_CAVEATS` | `FAIL_SOFT` | `FAIL_HARD` / `INVALID` |
-| `cycle-review` | `READY_TO_MERGE` | — | `NEEDS_FIXES` | `NEEDS_DEEPER` |
+| `cycle-review` | `READY_TO_MERGE` | `READY_TO_MERGE_WITH_FOLLOWUPS` | `NEEDS_FIXES` | `NEEDS_DEEPER` |
 | `cycle-release` | `RELEASED` | — | `PR_OPEN_AWAITING_APPROVAL` (paused at human-approval gate) | `BLOCKED` |
 | `cycle-acceptance` | `ACCEPTED` | `ACCEPTED_WITH_CAVEATS` | `REJECTED` | `NOT_VALIDATED` |
 | `cycle-auto-plan` | (delegates to each chained cycle's verdict) | — | (pause + ask human at any gate failure) | — |
