@@ -27,7 +27,19 @@ permissions:
 jobs:
   publish:
     name: publica no npm
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # GitHub-hosted, e NÃO a frota Blacksmith que o resto do repo usa. Não é preferência:
+    # o npm recusa provenance de runner que não seja dele. Medido na tag v0.11.3:
+    #
+    #   [E422] Error verifying sigstore provenance bundle: Unsupported GitHub Actions
+    #   runner environment: "self-hosted". Only "github-hosted" runners are supported
+    #   when publishing with provenance.
+    #
+    # A attestation deriva da identidade OIDC do runner, e a Blacksmith se apresenta como
+    # `self-hosted` — o npm não tem como atestar o que não controla. As alternativas eram
+    # perder a provenance (que é metade do motivo deste workflow existir, ver #116) ou
+    # mover só ESTE job. O job é curto — instalar, buildar e publicar — então o custo do
+    # runner GitHub é desprezível perto de publicar sem cadeia de custódia.
+    runs-on: ubuntu-latest
     # Teto explícito: o default do GitHub é 360 min, e um publish pendurado seguraria um
     # runner por seis horas. O invariante que exige isto foi escrito no M10 — e este
     # workflow o violou, provando que o gate serve para quem o escreveu também.
