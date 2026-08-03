@@ -25,14 +25,21 @@ on:
   # pior: condição errada reporta SUCCESS sem ter testado nada, e um portão verde sobre
   # mudança não testada é pior que minuto de runner gasto num README.
   #
-  # O filtro CONTINUA no `push`, onde nada é bloqueado por ele.
-  push:
-    branches: [develop]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
-      - 'prototype/**'
+  # SEM gatilho `push` — deliberado desde 2026-08-03, e o oposto do que parece.
+  #
+  # `publish.yml` dispara em TODO push para `develop` (sem filtro de paths) e invoca este
+  # arquivo por `workflow_call` no job `gate-integration`. O gatilho `push` daqui rodava o
+  # MESMO trabalho no MESMO commit, e as duas instâncias caíam no mesmo grupo de concorrência
+  # — `workflow_call` herda o contexto do chamador, então `event_name` é `push` e `ref_name`
+  # é `develop` nas duas. `cancel-in-progress` matava uma, e o run `cancelled` ficava no SHA.
+  #
+  # Enquanto o check era informativo isso era cosmético. Desde que virou EXIGIDO, um
+  # `cancelled` no contexto exigido BLOQUEIA o merge: mediu-se no PR #118, verde em tudo e
+  # `BLOCKED`, liberado só por rerun manual. Pôr `github.workflow` na chave separaria os dois
+  # grupos, mas ao custo de rodar a suíte com banco DUAS vezes por push. Remover o gatilho
+  # redundante resolve sem esse custo — a cobertura não muda, porque o gatilho do `publish`
+  # é um SUPERCONJUNTO deste (ele nem tem `paths-ignore`).
+  #
   # Diário: pega a quebra que vem de FORA do repositório — imagem base do Postgres que muda,
   # dependência transitiva republicada. Um repo só com gate de PR acha que está verde durante
   # dias enquanto o mundo se moveu debaixo dele.

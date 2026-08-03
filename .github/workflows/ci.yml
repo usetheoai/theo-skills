@@ -33,14 +33,21 @@ on:
   # pior: condição errada reporta SUCCESS sem ter testado nada, e um portão verde sobre
   # mudança não testada é pior que minuto de runner gasto num README.
   #
-  # O filtro CONTINUA no `push`, onde nada é bloqueado por ele.
-  push:
-    branches: [develop]
-    paths-ignore:
-      - '.claude/**'
-      - '**/*.md'
-      - 'docs/**'
-      - 'prototype/**'
+  # SEM gatilho `push` — deliberado desde 2026-08-03, e o oposto do que parece.
+  #
+  # `publish.yml` dispara em TODO push para `develop` (sem filtro de paths) e invoca este
+  # arquivo por `workflow_call` no job `gate-ci`. O gatilho `push` daqui rodava o MESMO
+  # trabalho no MESMO commit, e as duas instâncias caíam no mesmo grupo de concorrência —
+  # `workflow_call` herda o contexto do chamador, então `event_name` é `push` e `ref_name` é
+  # `develop` nas duas. `cancel-in-progress` matava uma, e o run `cancelled` ficava no SHA.
+  #
+  # Enquanto o check era informativo isso era cosmético — foi o que o comentário anterior
+  # deste bloco afirmava ("consequência esperada, não defeito"). Desde que virou EXIGIDO, um
+  # `cancelled` no contexto exigido BLOQUEIA o merge: aconteceu no v0.10.0 e de novo no PR
+  # #118, verde em tudo e `BLOCKED`, liberado só por rerun manual. Pôr `github.workflow` na
+  # chave separaria os grupos, mas ao custo de rodar tudo DUAS vezes por push. Remover o
+  # gatilho redundante resolve sem esse custo: a cobertura não muda, porque o gatilho do
+  # `publish` é um SUPERCONJUNTO deste (ele nem tem `paths-ignore`).
 
 permissions:
   contents: read
@@ -50,18 +57,11 @@ concurrency:
   # carregam `github.ref` diferentes (`refs/heads/develop` vs `refs/pull/N/merge`), cairiam
   # em grupos distintos e AMBOS rodariam — o dobro do trabalho para o mesmo commit.
   #
-  # CONSEQUÊNCIA ESPERADA, NÃO DEFEITO: todo push em `develop` deixa um run deste workflow
-  # com status `cancelled`, e ele LÊ-SE COMO FALHA na lista de runs. Não é. O push dispara
-  # DOIS caminhos para o mesmo commit — este workflow direto, e o `publish.yml`, que invoca
-  # este mesmo arquivo por `workflow_call` (job `gate-ci`). Numa chamada assim o workflow
-  # chamado herda o contexto do CHAMADOR: `github.event.pull_request` é nulo e `ref_name` é
-  # `develop`, então as duas instâncias caem no MESMO grupo `ci-develop` e `cancel-in-progress`
-  # mata a que começou antes. O gate continua rodando — dentro do `publish`, sob o nome
-  # `gate-ci`. Verificado em 915c87a: run avulso `cancelled`, `gate-ci` do publish `success`.
-  #
-  # ANTES DE "CORRIGIR": confira o `gate-ci` do run de `publish` do mesmo SHA. Remover este
-  # bloco ou trocar a chave faria os dois rodarem, dobrando o custo de CI para o mesmo commit
-  # — que é precisamente o que ele existe para evitar.
+  # NOTA HISTÓRICA (2026-08-03): este bloco dizia que o run `cancelled` em todo push para
+  # `develop` era "consequência esperada, não defeito", e advertia contra corrigi-lo. Estava
+  # certo enquanto o check era informativo e errado depois que virou EXIGIDO — um `cancelled`
+  # no contexto exigido bloqueia o merge. A duplicação foi removida na raiz (ver o gatilho
+  # `push`, retirado acima), então não há mais duas instâncias para cancelar.
   # O EVENTO ENTRA NA CHAVE, e isto deixou de ser detalhe em 2026-08-01.
   #
   # A chave era só a branch. Num PR de promocao `develop -> main`, `head.ref` vale `develop`

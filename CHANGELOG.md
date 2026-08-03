@@ -13,6 +13,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 - **theo-skills:** `@usetheo/skills-sdk` e `@usetheo/skills-mcp` voltam a entregar tipos. As versões `0.2.0` foram publicadas declarando `types` no manifesto e **sem nenhum `.d.ts` no pacote** — instalavam e importavam em JavaScript, e quebravam com `TS7016` no `tsc` de quem consome. Como o Theokit é TypeScript, o SDK estava inutilizável para seu consumidor principal (#115)
 - **theo-skills:** o workflow `publish-npm` volta a publicar. Falhou **8 de 8 execuções** entre `v0.8.0` e `v0.11.2` sem ninguém notar, porque `secrets.NPM_TOKEN` não existia e o npm responde `404` — não `401` — a um publish sem autorização; o erro se lia como "pacote inexistente". Todos os pacotes no registry haviam sido publicados à mão, e por isso **nenhum tinha provenance** (#116)
+- **theo-skills:** os pacotes passam a sair **com provenance**. A tentativa na tag `v0.11.3` foi recusada com `E422` pelo npm: a attestation deriva da identidade OIDC do runner, e a frota Blacksmith se apresenta como `self-hosted`, que o npm não atesta. Só o job de publicação migrou para runner GitHub-hosted — o resto do CI continua na Blacksmith (#116)
+- **theo-skills:** um `cancelled` deixa de bloquear release. `ci` e `integration` disparavam em `push` para `develop` **e** eram invocados por `publish.yml` no mesmo commit; as duas instâncias caíam no mesmo grupo de concorrência e uma cancelava a outra, deixando um run `cancelled` no contexto exigido. Travou o v0.10.0 e de novo o PR #118, os dois liberados por rerun manual. O gatilho redundante foi removido — o do `publish` já é um superconjunto (#116)
 
 ### Added
 
