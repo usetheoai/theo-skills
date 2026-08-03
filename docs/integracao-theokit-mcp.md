@@ -46,6 +46,48 @@ THEOSKILL_REGISTRY=http://127.0.0.1:18740 PORT=18097 \
 # → theo-skills mcp: ouvindo em http://127.0.0.1:18097 → http://127.0.0.1:18740
 ```
 
+## O bearer — como cunhar (medido em 2026-08-03)
+
+A variável que faltava chama-se **`THEOSKILL_PLATFORM_ADMIN_KEY`** (`packages/api/src/server.ts:81`).
+Não há nome equivalente ao `*_ADMIN_BOOTSTRAP_TOKEN` de outros produtos — foi por isso que a busca
+por analogia não achou.
+
+```bash
+# 1. API com auth E emissão de plataforma ligadas
+THEOSKILL_PG_URI=postgres://theoskill:theoskill@127.0.0.1:5432/theoskill PORT=18760 \
+  THEOSKILL_AUTH_REQUIRED=true THEOSKILL_PLATFORM_ADMIN_KEY=<chave-de-plataforma> \
+  node packages/api/dist/server.js
+# log confirma: "auth_required":true … "platform_mint":true
+
+# 2. cunhar a chave POR INQUILINO
+curl -X POST -H "authorization: Bearer <chave-de-plataforma>" -H 'content-type: application/json' \
+  -d '{"workspace_id":"default","scopes":["skills:read"]}' \
+  http://127.0.0.1:18760/v1/platform/keys
+# devolve: { key_id, token, scopes, workspace_id }
+#          ^^^^^ o campo é `token`, NÃO `secret` nem `key`
+
+# 3. o ouvinte MCP aponta para ESSA API
+THEOSKILL_REGISTRY=http://127.0.0.1:18760 PORT=18097 \
+  node packages/mcp/dist/bin.js --transport streamable-http
+```
+
+## Onde o bearer entra no `.mcp.json`
+
+```json
+"theo-skills": {
+  "type": "http",
+  "url": "http://127.0.0.1:18097",
+  "headers": { "Authorization": "Bearer <token cunhado no passo 2>" }
+}
+```
+
+**Verificado ponta a ponta em 2026-08-03:** `initialize` com esse bearer devolve `HTTP/1.1 200 OK`
+e emite `mcp-session-id`. Sem ele, `401`.
+
+> O token **nunca** entra em arquivo versionado deste repositório. Ele é cunhado por inquilino e
+> tem escopo mínimo (`skills:read`); um token fixo no ambiente prenderia todas as sessões num
+> inquilino só, que é o defeito que o isolamento por sessão existe para impedir.
+
 ## Autenticação — o que muda com ela ligada
 
 Verificado em 2026-08-03: `initialize` **sem bearer devolve `401`**. O isolamento é **por sessão**
