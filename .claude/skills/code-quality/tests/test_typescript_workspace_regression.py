@@ -78,3 +78,63 @@ def test_scoped_subpath_import_queries_the_package_not_the_subpath(tmp_path, mon
         f"consultou o subpath em vez do pacote: {consultados}"
     )
     assert findings == []
+
+
+class TestPathAliasNotAPackage:
+    """Terceira familia de falso positivo: `@/components/...` e alias de tsconfig.
+
+    986 achados HARD num dashboard, todos falsos, porque o detector tratava
+    qualquer especificador com `@` como escopo npm e ia ao registry. A raiz das
+    tres familias e a mesma: resolver nome de modulo contra o registry publico
+    sem consultar o que o projeto declara.
+    """
+
+    def test_alias_declarado_no_tsconfig_nao_vai_ao_registry(self, tmp_path, monkeypatch):
+        from scripts.detectors.typescript import TypescriptDetector
+
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "tsconfig.json").write_text(
+            '{"compilerOptions":{"paths":{"@/*":["./src/*"],"~lib/*":["./lib/*"]}}}',
+            encoding="utf-8",
+        )
+        src = tmp_path / "src" / "page.tsx"
+        src.parent.mkdir(parents=True)
+        src.write_text("import {Button} from '@/components/Button';\n", encoding="utf-8")
+
+        det = TypescriptDetector()
+        aliases = det._find_path_aliases([src])
+
+        assert "@" in aliases and "~lib" in aliases
+        assert det._is_path_alias("@/components/Button", aliases) is True
+        assert det._is_path_alias("~lib/util", aliases) is True
+
+    def test_pacote_escopado_de_verdade_nao_e_confundido_com_alias(self, tmp_path):
+        from scripts.detectors.typescript import TypescriptDetector
+
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "tsconfig.json").write_text(
+            '{"compilerOptions":{"paths":{"@/*":["./src/*"]}}}', encoding="utf-8"
+        )
+        src = tmp_path / "a.ts"
+        src.write_text("import x from '@scope/pkg';\n", encoding="utf-8")
+
+        det = TypescriptDetector()
+        aliases = det._find_path_aliases([src])
+
+        assert det._is_path_alias("@scope/pkg", aliases) is False
+
+    def test_tsconfig_com_comentarios_e_virgula_final_e_lido(self, tmp_path):
+        """tsconfig admite comentarios; JSON estrito falharia e o alias sumiria."""
+        from scripts.detectors.typescript import TypescriptDetector
+
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "tsconfig.json").write_text(
+            '{\n  // caminhos\n  "compilerOptions": {\n    "paths": {"@/*": ["./src/*"],}\n  }\n}',
+            encoding="utf-8",
+        )
+        src = tmp_path / "a.ts"
+        src.write_text("import x from '@/y';\n", encoding="utf-8")
+
+        det = TypescriptDetector()
+
+        assert det._is_path_alias("@/y", det._find_path_aliases([src])) is True

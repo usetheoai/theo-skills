@@ -7,6 +7,7 @@ Other methods still stubs (T3.1 / T4.2).
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -165,11 +166,65 @@ class TypescriptDetector(BaseDetector):
     def _is_workspace_reference(module: str, ws_names: frozenset[str]) -> bool:
         return any(module == n or module.startswith(n + "/") for n in ws_names)
 
+
+    def _find_path_aliases(self, changed_files: list[Path]) -> tuple[str, ...]:
+        """Prefixes declared as tsconfig `compilerOptions.paths` — local, never npm.
+
+        Patch 2026-08-03, third false-positive family in this detector. `@/components/Button`
+        is a PATH ALIAS, not a scoped package: the leading `@` is a convention, and the module
+        resolves through tsconfig, not the registry. Treating every `@`-prefixed specifier as a
+        scope produced 986 HARD findings in one dashboard, every one of them false.
+
+        The three families share a single root — the detector resolved module names against the
+        public registry without consulting what the project itself declares (workspaces,
+        exports, paths). This reads the declaration instead of guessing.
+        """
+        if hasattr(self, "_cached_aliases"):
+            return self._cached_aliases
+        aliases: set[str] = set()
+        seen_roots: set[Path] = set()
+        for src_file in changed_files:
+            try:
+                cur = src_file.resolve().parent if src_file.exists() else Path.cwd()
+            except OSError:
+                continue
+            for _ in range(8):  # bounded walk to the repo root
+                if cur in seen_roots:
+                    break
+                seen_roots.add(cur)
+                for name in ("tsconfig.json", "tsconfig.base.json", "jsconfig.json"):
+                    cfg = cur / name
+                    if not cfg.exists():
+                        continue
+                    try:
+                        raw = cfg.read_text(encoding="utf-8", errors="replace")
+                        # tsconfig admite comentarios; JSON estrito falharia
+                        raw = re.sub(r"//[^\n]*", "", raw)
+                        raw = re.sub(r"/\*.*?\*/", "", raw, flags=re.DOTALL)
+                        raw = re.sub(r",(\s*[}\]])", r"\1", raw)
+                        data = json.loads(raw)
+                    except (OSError, ValueError):
+                        continue
+                    paths = (data.get("compilerOptions") or {}).get("paths") or {}
+                    for pattern in paths:
+                        aliases.add(pattern.split("*")[0].rstrip("/"))
+                if (cur / ".git").exists() or cur.parent == cur:
+                    break
+                cur = cur.parent
+        self._cached_aliases = tuple(sorted(a for a in aliases if a))
+        return self._cached_aliases
+
+    @staticmethod
+    def _is_path_alias(module: str, aliases: tuple[str, ...]) -> bool:
+        """True when the specifier matches a declared tsconfig path alias."""
+        return any(module == a or module.startswith(a + "/") for a in aliases)
+
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
         """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30)."""
         findings: list[Finding] = []
         self_name = self._find_self_package_name(changed_files)
         ws_names = self._find_workspace_package_names(changed_files)
+        aliases = self._find_path_aliases(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -194,6 +249,9 @@ class TypescriptDetector(BaseDetector):
                     continue
                 # Patch 2026-08-03 — Sibling workspace package (declared `workspace:*`, unpublished by design)
                 if self._is_workspace_reference(module, ws_names):
+                    continue
+                # Patch 2026-08-03 — tsconfig path alias (`@/components/...`), nao pacote npm
+                if self._is_path_alias(module, aliases):
                     continue
                 # Package name for npm lookup. `top` already collapses a scoped module to
                 # `@scope/name`; using `module` here sent the whole SUBPATH to the registry
