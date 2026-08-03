@@ -1,0 +1,88 @@
+import { type Pool } from 'pg';
+import type PgBoss from 'pg-boss';
+import { describe, expect, it } from 'vitest';
+
+import { createApp } from '../../src/server/app.js';
+import { createNoopLogger } from '../../src/server/logger.js';
+// Reusa o construtor de zip que a suíte de integração já tem (parsimônia, rung 4):
+// adicionar `adm-zip` seria dependência redundante com o `yazl` que o projeto já declara.
+import { buildZipBase64, skillMd } from '../integration/_helpers/zip.js';
+
+/**
+ * M30 — `POST /v1/skills:validate` valida SEM publicar.
+ *
+ * A asserção que DISCRIMINA não é o status: um `:validate` que gravasse e respondesse `200`
+ * passaria em qualquer verificação de resposta. É a CONTAGEM de efeitos — quantas vezes a fila
+ * foi chamada. Por isso o duplo conta `send`, em vez de devolver um job mudo.
+ */
+const fakePool = {} as unknown as Pool;
+
+function appComContador() {
+  let enfileirados = 0;
+  const queue = {
+    send: () => {
+      enfileirados += 1;
+      return Promise.resolve('job');
+    },
+  } as unknown as PgBoss;
+  return {
+    app: createApp({ pool: fakePool, queue, logger: createNoopLogger() }),
+    enfileirados: () => enfileirados,
+  };
+}
+
+const json = { 'content-type': 'application/json' };
+
+/** Zip VÁLIDO — o único payload que leva a rota até o fim, onde um efeito colateral moraria. */
+const zipValido = (): Promise<string> =>
+  buildZipBase64([{ path: 'SKILL.md', content: skillMd('teste-m30') }]);
+
+describe('POST /v1/skills:validate (M30)', () => {
+  it('a rota EXISTE — não cai em 404', async () => {
+    const { app } = appComContador();
+    const r = await app.request('/v1/skills:validate', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ zippedFilesystem: 'AAAA' }),
+    });
+    expect(r.status, 'a rota não foi registrada').not.toBe(404);
+  });
+
+  it('ZERO efeito colateral — inclusive no caminho de SUCESSO', async () => {
+    // A primeira versão deste teste NÃO DISCRIMINAVA: com um payload que falha cedo
+    // (`'AAAA'`), a rota nunca chega ao ponto onde enfileiraria, então acrescentar um
+    // `queue.send` ao caminho de sucesso mantinha os três testes verdes. Medido por mutação.
+    //
+    // Um zip VÁLIDO é o único caminho que exercita o trecho perigoso. Sem ele, o AC2 é
+    // verde sobre nada — exatamente o que ele existe para impedir.
+    const { app, enfileirados } = appComContador();
+
+    for (const payload of ['AAAA', await zipValido()]) {
+      await app.request('/v1/skills:validate', {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ zippedFilesystem: payload }),
+      });
+    }
+
+    expect(enfileirados(), ':validate enfileirou trabalho — ele NÃO pode ter efeito').toBe(0);
+  });
+
+  it('recusa do MESMO ingestPayload: zip inválido → invalid_zip', async () => {
+    // Prova o caminho de ingestão COMPARTILHADO (AC1) SEM comparar com o `POST` neste teste:
+    // medido, o `POST` consulta o banco (`isReserved`, `getView`) ANTES de validar o zip, e
+    // com pool falso ele morre em `internal_error` — o que compararia infraestrutura de teste,
+    // não vocabulário de recusa. A igualdade real é exercida na suíte de integração, com banco.
+    //
+    // O que ESTE teste garante é que o `:validate` devolve o código do `ingestPayload`
+    // compartilhado, e não um vocabulário próprio.
+    const { app } = appComContador();
+    const r = await app.request('/v1/skills:validate', {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ zippedFilesystem: '' }),
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()) as { error?: string }).toMatchObject({ error: 'invalid_zip' });
+  });
+});

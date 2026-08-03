@@ -196,6 +196,34 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
   // pode fazer). Sem isto, a segunda dimensão não existia.
   const escreve = requireScope('skills:write');
 
+  // POST /v1/skills:validate — DRY-RUN (M30).
+  //
+  // Chama o MESMO `ingestPayload` das rotas de escrita, de propósito: duas implementações que
+  // hoje concordam divergem no primeiro campo novo, e um dry-run que mente é pior que nenhum
+  // — o autor confia nele e publica quebrado.
+  //
+  // Não enfileira, não grava, não reserva id. O que ele devolve é a mesma recusa tipada que o
+  // `POST` devolveria, para que o autor descubra o erro ANTES de publicar em vez de publicando.
+  //
+  // Escopo de LEITURA, não de escrita: validar não escreve, e exigir `skills:write` impediria
+  // quem só lê de conferir um payload antes de pedir permissão. Mas exige escopo — ele
+  // descomprime entrada arbitrária, e sem isso seria porta anônima de CPU no plano de dados.
+  app.post('/v1/skills:validate', requireScope('skills:read'), limit, async (c) => {
+    try {
+      const body = (await c.req.json().catch(() => null)) as { zippedFilesystem?: unknown } | null;
+      if (body === null) {
+        throw new BoundaryError(400, 'invalid_body', { message: 'corpo não é JSON' });
+      }
+      const ingest = await ingestPayload(deps, body.zippedFilesystem);
+      return c.json(
+        { ok: true, name: ingest.name, description: ingest.description, execution: ingest.execution },
+        200,
+      );
+    } catch (err) {
+      return fail(c, err);
+    }
+  });
+
   // POST /v1/skills — validate payload at the boundary, enqueue, 202.
   app.post('/v1/skills', escreve, limit, async (c) => {
     let skillId: string;
