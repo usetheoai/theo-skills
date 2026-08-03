@@ -263,8 +263,8 @@ dogfood real — é o critério de "shipped".
       `rules/acceptance-target.txt`.
 - [ ] Contra o registry no ar, o `RemoteSkillsManager` **do pacote publicado** resolve por intenção:
       `retrieve` devolve **≥ 1** skill para uma consulta sem sobreposição léxica com o nome dela, e
-      `usedFallback === false` — provando que a perna semântica respondeu, não o fallback local.
-- [ ] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `usedFallback === true`
+      `isDegraded() === false` — provando que a perna semântica respondeu, não o fallback local.
+- [ ] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `isDegraded() === true`
       em **≤ 5 s** — o caminho de degradação exercitado, não presumido.
 - [ ] **Dogfood com `status: running`**, conforme `rules/dogfood-golden-rule.md`: **≥ 3** arquivos
       em `.claude/knowledge-base/dogfood/evidence/` com `scenario: theokit-remote-provider`, em
@@ -279,6 +279,12 @@ dogfood real — é o critério de "shipped".
 > `instructions`. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no
 > `toTheokit`. Estava DENTRO do AC2, e critério que narra a história do documento em vez da
 > condição observável não é exercitável.*
+
+> *Correção de 2026-08-03, mesma data: os AC4/AC5 nomeavam `usedFallback`, propriedade que **não
+> existe** — eu a inventei ao ler o comentário da interface. A API real é `isDegraded()`. Isto NÃO
+> afrouxa o critério: a condição exigida é idêntica (o consumidor precisa distinguir degradado de
+> real) e agora nomeia o símbolo que existe. Um critério que cita API inexistente é inexercitável,
+> e foi o que me fez reportar um defeito falso.*
 
 > *DoD reescrita em 2026-08-03. A anterior tinha o mesmo parágrafo **duplicado** e descrevia estado
 > interno (arquivos de evidência) em prosa — `cycle-acceptance` não tinha como exercitá-la contra a
