@@ -7,6 +7,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [theo-skills 0.3.0] - 2026-08-03
+
 ### Added
 
 - **theo-skills:** a busca passa a dizer **de qual perna veio cada resultado**. `GET /v1/skills:retrieve` devolve, por resultado, `matched` — quais pernas casaram (`vector` / `keyword`) e a posição em cada uma. Um score fundido sozinho não distingue "achou porque as palavras batem" de "achou porque entendeu", e essa é a diferença que o produto vende. Campo **aditivo e opcional**: nenhum consumidor existente quebra (#M31)
