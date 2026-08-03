@@ -66,6 +66,10 @@ export interface SkillValidationFail {
   readonly message: string;
   /** Optional per-item detail (e.g. one line per secret finding). */
   readonly details?: readonly string[];
+  /** Campo culpado, quando há um (M30). `undefined` para erros sem campo identificável. */
+  readonly field?: string;
+  /** Linha 1-indexada no SKILL.md (M30). */
+  readonly line?: number;
 }
 
 export type SkillValidationResult = SkillValidationOk | SkillValidationFail;
@@ -80,6 +84,7 @@ export async function validateSkillPayload(
     validated = await deps.payloadValidator.validate(zip);
   } catch (err) {
     if (err instanceof PayloadValidationError) {
+      // Sem `field`/`line` de propósito: um zip inseguro não tem campo culpado no SKILL.md.
       return { ok: false, code: err.code, message: err.message };
     }
     throw err;
@@ -97,7 +102,15 @@ export async function validateSkillPayload(
     frontmatter = { ...fm.fields };
   } catch (err) {
     if (err instanceof SkillFrontmatterError) {
-      return { ok: false, code: err.code, message: err.message };
+      // Preserva `field`/`line`: produzi-los no parseFrontmatter e descartá-los aqui é o
+      // mesmo defeito que o M26 corrigiu — a informação existe e morre uma camada adiante.
+      return {
+        ok: false,
+        code: err.code,
+        message: err.message,
+        ...(err.field !== undefined ? { field: err.field } : {}),
+        ...(err.line !== undefined ? { line: err.line } : {}),
+      };
     }
     throw err;
   }

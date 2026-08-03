@@ -52,6 +52,12 @@ class BoundaryError extends Error {
   constructor(
     readonly status: 400 | 409,
     readonly code: string,
+    /**
+     * Diagnóstico do core, quando existe. Sem isto o `message`/`field`/`line` que
+     * `validateSkillPayload` produz morre na fronteira e o autor recebe só um código — o
+     * mesmo defeito que o M26 corrigiu no `theo-cloud`.
+     */
+    readonly detail?: { message?: string; field?: string; line?: number },
   ) {
     super(code);
   }
@@ -79,7 +85,11 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
     if (result.code === 'secret_detected') {
       deps.logger.error({ secret_findings: result.details }, 'payload rejected: secret detected');
     }
-    throw new BoundaryError(400, result.code);
+    throw new BoundaryError(400, result.code, {
+      message: result.message,
+      ...(result.field !== undefined ? { field: result.field } : {}),
+      ...(result.line !== undefined ? { line: result.line } : {}),
+    });
   }
   return {
     buffer,
@@ -95,7 +105,9 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
 
 function fail(c: Context<AppEnv>, err: unknown): Response {
   if (err instanceof BoundaryError) {
-    return c.json({ error: err.code }, err.status);
+    // ACRESCENTA, nunca renomeia: quem já lê `error` continua funcionando. Renomear
+    // `error`→`code` quebraria todo consumidor existente de POST /v1/skills.
+    return c.json({ error: err.code, ...(err.detail ?? {}) }, err.status);
   }
   if (err instanceof InvalidSkillIdError) {
     return c.json({ error: 'invalid_skill_id', message: err.message }, 400);
