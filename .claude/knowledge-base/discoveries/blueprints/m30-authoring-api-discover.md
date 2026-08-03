@@ -58,3 +58,36 @@ aceitar um `SKILL.md` puro. Isso é uma segunda forma de entrada antes do `valid
 
 `/to-plan` com `milestone_id: M30`. **Medir antes de planejar o AC4:** se `validateSkillPayload`
 devolve posição. Sem isso, o AC4 é estimado no escuro.
+
+## 6. MEDIÇÃO do § 5 — o core JÁ tem `message`, e isso reduz o AC4
+
+`packages/core/src/domain/skill-validation.ts:62-69`:
+
+```ts
+export interface SkillValidationFail {
+  readonly ok: false;
+  readonly code: string;      // vocabulário estável, o mesmo do corpo 400
+  readonly message: string;   // ← EXISTE
+  readonly details?: readonly string[];  // ← "one line per secret finding"
+}
+```
+
+**O que isto muda:**
+
+- `{code, message}` do AC4 **já é produzido pelo core**. O que o descarta é a fronteira:
+  `ingestPayload` faz `throw new BoundaryError(400, result.code)` — **joga fora o `message` e o
+  `details`** — e `fail()` responde `{ error: code }`. A informação existe e é perdida no
+  caminho, exatamente como o `UpstreamError` do M26.
+- **Campo e linha continuam não existindo.** `details` é lista de strings livre, usada hoje para
+  findings de segredo; não é posição estruturada.
+
+**Consequência para o plano:** o AC4 divide-se em duas partes de custo muito diferente:
+
+1. **parar de descartar** `message`/`details` na fronteira — pequeno, e é o padrão que o M26 já
+   provou (preservar em vez de colapsar em string);
+2. **campo e linha** — não existem em lugar nenhum; exigiria o validador de schema devolver
+   posição. Custo real, e possivelmente escopo próprio.
+
+> **Erro registrado:** afirmei que o core "não tem `message`" tendo lido só até a linha 65. A 66
+> declara `message`. Terceira vez nesta sessão que concluo antes de ler o suficiente — as
+> anteriores foram `RemoteSkillsManager` e `usedFallback`.
