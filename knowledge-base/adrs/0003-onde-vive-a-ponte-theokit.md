@@ -59,11 +59,34 @@ eu **não medi**: se o `agent-builder` fala MCP. O Theokit não está neste work
 **Escrever código antes desse fato é o erro que o próprio M28 nomeia** ao pedir "ADR, não código
 primeiro".
 
+## Medição de 2026-08-03 — a opção (iii) ganhou força, e o alvo mudou de lugar
+
+**(a) O `@theokit/sdk` suporta MCP.** O skill `theokit-sdk` registrado neste ambiente descreve o
+SDK como cobrindo *"Agent.create / Agent.prompt, Tool.create with Zod, streaming SDKMessage
+events, run.wait/cancel, **MCP servers**, subagents, cron jobs, memory/context/skills"*. Se o
+agente aceita servidor MCP, o servidor do M25 — **já no ar, com isolamento por inquilino medido
+por sessão** — é a ponte, e nada precisa ser construído aqui.
+
+> Força honesta desta evidência: é **documentação do SDK**, não execução do `agent-builder`.
+> Basta para tornar (iii) a hipótese principal; não basta para fechar o bullet 2 do M28, que
+> exige um agente real descobrindo uma skill que não conhecia.
+
+**(b) O `agent-builder` NÃO está neste workspace** — vive em `usetheo-labs/agent-builder`. A
+verificação de ponta a ponta **não é executável daqui**: exige aquele repositório, com o servidor
+MCP do M25 configurado e uma chave cunhada por inquilino.
+
+**Consequência para o M28:** o marco provavelmente deixa de ser *construção* e vira *integração +
+evidência* — configurar o `agent-builder` contra o ouvinte que já existe e registrar a execução.
+Isso muda o esforço, o risco e quem precisa estar na sala.
+
 ## Próximo passo (mede, não decide)
 
-1. O `agent-builder` suporta servidor MCP? Qual transporte?
-2. Se sim → (iii), e o M28 vira integração + evidência, não construção.
-3. Se não → escolher entre (i) e (ii) **com o dono do Theokit**, não sozinho.
+1. **No repo `usetheo-labs/agent-builder`** (não aqui): configurar o servidor MCP do M25 como
+   fonte de skills e verificar se o agente descobre uma skill que não conhecia. Transporte HTTP,
+   bearer cunhado por inquilino — o ouvinte já recusa `401` sem ele.
+2. Se funcionar → (iii). O M28 vira integração + evidência; (i) fica desnecessária e (ii),
+   indesejável (ela passa pelo disco, que é o que o marco quer evitar).
+3. Se não funcionar → escolher entre (i) e (ii) **com o dono do Theokit**, não sozinho.
 
 ## Consequência de não decidir
 
