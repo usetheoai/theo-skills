@@ -734,7 +734,7 @@ corpo dela do servidor, sem nada em disco.
 
 ---
 
-### M28 — [ ] A ponte REMOTA para o Theokit não existe (bloqueia o cenário-âncora)
+### M28 — [x] A ponte REMOTA para o Theokit não existe (bloqueia o cenário-âncora)
 
 **Objective:** Tornar uma skill **remota, descoberta em runtime**, consumível por um agente
 Theokit real. Hoje não é, e a razão é estrutural — não é configuração faltando.
