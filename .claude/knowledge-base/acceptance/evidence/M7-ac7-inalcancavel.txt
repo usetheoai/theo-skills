@@ -1,0 +1,12 @@
+# AC7 — por que NAO foi exercitado (2026-08-03)
+$ grep -riE "consulta|query|search" .claude/knowledge-base/dogfood/evidence/*.md
+  (nenhuma consulta de usuario registrada)
+$ grep -h "^date:" .../evidence/*.md | sort -u | wc -l   -> 1   (AC6 exige >=3)
+$ grep -l "outcome: fail" .../evidence/*.md | wc -l      -> 0   (AC6 exige >=1)
+
+# O AC7 exige Recall@5 sobre consultas "extraidas dos registros de dogfood, nao
+# escritas por quem publicou as skills". NAO EXISTE consulta registrada: a
+# evidencia de hoje documenta publicacao e consumo, nao busca por um usuario.
+# Exercita-lo agora significaria eu escrever as consultas — exatamente o que o
+# criterio proibe, e o defeito que ele existe para impedir.
+# Status honesto: not_exercised. Fecha quando o AC6 acumular uso real.
