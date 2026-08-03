@@ -71,9 +71,20 @@ por sessão** — é a ponte, e nada precisa ser construído aqui.
 > Basta para tornar (iii) a hipótese principal; não basta para fechar o bullet 2 do M28, que
 > exige um agente real descobrindo uma skill que não conhecia.
 
-**(b) O `agent-builder` NÃO está neste workspace** — vive em `usetheo-labs/agent-builder`. A
-verificação de ponta a ponta **não é executável daqui**: exige aquele repositório, com o servidor
-MCP do M25 configurado e uma chave cunhada por inquilino.
+**(b) O `agent-builder` existe em disco e foi MEDIDO** — `/home/paulo/Projetos/usetheo/usetheo-labs/agent-builder`.
+Está fora do umbrella, mas é alcançável (eu havia afirmado "não é executável daqui" **sem
+checar**; era falso, e o caminho tinha aparecido na minha própria varredura anterior).
+
+| medição | valor |
+|---|---|
+| declara `@theokit/sdk` no `package.json` | **sim** |
+| configura servidor MCP (`mcp` em `src/`) | **zero ocorrências** |
+| conhece o `theo-skills` / `theoskill` | **zero arquivos** |
+
+**Isto decide o formato do M28.** O SDK **suporta** MCP; o agente **não o usa** e não sabe que
+nosso registro existe. Então (iii) é viável e não é gratuita: exige configurar o `agent-builder`
+contra o ouvinte do M25 — trabalho pequeno, em **outro repositório**, com dono possivelmente
+diferente. Não é construir ponte; é ligar duas pontas que já existem.
 
 **Consequência para o M28:** o marco provavelmente deixa de ser *construção* e vira *integração +
 evidência* — configurar o `agent-builder` contra o ouvinte que já existe e registrar a execução.
