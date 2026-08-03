@@ -23,8 +23,13 @@ Two safety properties, both deliberate:
   - **Fail-open.** Any unexpected error allows the stop. A gate that bricks the
     session is worse than a gate that misses once; the goal is to hold the
     process honest, not to trap the user.
-  - **Bounded.** Each block increments a counter. Past `max_blocks` the gate
-    releases with a warning, so an impossible goal cannot loop forever.
+  - **Bounded, twice over.** Each block increments a counter; past `max_blocks`
+    the gate releases with a warning. But the REAL ceiling is the CLI's, not ours:
+    Claude Code overrides a Stop hook after 9 consecutive blocks
+    (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`) and ends the turn regardless. Observed in
+    the field. So `max_blocks` only matters for blocks spread across turns — a
+    large value is not a tighter grip, it is theatre. The gate cannot trap a
+    session, and that is a property to rely on, not a gap to close.
 
 Reads the goal state from `.claude/cycle-goal.json`; absent state = no goal = allow.
 
@@ -43,7 +48,7 @@ import sys
 from pathlib import Path
 
 GREEN_VERDICTS = {"ACCEPTED", "ACCEPTED_WITH_CAVEATS"}
-DEFAULT_MAX_BLOCKS = 40
+DEFAULT_MAX_BLOCKS = 40  # ver nota acima: o teto efetivo é o do CLI (9 consecutivos)
 
 _VERDICT_RE = re.compile(r"^verdict:\s*([A-Z_]+)\s*$", re.MULTILINE)
 
@@ -173,7 +178,8 @@ def main() -> int:
                 "and nothing else ends it — not a green test suite, not READY_TO_MERGE, not "
                 "RELEASED, not a published tag, not your own judgement that the work looks "
                 "finished.\n\n" + "\n".join(f"- {r}" for r in reasons) +
-                "\n\nContinue the cycle, or run /cycle-goal clear if the goal itself is wrong."
+                "\n\nContinue the cycle. If the GOAL itself is wrong, clear it with:\n"
+                "  python3 .claude/skills/cycle-goal/scripts/install_goal_hook.py --clear"
             ),
         }))
         return 0

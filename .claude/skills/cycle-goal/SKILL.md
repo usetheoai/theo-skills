@@ -86,7 +86,7 @@ From then on, every attempt to end the session runs `check_goal_met.py`, which b
 Two safety properties, both deliberate:
 
 - **Fail-open.** Any error in the gate allows the stop. A gate that bricks the session is worse than one that misses once.
-- **Bounded.** Each block increments a counter; past `max_blocks` (default 40) the gate releases with a warning that says plainly the milestone is **not** done. An impossible goal cannot trap a session forever.
+- **Bounded, twice over.** Each block increments a counter; past `max_blocks` (default 40) the gate releases with a warning saying plainly the milestone is **not** done. But the ceiling that actually binds is the CLI's: Claude Code overrides a Stop hook after **9 consecutive blocks** (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`) and ends the turn regardless of what we set. Observed in the field. So `max_blocks` only governs blocks spread across turns — raising it is not a tighter grip, it is theatre. The gate cannot trap a session, and that is a property to rely on rather than a gap to close.
 
 To cancel: `python3 skills/cycle-goal/scripts/install_goal_hook.py --clear`.
 
