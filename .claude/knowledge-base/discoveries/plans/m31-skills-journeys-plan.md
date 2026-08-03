@@ -91,6 +91,24 @@ O `DESIGN.md` §16 já prescreve a sequência inteira (DangerZone → ConfirmDia
 contrato NÃO diz: **qual declaração de impacto se escreve quando a ação redireciona consumidores
 de terceiros** (promover canal). Por isso a Q5 é única neste corner, em vez de três.
 
+### D5 — (v1.1) A pergunta sobre declaração de impacto foi REMOVIDA, não deferida
+
+A v1.0 perguntava que texto o `mcp-context-forge` escreve ao desativar um gateway registrado —
+para emprestar a redação de impacto da promoção de canal. **Removida**, e a distinção importa:
+não foi adiada por falta de orçamento; ela não precisa de peer.
+
+O impacto de promover um canal é derivável do **nosso** domínio, e já está escrito na auditoria:
+*"promover `stable` para `rev_x` aponta todos os consumidores deste canal para outro conteúdo;
+reversível promovendo a revisão anterior."* Nenhum peer diria isso melhor — eles não têm o nosso
+modelo de canal. E o `DESIGN.md` §16 já prescreve a coreografia inteira ao redor da frase.
+
+Manter a pergunta custaria orçamento de descoberta para importar o que já sabemos. É a rung 1 da
+escada de parcimônia aplicada à pesquisa: a investigação mais barata é a que não se faz.
+
+**Alternativa considerada e rejeitada:** deferir para um plano de descoberta seguinte
+(`m31-governance-copy`). Rejeitada porque criaria um artefato para uma pergunta que não tem
+lacuna — deferir o desnecessário é a mesma dívida, com data.
+
 ### D4 — Nenhum peer é fonte de layout
 
 Registrado como decisão porque a tentação é real: ver uma tela boa e copiar. Além do risco de
@@ -99,28 +117,31 @@ extraímos **o que informar**; o **como renderizar** é nosso.
 
 ## Research Questions
 
-| # | Pergunta | Corner | Método | Formato da resposta |
-|---|---|---|---|---|
-| Q1 | Como o `semantic-router` combina score esparso e denso, e o resultado **preserva a contribuição de cada perna** ou colapsa num número só? | Techniques | `Read knowledge-base/references/semantic-router/semantic_router/routers/hybrid.py`; `Grep 'alpha\|sparse\|dense\|score' semantic_router/routers/` | Trecho + veredito: preserva / colapsa, e onde |
-| Q2 | Que forma de dado o `semantic-router` usa para devolver um resultado de rota (classe? dataclass? dict?), e o que ela carrega além do score? | Techniques | `Read knowledge-base/references/semantic-router/semantic_router/schema.py` | Assinatura do tipo + campos |
-| Q3 | O `mcp-gateway-registry` expõe ao operador **por que** um servidor casou com a busca, ou só o ranking? | Techniques | **(v1.1)** `Read knowledge-base/references/mcp-gateway-registry/registry/embeddings/client.py`; `Grep 'score\|similarity' registry/services/ registry/static/`. O `-r` em `registry/` inteiro foi retirado: casava com `utils/iam_manager.py` e `utils/url_normalize.py`, que não são busca. `registry/static/` entrou porque a pergunta é o que o **operador** vê | Sim/não + evidência do caminho. **Ausência de score na UI É resposta válida**, não falha de busca |
-| Q4 | Como o `agentskills-spec` define o que é validável **antes** de publicar, e o erro carrega posição (campo/linha)? | Techniques | `Read knowledge-base/references/agentskills-spec/docs/specification.mdx` | Lista de regras + veredito sobre posição do erro |
-| Q5 | Que declaração de impacto o `mcp-context-forge` escreve para ação que afeta consumidores já conectados (desativar/remover um gateway registrado)? | Techniques | `Grep -ri 'confirm\|delete\|deactivate' knowledge-base/references/mcp-context-forge/mcpgateway/admin_ui/ knowledge-base/references/mcp-context-forge/mcpgateway/templates/` | Texto literal + o que ele nomeia como consequência |
-| Q6 | Que dependências os peers usam para a perna léxica/esparsa, e alguma é alternativa real ao Postgres FTS que já temos? | Dependencies | `Read knowledge-base/references/semantic-router/pyproject.toml`; `Grep -i 'bm25\|sparse\|tfidf' semantic_router/` | Tabela dep → papel → aplicável a nós? |
-| Q7 | Como o `semantic-router` testa que o híbrido de fato mistura as duas pernas — existe teste que falha se uma delas morrer? | Integration tests | **(v1.1)** `grep -rl 'hybrid' knowledge-base/references/semantic-router/tests/` + `Read .../tests/unit/test_bm25_functional.py`. O `find -name '*hybrid*'` da v1.0 devolvia **zero** — não há arquivo com esse nome — e teria produzido um `blocked` falso. O `grep` acha três testes reais, e o BM25 é o análogo direto do nosso FTS | Nome do teste + o que ele discrimina |
-| Q8 | Que ferramenta de build/lint/typecheck os peers de registro usam, e alguma resolve problema que hoje resolvemos à mão? | Tools | `Read knowledge-base/references/mcp-gateway-registry/pyproject.toml`; `Read knowledge-base/references/mcp-context-forge/package.json` | Tabela ferramenta → papel → adotar/dispensar + motivo |
+| # | Pergunta | Corner | Projeto(s) de referência | Fase A (largo — grep/find map) | Fase B (fundo — Read no hotspot) | Formato da resposta |
+|---|---|---|---|---|---|---|
+| Q1 | Como o híbrido combina score esparso e denso, e o resultado **preserva a contribuição de cada perna** ou colapsa num número só? | techniques | `knowledge-base/references/semantic-router/` | `Grep 'alpha\|sparse\|dense\|score' knowledge-base/references/semantic-router/semantic_router/routers/` | `Read knowledge-base/references/semantic-router/semantic_router/schema.py` (o tipo devolvido) **antes** de `Read .../routers/hybrid.py` (a combinação) | Assinatura do tipo + veredito: preserva / colapsa, e em que linha |
+| Q2 | O `mcp-gateway-registry` expõe ao operador **por que** um servidor casou com a busca, ou só o ranking? | techniques | `knowledge-base/references/mcp-gateway-registry/` | `Grep 'score\|similarity' knowledge-base/references/mcp-gateway-registry/registry/services/ knowledge-base/references/mcp-gateway-registry/registry/static/` | `Read knowledge-base/references/mcp-gateway-registry/registry/embeddings/client.py` | Sim/não + evidência. **Ausência de score na UI É resposta válida**, não falha de busca |
+| Q3 | Como o `agentskills-spec` define o que é validável **antes** de publicar, e o erro carrega posição (campo/linha)? | techniques | `knowledge-base/references/agentskills-spec/` | SKIP Fase A — documento único, sem mapa a construir | `Read knowledge-base/references/agentskills-spec/docs/specification.mdx` | Lista de regras validáveis + veredito sobre posição do erro |
+| Q4 | Que dependências o peer usa para a perna léxica/esparsa, e alguma é alternativa real ao Postgres FTS que já temos? | deps | `knowledge-base/references/semantic-router/` | `Grep -i 'bm25\|sparse\|tfidf' knowledge-base/references/semantic-router/semantic_router/` | `Read knowledge-base/references/semantic-router/pyproject.toml` | Tabela dep → papel → **o FTS que já temos cobre? sim/não/parcial** (checkpoint 6) |
+| Q5 | Existe teste que falha se uma das pernas do híbrido morrer — ou a suíte passa com metade desligada? | tests | `knowledge-base/references/semantic-router/` | `grep -rl 'hybrid' knowledge-base/references/semantic-router/tests/` | `Read knowledge-base/references/semantic-router/tests/unit/test_bm25_functional.py` | Nome do teste + **o que ele discrimina** (ou: não discrimina, e isso é o achado) |
+| Q6 | Que ferramenta de build/lint/typecheck os peers de registro usam, e alguma resolve problema que hoje resolvemos à mão? | tools | `knowledge-base/references/mcp-gateway-registry/`, `knowledge-base/references/mcp-context-forge/` | SKIP Fase A — manifestos, forma de texto | `Read knowledge-base/references/mcp-gateway-registry/pyproject.toml`; `Read knowledge-base/references/mcp-context-forge/package.json` | Tabela ferramenta → papel → adotar/dispensar + motivo |
 
-**Orçamento:** 8 perguntas. Techniques 5, Dependencies 1, Integration tests 1, Tools 1 — dentro
-do teto de 3 por corner e do mínimo de 1 por corner.
+**Orçamento (v1.1 — corrigido):** 6 perguntas. `techniques` 3, `deps` 1, `tests` 1, `tools` 1 —
+dentro do teto de 3 por corner e do mínimo de 1.
+
+> **A v1.0 dizia "dentro do teto" com 5 perguntas em `techniques`. Era falso**, e o
+> `discover-plan-confidence` reprovou com `question_budget_violated`. Corrigido dobrando duas
+> perguntas numa (o tipo devolvido e a combinação vivem no mesmo par de arquivos, e a ordem
+> entre elas já era um checkpoint) e removendo uma — ver ADR D5.
 
 ## Coverage Matrix
 
 | Corner | Perguntas | Método declarado? | Gap |
 |---|---|---|---|
-| **Integration tests** | Q7 | sim | — |
-| **Dependencies** | Q6 | sim | — |
-| **Tools** | Q8 | sim | — |
-| **Techniques** | Q1, Q2, Q3, Q4, Q5 | sim | — |
+| **tests** | Q5 | sim (Fase A + Fase B) | — |
+| **deps** | Q4 | sim (Fase A + Fase B) | — |
+| **tools** | Q6 | sim (Fase A = SKIP justificado + Fase B) | — |
+| **techniques** | Q1, Q2, Q3 | sim (Fase A + Fase B) | — |
 
 **Cobertura: 100%.** Nenhuma pergunta sem método; nenhum corner vazio; nenhum deferimento por
 ADR necessário.
