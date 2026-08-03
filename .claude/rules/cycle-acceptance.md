@@ -15,7 +15,7 @@ The cycle produces an **acceptance record** per milestone, and a **verdict** tha
 ## Pre-conditions
 
 - `cycle-release` emitted `RELEASED` for the milestone — tag cut, GitHub release published.
-- The released delivery is reachable: a deployed URL, an installed binary, a published package, or a running service.
+- The released delivery is reachable: a deployed URL, an installed binary, a published package, a running service, or — for internal packages — a build produced from the released tag in a clean checkout (see § Target kinds).
 - The milestone declares `**Definition of done (all must hold):**` bullets in `ROADMAP.md`. These are the acceptance criteria — this cycle does not invent its own.
 - The milestone's checkbox is still `[ ]`.
 
@@ -58,6 +58,13 @@ The instrument changes with the delivery; the rigor does not. Exercising a *prox
 | CLI | `Bash` | Install the published artifact and run the documented commands from a clean directory |
 | Library / SDK | `Bash` | Consume the published package in a throwaway project, following the README verbatim |
 | HTTP API / service | `Bash` | Call the deployed endpoints with real payloads, including the documented error cases |
+| **Internal / private package** (monorepo, never published to a public registry) | `Bash` | Build from the **released tag** in a clean checkout, then consume it the way its real consumer does — import the built package, run its binary, start its service. Never the dirty working tree. |
+
+**On "released" when nothing is published.** Most internal work never reaches a public registry or a public URL, and reading this cycle as "only validate published artifacts" would make it unreachable for exactly the projects that need it most. The distinction that matters is not *public vs private* — it is **the artifact vs the working tree**.
+
+A working tree carries uncommitted edits, local config, and a dev server that behaves nothing like the built output. A build from the released tag carries none of that, and reproduces what the consumer receives. So for an internal package the released delivery is: check out the tag (or a clean worktree at that tag), build, and consume the result. That is a real acceptance run.
+
+What is still NOT acceptance: `npm run dev` against your working tree, a mocked backend, or a staging clone with different configuration.
 
 When a criterion cannot be exercised with any available instrument, its status is `not_exercised` — never `passed`.
 
