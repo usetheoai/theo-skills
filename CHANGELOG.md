@@ -7,6 +7,10 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Roadmap amended: added M31 As jornadas completas, no nível do contrato de design (`/roadmap-feature skills-journeys-sota`)
+
 ## [theo-skills 0.2.1] - 2026-08-03
 
 ### Fixed
