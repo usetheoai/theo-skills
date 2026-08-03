@@ -104,3 +104,82 @@ describe('Dockerfile — coerência com o CI', () => {
     expect(String(setupNode)).toBe(fromMajor![1]);
   });
 });
+
+describe('o publish não pode liberar imagem sobre integração não verificada', () => {
+  it('o job `image` depende do gate de INTEGRAÇÃO, não só do gate sem banco', () => {
+    // Medido em 2026-08-01: `image` dependia apenas de `gate-ci`, que roda
+    // build+lint+typecheck+test SEM BANCO. Some com o outro defeito da mesma data — a suíte
+    // de integração pulava 240 testes em silêncio e saía 0 — e o resultado é um gate que,
+    // por construção, NÃO CONSEGUE reprovar regressão de integração. O reconciliador leva a
+    // imagem ao app-dev a cada ~5 min.
+    //
+    // Fazer o script de teste falhar alto era necessário e não suficiente: enquanto o publish
+    // não roda integração, publicar sobre integração quebrada continua possível. A forma
+    // correta é a do theo-lens, cujo `image` declara os gates todos em `needs` — e cujo gate
+    // de contrato reprovou um publish de verdade em 2026-08-01 18:11, com `image: skipped`.
+    const publish = readFileSync(wf('publish.yml'), 'utf8');
+    const doc = parse(publish) as { jobs: Record<string, { needs?: string[] | string }> };
+    const needs = doc.jobs['image']?.needs ?? [];
+    const lista = Array.isArray(needs) ? needs : [needs];
+
+    expect(lista, 'o gate sem banco continua exigido').toContain('gate-ci');
+    expect(lista, 'e o de integração também — senão o portão não mede o que quebra').toContain(
+      'gate-integration',
+    );
+  });
+
+  it('o gate de integração RODA — não herda o `skipped` do guard de release', () => {
+    // Medido no run 30712454039: `gate-integration: skipped`. O `needs` estava lá e o teste
+    // anterior passava, mas o job NÃO RODOU — `guard-release-on-main` só roda em tag, e um
+    // job cujo `needs` foi pulado é pulado junto, salvo `if: always()`.
+    //
+    // O `gate-ci` tem essa condição desde sempre; eu copiei o `needs` e não o `if`. A correção
+    // PARECIA feita: teste verde, dependência declarada, e o portão sem rodar — exatamente o
+    // formato de falha que este item existe para fechar.
+    const doc = parse(readFileSync(wf('publish.yml'), 'utf8')) as {
+      jobs: Record<string, { if?: string }>;
+    };
+    const cond = doc.jobs['gate-integration']?.if ?? '';
+    expect(cond, 'sem `always()` o gate herda o skip do guard e nunca roda').toContain('always()');
+    expect(cond, 'e precisa aceitar o guard pulado, que é o caso normal fora de tag').toContain(
+      "'skipped'",
+    );
+  });
+
+  it('o gate de integração do publish roda a suíte de verdade, com banco', () => {
+    const integration = readFileSync(wf('integration.yml'), 'utf8');
+    expect(integration, 'precisa ser chamável pelo publish').toContain('workflow_call');
+    expect(integration, 'e precisa de um Postgres — sem ele a suíte pula tudo').toMatch(/postgres/i);
+  });
+});
+
+describe('a condição do `image` precisa VETAR por cada gate, não só declarar `needs`', () => {
+  it('exige `result == success` de TODOS os gates que declara em `needs`', () => {
+    // O DEFEITO, e é a terceira vez que a mesma classe aparece nesta correção: com
+    // `always()` o `needs` PARA DE VETAR. O job roda mesmo com dependência falha, e o único
+    // veto passa a ser o `result` checado explicitamente na condição. Eu declarei
+    // `needs: [gate-ci, gate-integration]` e checava só o `gate-ci` — então o gate de
+    // integração existia no grafo, aparecia verde no run, e NÃO impedia a imagem de subir
+    // com a integração vermelha.
+    //
+    // `always()` é necessário aqui por outra razão (o guard de release é `skipped` fora de
+    // tag, e o skip se propaga pela cadeia). O preço de usá-lo é este: cada gate precisa ser
+    // vetado à mão. Este teste é o que impede a próxima adição de `needs` de esquecer.
+    const doc = parse(readFileSync(wf('publish.yml'), 'utf8')) as {
+      jobs: Record<string, { needs?: string[] | string; if?: string }>;
+    };
+    const image = doc.jobs['image'];
+    const needs = Array.isArray(image?.needs) ? image.needs : image?.needs !== undefined ? [image.needs] : [];
+    const cond = image?.if ?? '';
+
+    expect(needs.length, 'o job declara gates').toBeGreaterThan(0);
+    if (cond.includes('always()')) {
+      for (const gate of needs) {
+        expect(cond, `\`${gate}\` está em needs mas a condição não o veta`).toContain(
+          `needs.${gate}.result == 'success'`,
+        );
+      }
+    }
+  });
+});
+

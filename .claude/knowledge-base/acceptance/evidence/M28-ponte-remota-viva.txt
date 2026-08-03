@@ -1,0 +1,36 @@
+# M28 bullet 2 — descoberta em runtime, sem passar pelo disco (2026-08-03)
+#
+# Topologia montada nesta sessão:
+#   API   :18760  THEOSKILL_AUTH_REQUIRED=true  THEOSKILL_PLATFORM_ADMIN_KEY=<…>
+#                 log: "auth_required":true … "platform_mint":true
+#   MCP   :18097  THEOSKILL_REGISTRY=http://127.0.0.1:18760
+#   agent usetheo-labs/agent-builder/.mcp.json → theo-skills {type:http, url, headers.Authorization}
+#         (arquivo NÃO rastreado e ignorado pelo git — verificado por ls-files + check-ignore)
+
+# 1. chave cunhada POR INQUILINO (escopo mínimo)
+POST /v1/platform/keys {"workspace_id":"default","scopes":["skills:read"]}
+  -> { key_id, token, scopes:["skills:read"], workspace_id:"default" }
+
+# 2. skill que o agente NÃO CONHECIA, publicada com chave separada de escrita
+POST /v1/skills  (skills:write)  -> 202 op_irnatnjboyohk8eueklkvb34
+GET  /v1/skills/reconciliador-de-cambio -> "state":"ACTIVE"
+
+# 3. handshake MCP
+initialize SEM bearer  -> 401
+initialize COM bearer  -> HTTP/1.1 200 OK + mcp-session-id: 74a1dae4-…
+tools/list -> search_skills, get_skill, load_skill, list_skill_revisions
+
+# 4. DESCOBERTA POR INTENÇÃO — a consulta não contém "reconciliador", "cambio" nem "converte"
+search_skills {"query":"preciso passar dolar para real"}
+  1º  reconciliador-de-cambio   score 0.03333   <- a skill certa, em primeiro
+  2º  ac3-zipado                score 0.01639
+  3º  ac3-avulso                score 0.01613
+
+# 5. CARGA DO CORPO, do registry
+load_skill {"skill_id":"reconciliador-de-cambio"}
+  -> "Use quando…", "Identifique a moeda…", "cotacao PTAX", "Multiplique…"
+
+# 6. NADA FOI AO DISCO
+find <agent-builder> -name "*reconciliador*"  -> 0 arquivos
+
+# Nenhum valor de token neste arquivo nem em qualquer arquivo deste repositório.

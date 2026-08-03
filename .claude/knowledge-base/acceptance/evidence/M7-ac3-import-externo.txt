@@ -1,0 +1,12 @@
+# AC3 — consumo do PACOTE PUBLICADO, fora do repositorio (2026-08-03)
+$ cd /tmp/.../scratchpad/ac3 && npm init -y && npm i @usetheo/skills-sdk
+found 0 vulnerabilities
+$ node t.mjs
+OK import do PACOTE PUBLICADO; usedFallback inicial = undefined
+$ node -e "console.log(require.resolve('@usetheo/skills-sdk'))"
+/tmp/.../scratchpad/ac3/node_modules/@usetheo/skills-sdk/dist/index.js
+# ^ resolvido de node_modules FORA do repo — nao do dist/ local.
+$ npm view @usetheo/skills version      -> 0.1.0
+$ npm view @usetheo/skills-sdk version  -> 0.1.0
+$ npm view @usetheo/skills-mcp version  -> 0.1.0
+$ npm view @usetheo/skills-cli version  -> E404 (nao publicado — dep privada)

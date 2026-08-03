@@ -42,6 +42,14 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
       // único globalmente. Juntar só por `skill_id` casaria a skill de um tenant com o
       // embedding de outro que escolheu o mesmo id — um vazamento silencioso que nenhum
       // filtro no WHERE corrigiria, porque a linha errada já teria entrado no resultado.
+      // Mesmo formato do keyword-retriever: PARAMETRIZADO, nunca interpolado. `category` é
+      // texto livre vindo do frontmatter de um terceiro — concatená-lo no SQL seria injeção.
+      //
+      // Sem esta cláusula o filtro era MEIO-aplicado: só a perna de palavra-chave filtrava, e
+      // na estratégia PADRÃO (`hybrid`) a perna vetorial devolvia skills fora da categoria que
+      // a fusão então mantinha. O agente pedia uma categoria e recebia outra, sem erro —
+      // resultado plausível, o modo mais caro de errar.
+      const categoryClause = params.category !== undefined ? ` AND s.category = ${b.bind(params.category)}` : '';
       const sql = `
         SELECT s.skill_id, s.name, s.description, 1 - (e.vector <=> ${vecPh}::vector) AS score,
                s.category, s.execution,
@@ -53,7 +61,7 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
          AND e.revision_id = s.latest_revision_id
          AND e.provider = ${providerPh}
          AND e.model = ${modelPh}
-        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public') AND s.deleted_at IS NULL
+        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public') AND s.deleted_at IS NULL${categoryClause}
         ORDER BY e.vector <=> ${vecPh}::vector ASC, s.skill_id ASC
         LIMIT ${limitPh}
       `;

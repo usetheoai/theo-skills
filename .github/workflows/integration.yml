@@ -6,6 +6,12 @@
 name: Integration (Postgres)
 
 on:
+  # Invocado por `publish.yml` como gate do job `image`.
+  #
+  # SEM ISTO o publish só tinha o gate sem banco, e — somado à suíte que pulava 240 testes em
+  # silêncio — o portão que autoriza a imagem NÃO CONSEGUIA reprovar regressão de integração,
+  # por construção. O reconciliador leva essa imagem ao app-dev a cada ~5 min.
+  workflow_call:
   pull_request:
     branches: [develop, main]
   # SEM `paths-ignore` no PR, e isto é deliberado.
@@ -75,6 +81,16 @@ jobs:
           --health-retries 10
     env:
       THEOSKILL_PG_URI: postgres://theoskill:theoskill@127.0.0.1:5432/theoskill
+      # O gate de latência REAL (LT-042) exige `OPENAI_API_KEY` e falha alto sem ela — de
+      # propósito, porque foi passando calado que ele ficou verde durante os 9,3 s do LT-026.
+      # Aqui ele é dispensado EXPLICITAMENTE: rodá-lo em todo PR gastaria crédito do provedor a
+      # cada execução, e essa é uma decisão de custo do dono, não do teste.
+      #
+      # O que se perde é real e fica dito: nenhum PR mede a latência do caminho que a produção
+      # percorre. Enquanto esta linha existir, esse eixo é coberto só por execução manual com
+      # a chave exportada. Para cobrir no CI, adicione `OPENAI_API_KEY` aos secrets e APAGUE
+      # esta linha — não basta adicionar o segredo, porque o opt-out vence.
+      THEOSKILL_SKIP_REAL_EMBED: '1'
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 

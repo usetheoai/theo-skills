@@ -8,12 +8,35 @@ export type FrontmatterErrorCode = 'missing_frontmatter' | 'schema_invalid';
 /** Typed error for a malformed SKILL.md frontmatter (fail-loud, Unbreakable Rule 8). */
 export class SkillFrontmatterError extends Error {
   readonly code: FrontmatterErrorCode;
+  /**
+   * Campo culpado, quando HÁ um. `undefined` para erros sem campo identificável (YAML
+   * malformado, frontmatter ausente) — inventar um mandaria o editor pintar a linha errada
+   * com confiança, que é pior que não pintar.
+   */
+  readonly field?: string;
+  /** Linha 1-indexada no SKILL.md, para o editor posicionar o cursor. */
+  readonly line?: number;
 
-  constructor(code: FrontmatterErrorCode, message: string) {
+  constructor(code: FrontmatterErrorCode, message: string, field?: string, line?: number) {
     super(message);
     this.name = 'SkillFrontmatterError';
     this.code = code;
+    if (field !== undefined) this.field = field;
+    if (line !== undefined) this.line = line;
   }
+}
+
+/**
+ * Linha 1-indexada de `campo:` no SKILL.md inteiro.
+ *
+ * Busca no texto completo (não só no bloco de frontmatter) porque é a linha que o editor abre.
+ * `undefined` quando o campo não aparece — caso do campo AUSENTE, em que não há posição a dar.
+ */
+function linhaDoCampo(content: string, field: string): number | undefined {
+  const linhas = content.split('\n');
+  const re = new RegExp(`^\\s*${field}\\s*:`);
+  const i = linhas.findIndex((l) => re.test(l));
+  return i === -1 ? undefined : i + 1;
 }
 
 /**
@@ -90,38 +113,32 @@ export function parseFrontmatter(content: string): SkillFrontmatter {
 
   const name = fields['name'];
   if (typeof name !== 'string' || name.length === 0) {
-    throw new SkillFrontmatterError('schema_invalid', 'missing required field: name');
+    throw new SkillFrontmatterError('schema_invalid', 'missing required field: name', 'name', linhaDoCampo(content, 'name'));
   }
   if (name.length > MAX_NAME_LENGTH) {
-    throw new SkillFrontmatterError('schema_invalid', `name exceeds ${MAX_NAME_LENGTH} characters`);
+    throw new SkillFrontmatterError('schema_invalid', `name exceeds ${MAX_NAME_LENGTH} characters`, 'name', linhaDoCampo(content, 'name'));
   }
   if (name.includes('--') || !NAME_RE.test(name)) {
-    throw new SkillFrontmatterError(
-      'schema_invalid',
-      'name must be lowercase letters/digits/hyphens, no leading/trailing or consecutive hyphens',
-    );
+    throw new SkillFrontmatterError('schema_invalid', 'name must be lowercase letters/digits/hyphens, no leading/trailing or consecutive hyphens', 'name', linhaDoCampo(content, 'name'));
   }
 
   const description = fields['description'];
   if (typeof description !== 'string' || description.trim().length === 0) {
-    throw new SkillFrontmatterError('schema_invalid', 'missing required field: description');
+    throw new SkillFrontmatterError('schema_invalid', 'missing required field: description', 'description', linhaDoCampo(content, 'description'));
   }
   if (description.length > MAX_DESCRIPTION_LENGTH) {
-    throw new SkillFrontmatterError(
-      'schema_invalid',
-      `description exceeds ${MAX_DESCRIPTION_LENGTH} characters`,
-    );
+    throw new SkillFrontmatterError('schema_invalid', `description exceeds ${MAX_DESCRIPTION_LENGTH} characters`, 'description', linhaDoCampo(content, 'description'));
   }
 
   // `category` — texto livre, mas TEXTO. Um `42` coagido para "42" faria o filtro do
   // agente casar com algo que ninguém escreveu; uma lista viraria "[object Object]".
   const rawCategory = fields['category'];
   if (rawCategory !== undefined && rawCategory !== null && typeof rawCategory !== 'string') {
-    throw new SkillFrontmatterError('schema_invalid', 'category must be a string');
+    throw new SkillFrontmatterError('schema_invalid', 'category must be a string', 'category', linhaDoCampo(content, 'category'));
   }
   const category = typeof rawCategory === 'string' && rawCategory.trim() !== '' ? rawCategory.trim() : undefined;
   if (category !== undefined && category.length > MAX_CATEGORY_LENGTH) {
-    throw new SkillFrontmatterError('schema_invalid', `category exceeds ${MAX_CATEGORY_LENGTH} characters`);
+    throw new SkillFrontmatterError('schema_invalid', `category exceeds ${MAX_CATEGORY_LENGTH} characters`, 'category', linhaDoCampo(content, 'category'));
   }
 
   // `execution` — default `remote` porque a maioria das skills é só instrução, e exigir o

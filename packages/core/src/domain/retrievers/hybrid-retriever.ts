@@ -14,6 +14,36 @@ export const FUSION_POOL = 50;
 export interface HybridRetrieverDeps {
   readonly vector: SkillRetriever;
   readonly keyword: SkillRetriever;
+  /**
+   * Avisa que uma das pernas caiu — e por quê.
+   *
+   * Sem isto o `.catch(() => [])` abaixo transformava a falha em lista vazia e a busca
+   * respondia 200 com resultado só lexical. Medido em produção 2026-08-01: a conta do
+   * provedor de embedding ficou sem crédito, a descoberta semântica — a promessa central do
+   * produto — parou, e nada acusou: `/v1/health` seguia `ok`.
+   *
+   * Resiliência sem observabilidade é o defeito, não a solução: quem resolve não fica
+   * sabendo, e quem consome não sabe que recebeu menos.
+   */
+  readonly onDegraded?: (perna: 'vector' | 'keyword', err: unknown) => void;
+  /**
+   * Teto de tempo por perna, em ms. Ausente = espera (quem não pediu limite não ganha um).
+   *
+   * Medido em produção 2026-08-01: com a conta do provedor de embedding sem crédito, a perna
+   * vetorial levava 9,4 s e a busca inteira ia junto. Detectar o formato do erro do
+   * fornecedor é frágil — `code` mudou entre versões e a mensagem é texto livre. O teto não
+   * depende de adivinhar nada: seja qual for a causa, a descoberta não pode gastar o
+   * orçamento de latência do agente esperando uma metade que não responde.
+   */
+  readonly timeoutMs?: number;
+}
+
+/** Erro do teto — distinguível de uma falha da própria perna no log de degradação. */
+export class RetrieverTimeoutError extends Error {
+  constructor(perna: string, ms: number) {
+    super(`perna '${perna}' excedeu ${String(ms)}ms`);
+    this.name = 'RetrieverTimeoutError';
+  }
 }
 
 /**
@@ -85,9 +115,26 @@ export function createHybridRetriever(deps: HybridRetrieverDeps): SkillRetriever
         // (`hybrid`) o descartava, e só a `keyword` — inalcançável pela rota — o honrava.
         ...(params.category !== undefined ? { category: params.category } : {}),
       };
+      const degradar = (perna: 'vector' | 'keyword') => (err: unknown): RetrievedSkill[] => {
+        deps.onDegraded?.(perna, err);
+        return [];
+      };
+      const comTeto = (perna: 'vector' | 'keyword', p: Promise<RetrievedSkill[]>): Promise<RetrievedSkill[]> => {
+        if (deps.timeoutMs === undefined) return p;
+        const ms = deps.timeoutMs;
+        return Promise.race([
+          p,
+          new Promise<RetrievedSkill[]>((_, rej) => {
+            const t = setTimeout(() => rej(new RetrieverTimeoutError(perna, ms)), ms);
+            // `unref` para o teto não segurar o processo vivo — um timer pendente num
+            // processo curto (CLI, teste) o faria terminar mais tarde sem razão visível.
+            (t as unknown as { unref?: () => void }).unref?.();
+          }),
+        ]);
+      };
       const [vectorResults, keywordResults] = await Promise.all([
-        deps.vector.retrieve(poolParams).catch((): RetrievedSkill[] => []),
-        deps.keyword.retrieve(poolParams).catch((): RetrievedSkill[] => []),
+        comTeto('vector', deps.vector.retrieve(poolParams)).catch(degradar('vector')),
+        comTeto('keyword', deps.keyword.retrieve(poolParams)).catch(degradar('keyword')),
       ]);
       return rrfFuse(vectorResults, keywordResults, params.topK);
     },

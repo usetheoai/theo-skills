@@ -1,33 +1,160 @@
 {
   "_note": "M4 internal eval set. Measured with the deterministic STUB embedder, so recall is carried by the FTS lexical component (queries share keywords with the target). The OpenAI embedder adds semantic recall in production. Honest per Unbreakable Rule 3 — not rigged: each query is a plausible user phrasing of its target skill.",
   "skills": [
-    { "skill_id": "pdf-summarizer", "name": "PDF Summarizer", "description": "Extracts and condenses PDF documents into concise summaries", "body": "reads pdf files and produces a short summary of the key points" },
-    { "skill_id": "csv-parser", "name": "CSV Parser", "description": "Parses and validates CSV spreadsheet files", "body": "reads comma separated values and returns structured rows and columns" },
-    { "skill_id": "image-resizer", "name": "Image Resizer", "description": "Resizes and crops images", "body": "scales png and jpeg pictures to a target width and height" },
-    { "skill_id": "email-sender", "name": "Email Sender", "description": "Sends transactional email messages", "body": "delivers email over smtp with subject body and attachments" },
-    { "skill_id": "translator", "name": "Language Translator", "description": "Translates text between languages", "body": "converts text from one natural language to another such as english to spanish" },
-    { "skill_id": "sql-runner", "name": "SQL Query Runner", "description": "Executes SQL queries against a database", "body": "runs select and insert statements on a postgres database and returns results" },
-    { "skill_id": "weather-fetch", "name": "Weather Fetcher", "description": "Fetches the current weather forecast", "body": "retrieves temperature humidity and forecast for a given city" },
-    { "skill_id": "qr-generator", "name": "QR Code Generator", "description": "Generates QR codes from text or urls", "body": "encodes a string into a scannable qr code image" },
-    { "skill_id": "markdown-renderer", "name": "Markdown Renderer", "description": "Renders markdown into html", "body": "converts markdown documents into formatted html output" },
-    { "skill_id": "json-validator", "name": "JSON Schema Validator", "description": "Validates JSON against a schema", "body": "checks that a json payload conforms to a json schema and reports errors" },
-    { "skill_id": "audio-transcriber", "name": "Audio Transcriber", "description": "Transcribes speech audio into text", "body": "converts spoken audio recordings into a written transcript" },
-    { "skill_id": "url-shortener", "name": "URL Shortener", "description": "Shortens long urls into compact links", "body": "creates a short link that redirects to a long original url" },
-    { "skill_id": "calendar-scheduler", "name": "Calendar Scheduler", "description": "Schedules events on a calendar", "body": "creates and manages calendar appointments and meeting invites" }
+    {
+      "skill_id": "pdf-summarizer",
+      "name": "PDF Summarizer",
+      "description": "Extracts and condenses PDF documents into concise summaries",
+      "body": "reads pdf files and produces a short summary of the key points"
+    },
+    {
+      "skill_id": "csv-parser",
+      "name": "CSV Parser",
+      "description": "Parses and validates CSV spreadsheet files",
+      "body": "reads comma separated values and returns structured rows and columns"
+    },
+    {
+      "skill_id": "image-resizer",
+      "name": "Image Resizer",
+      "description": "Resizes and crops images",
+      "body": "scales png and jpeg pictures to a target width and height"
+    },
+    {
+      "skill_id": "email-sender",
+      "name": "Email Sender",
+      "description": "Sends transactional email messages",
+      "body": "delivers email over smtp with subject body and attachments"
+    },
+    {
+      "skill_id": "translator",
+      "name": "Language Translator",
+      "description": "Translates text between languages",
+      "body": "converts text from one natural language to another such as english to spanish"
+    },
+    {
+      "skill_id": "sql-runner",
+      "name": "SQL Query Runner",
+      "description": "Executes SQL queries against a database",
+      "body": "runs select and insert statements on a postgres database and returns results"
+    },
+    {
+      "skill_id": "weather-fetch",
+      "name": "Weather Fetcher",
+      "description": "Fetches the current weather forecast",
+      "body": "retrieves temperature humidity and forecast for a given city"
+    },
+    {
+      "skill_id": "qr-generator",
+      "name": "QR Code Generator",
+      "description": "Generates QR codes from text or urls",
+      "body": "encodes a string into a scannable qr code image"
+    },
+    {
+      "skill_id": "markdown-renderer",
+      "name": "Markdown Renderer",
+      "description": "Renders markdown into html",
+      "body": "converts markdown documents into formatted html output"
+    },
+    {
+      "skill_id": "json-validator",
+      "name": "JSON Schema Validator",
+      "description": "Validates JSON against a schema",
+      "body": "checks that a json payload conforms to a json schema and reports errors"
+    },
+    {
+      "skill_id": "audio-transcriber",
+      "name": "Audio Transcriber",
+      "description": "Transcribes speech audio into text",
+      "body": "converts spoken audio recordings into a written transcript"
+    },
+    {
+      "skill_id": "url-shortener",
+      "name": "URL Shortener",
+      "description": "Shortens long urls into compact links",
+      "body": "creates a short link that redirects to a long original url"
+    },
+    {
+      "skill_id": "calendar-scheduler",
+      "name": "Calendar Scheduler",
+      "description": "Schedules events on a calendar",
+      "body": "creates and manages calendar appointments and meeting invites"
+    }
   ],
   "cases": [
-    { "query": "summarize a long pdf document", "expected": "pdf-summarizer" },
-    { "query": "parse a csv spreadsheet file", "expected": "csv-parser" },
-    { "query": "resize and crop an image", "expected": "image-resizer" },
-    { "query": "send a transactional email message", "expected": "email-sender" },
-    { "query": "translate text from english to spanish", "expected": "translator" },
-    { "query": "run a sql query on postgres", "expected": "sql-runner" },
-    { "query": "get the current weather forecast for a city", "expected": "weather-fetch" },
-    { "query": "generate a qr code from a url", "expected": "qr-generator" },
-    { "query": "render markdown into html", "expected": "markdown-renderer" },
-    { "query": "validate json against a schema", "expected": "json-validator" },
-    { "query": "transcribe speech audio into text", "expected": "audio-transcriber" },
-    { "query": "shorten a long url into a compact link", "expected": "url-shortener" },
-    { "query": "schedule a calendar meeting", "expected": "calendar-scheduler" }
+    {
+      "query": "summarize a long pdf document",
+      "expected": "pdf-summarizer"
+    },
+    {
+      "query": "parse a csv spreadsheet file",
+      "expected": "csv-parser"
+    },
+    {
+      "query": "resize and crop an image",
+      "expected": "image-resizer"
+    },
+    {
+      "query": "send a transactional email message",
+      "expected": "email-sender"
+    },
+    {
+      "query": "translate text from english to spanish",
+      "expected": "translator"
+    },
+    {
+      "query": "run a sql query on postgres",
+      "expected": "sql-runner"
+    },
+    {
+      "query": "get the current weather forecast for a city",
+      "expected": "weather-fetch"
+    },
+    {
+      "query": "generate a qr code from a url",
+      "expected": "qr-generator"
+    },
+    {
+      "query": "render markdown into html",
+      "expected": "markdown-renderer"
+    },
+    {
+      "query": "validate json against a schema",
+      "expected": "json-validator"
+    },
+    {
+      "query": "transcribe speech audio into text",
+      "expected": "audio-transcriber"
+    },
+    {
+      "query": "shorten a long url into a compact link",
+      "expected": "url-shortener"
+    },
+    {
+      "query": "schedule a calendar meeting",
+      "expected": "calendar-scheduler"
+    }
+  ],
+  "_note_semantic": "semantic_cases: consultas cujo termo NAO aparece no texto indexado da skill esperada. Existem porque as 13 entradas de `cases` sao parafrases LEXICAIS: medido em 2026-08-01, 13/13 casam por token com a skill esperada, entao o gate Recall@5>=0.85 fica verde com o embedding morto e nao guarda a promessa central do produto (descoberta por intencao). Ficam FORA do gate de propósito: sob o stub embedder ninguem os resolve, e um teste eternamente vermelho seria desligado na primeira semana.",
+  "semantic_cases": [
+    {
+      "query": "give me the tldr of a lengthy paper",
+      "expected": "pdf-summarizer"
+    },
+    {
+      "query": "how do you say hello in french",
+      "expected": "translator"
+    },
+    {
+      "query": "shrink a photo to fit a thumbnail",
+      "expected": "image-resizer"
+    },
+    {
+      "query": "notes from a voice memo",
+      "expected": "audio-transcriber"
+    },
+    {
+      "query": "book a slot on my agenda next week",
+      "expected": "calendar-scheduler"
+    }
   ]
 }

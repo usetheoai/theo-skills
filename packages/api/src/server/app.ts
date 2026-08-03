@@ -1,4 +1,4 @@
-import { type AuthVerifier } from '@usetheo/skills';
+import { type AuthVerifier, type QueryExecutor } from '@usetheo/skills';
 import {
   DEFAULT_PRINCIPAL,
   type EmbeddingProvider,
@@ -44,6 +44,7 @@ import { createWebhookEndpointsStore } from './store/webhook-endpoints-store.js'
 import { type DnsResolver } from './webhooks/url-safety.js';
 
 const DEFAULT_RESERVATION_HOURS = 24;
+export const DEFAULT_RETRIEVE_TIMEOUT_MS = 3_000;
 const DEFAULT_MAX_BODY_BYTES = 35 * 1024 * 1024; // ~25MB zip after base64 envelope
 
 export interface CreateAppOptions {
@@ -58,6 +59,15 @@ export interface CreateAppOptions {
   readonly dnsResolver?: DnsResolver;
   /** Embedder for the retrieve endpoint (defaults to env-selected). */
   readonly embedder?: EmbeddingProvider;
+  /**
+   * Costura de teste para o executor de consulta, espelhando a do `embedder`.
+   *
+   * Existe pela mesma razão: sem ela não há como derrubar UMA das metades da busca e provar
+   * que o relatório de degradação nomeia a metade certa. Com só a metade vetorial derrubável,
+   * "reporta quem caiu" e "reporta sempre vector" são implementações indistinguíveis — e um
+   * teste que não as distingue protege a aparência do comportamento, não o comportamento.
+   */
+  readonly retrieveExecutor?: QueryExecutor;
   /**
    * Resolve QUEM esta chamando — o inquilino e suas capacidades (M11).
    *
@@ -244,15 +254,58 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // tenant); o que se cria por requisição é o closure que fixa o workspace. Montar o
   // dispatcher uma única vez no boot foi exatamente o que deixou a rota de descoberta
   // servindo o catálogo inteiro a qualquer tenant.
-  const retrieveExecutor = createPgExecutor(opts.pool);
+  const retrieveExecutor = opts.retrieveExecutor ?? createPgExecutor(opts.pool);
   const retrieveEmbedder = opts.embedder ?? selectEmbedder();
   registerRetrieveRoutes(app, {
-    retrieverFor: (ws: string) =>
-      createDispatchingRetriever({ executor: retrieveExecutor, embedder: retrieveEmbedder, workspaceId: ws }),
+    retrieverFor: (ws: string, onDegradedDaRequisicao?: (perna: 'vector' | 'keyword') => void) =>
+      createDispatchingRetriever({
+        executor: retrieveExecutor,
+        embedder: retrieveEmbedder,
+        workspaceId: ws,
+        // Teto por perna. O padrão de 3 s é folgado para uma consulta sã (a carga de
+        // instrução leva ~6 ms; a busca com embedder sadio fica bem abaixo disto) e apertado
+        // o bastante para que uma perna doente não sequestre a resposta — medido em produção:
+        // com o provedor de embedding sem crédito, a busca levava 9,4 s.
+        ...(retrieveTimeoutMsFromEnv() > 0 ? { timeoutMs: retrieveTimeoutMsFromEnv() } : {}),
+        // A queda de uma perna vira LOG, com a razão. Sem isto ela virava lista vazia e a
+        // busca respondia 200 com resultado pior — o operador só descobriria pela reclamação
+        // de quem consome, se descobrisse.
+        onDegraded: (perna, err) => {
+          // DOIS destinos, e são públicos diferentes: o log serve quem OPERA o serviço; o
+          // coletor da requisição serve quem o INTEGRA, e chega na resposta.
+          onDegradedDaRequisicao?.(perna);
+          logger.error(
+            {
+              leg: perna,
+              workspace_id: ws,
+              reason: err instanceof Error ? err.message : String(err),
+            },
+            'retrieve degradado',
+          );
+        },
+      }),
     logger,
   });
 
   return app;
+}
+
+/**
+ * Teto por perna da busca, em ms. `0` desliga (espera indefinidamente).
+ *
+ * Configurável porque o valor certo depende do provedor de embedding e da rede de quem opera
+ * — fixá-lo no código obrigaria um deploy para ajustar um número operacional.
+ */
+export function retrieveTimeoutMsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const bruto = env['THEOSKILL_RETRIEVE_TIMEOUT_MS'];
+  // AUSENTE e "0" são coisas DIFERENTES: ausente = "não escolhi, use o padrão"; "0" =
+  // "escolhi desligar". Colapsá-los foi o defeito: `Number(undefined ?? '')` é **0**, que é
+  // finito e >= 0, então a guarda o aceitava como valor legítimo. O teto virava 0, o `> 0`
+  // a jusante o descartava, e a busca seguia esperando 9,4 s em produção — com o código do
+  // teto presente na imagem, testado e verde. Medido em 2026-08-01.
+  if (bruto === undefined || bruto.trim() === '') return DEFAULT_RETRIEVE_TIMEOUT_MS;
+  const n = Number(bruto);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_RETRIEVE_TIMEOUT_MS;
 }
 
 function envReservationHours(): number {

@@ -1,5 +1,8 @@
 import PgBoss from 'pg-boss';
 
+import { registrarErroDePoolOcioso } from '../db.js';
+import { type Logger } from '../logger.js';
+
 import { toPgBossRetry, WEBHOOK_DELIVERY_BACKOFF } from '../resilience/backoff.js';
 
 export const JOB_NAMES = Object.freeze({
@@ -33,9 +36,32 @@ export const WEBHOOK_DELIVERY_SEND_OPTIONS: Readonly<
 /** Dedup window for a reconciler re-enqueue racing the original send. */
 export const WEBHOOK_DELIVERY_SINGLETON_SECONDS = 120;
 
-/** Build a pg-boss instance bound to the Postgres connection URI. */
-export function createQueue(uri: string): PgBoss {
-  return new PgBoss({ connectionString: uri, application_name: '@usetheo/skills-api' });
+/**
+ * Constrói o pg-boss COM ouvinte de erro — o SEGUNDO pool do processo.
+ *
+ * O `createPool` da API ganhou ouvinte no LT-039 e o sintoma continuou reproduzível em
+ * produção, porque **há dois pools no mesmo processo**: este, que o pg-boss abre por dentro a
+ * partir da `connectionString`, nunca apareceu numa busca por `new Pool(` — e foi assim que
+ * ele escapou. Consertar o pool que se enxerga e declarar a classe fechada é a armadilha: o
+ * processo morre pelo pool que ninguém olhou.
+ *
+ * `boss.on('error')` é o ponto que a própria biblioteca oferece para os erros do seu
+ * processamento interno, incluindo os do pool dela. Não construo um pool próprio para
+ * embrulhá-la: seria trocar uma dependência que já resolve por código nosso para manter.
+ *
+ * Conta na MESMA métrica do pool da API — um operador que vê "erros de cliente ocioso" quer o
+ * número do processo, não um por pool, senão a soma some e cada metade parece pequena.
+ */
+export function createQueue(uri: string, logger: Logger): PgBoss {
+  const boss = new PgBoss({ connectionString: uri, application_name: '@usetheo/skills-api' });
+  boss.on('error', (err: Error) => {
+    registrarErroDePoolOcioso();
+    logger.error(
+      { erro: err.message, codigo: (err as { code?: unknown }).code ?? null, pool: 'pg-boss' },
+      'erro no pool interno do pg-boss — a fila segue viva e reabre a conexão',
+    );
+  });
+  return boss;
 }
 
 export interface CreateSkillJobData {

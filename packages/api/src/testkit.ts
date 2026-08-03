@@ -22,7 +22,9 @@ export interface TestRegistry {
 
 export async function startTestRegistry(pgUri: string): Promise<TestRegistry> {
   const pool = new Pool({ connectionString: pgUri });
-  const queue = createQueue(pgUri);
+  // Silencioso de propósito no testkit — mas EXPLÍCITO, não omitido: o compilador agora
+  // exige a decisão, que é o ponto do LT-039.
+  const queue = createQueue(pgUri, { info: () => undefined, error: () => undefined });
   await queue.start();
   await queue.createQueue(JOB_NAMES.CREATE_SKILL);
   await queue.createQueue(JOB_NAMES.UPDATE_SKILL);

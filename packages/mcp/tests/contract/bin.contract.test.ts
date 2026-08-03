@@ -92,3 +92,44 @@ describe('bin — fail-closed no boot', () => {
     expect(code, 'não sai por fail-closed de credencial').not.toBe(2);
   }, 20_000);
 });
+
+describe('bin — handshake real contra o PROCESSO, não contra a fábrica', () => {
+  it('o binário lançado por spawn completa `initialize` e lista as ferramentas', async () => {
+    // O DoD do M25 diz "com o binário em processo separado, não um duplo". Os casos acima
+    // provam as guardas de boot; nenhum deles envia um frame JSON-RPC, então a metade
+    // "handshake no binário" seguia sem cobertura — os handshakes viviam in-process.
+    //
+    // Aqui o cliente OFICIAL fala com o executável por stdio, exatamente como um agente que
+    // hospeda um servidor MCP local.
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+
+    const client = new Client({ name: 'verificacao', version: '1.0.0' }, { capabilities: {} });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [BIN],
+      env: { ...process.env, THEOSKILL_REGISTRY: 'http://registry.invalido', THEOSKILL_AUTH: 'tsk_de_teste' },
+    });
+
+    await client.connect(transport);
+    const { tools } = await client.listTools();
+
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'get_skill',
+      'list_skill_revisions',
+      'load_skill',
+      'search_skills',
+    ]);
+
+    // E a garantia do item 4 do DoD, medida NO BINÁRIO: o inquilino nunca é parâmetro de
+    // ferramenta. Ele vem da credencial do processo; se aparecesse aqui, o agente poderia
+    // escolher de qual cliente ler.
+    for (const t of tools) {
+      const props = Object.keys((t.inputSchema as { properties?: Record<string, unknown> }).properties ?? {});
+      expect(props.filter((p) => /workspace|tenant|account/i.test(p)), `${t.name}`).toEqual([]);
+    }
+
+    await client.close();
+  }, 30_000);
+});
+

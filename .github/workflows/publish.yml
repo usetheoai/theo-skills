@@ -10,6 +10,16 @@
 name: publish
 
 on:
+  # Disparo manual — existe para PROVAR o gate, e a prova é o motivo dele.
+  #
+  # O gate de integração só demonstra que veta num run em que ele REPROVA e o job da imagem
+  # fica `skipped`. A ordem dos jobs num run verde não prova veto algum — foi a recusa
+  # correta do live-test em 2026-08-01. Sem disparo manual, produzir esse run exigiria
+  # quebrar `develop` de propósito, e é dela que o ambiente de desenvolvimento se serve.
+  #
+  # O poder que ele concede — publicar a imagem — é o mesmo de quem já pode mergear em
+  # `develop`, então não amplia a superfície.
+  workflow_dispatch:
   push:
     branches: [develop]
     tags: ['v*']
@@ -49,8 +59,26 @@ jobs:
     if: ${{ always() && (needs.guard-release-on-main.result == 'success' || needs.guard-release-on-main.result == 'skipped') }}
     uses: ./.github/workflows/ci.yml
 
+  # GATE DE INTEGRAÇÃO — com Postgres de verdade.
+  #
+  # `gate-ci` roda build+lint+typecheck+test SEM BANCO. Sozinho, ele não vê regressão de
+  # integração; e enquanto a suíte pulava 240 testes em silêncio saindo 0, o portão inteiro
+  # era decorativo. A forma vem do `theo-lens`, cujo gate de contrato reprovou um publish de
+  # verdade em 2026-08-01 18:11, com `image: skipped`.
+  gate-integration:
+    needs: [guard-release-on-main]
+    permissions:
+      contents: read
+    # A MESMA condição do `gate-ci`, e ela não é opcional: `guard-release-on-main` só roda em
+    # tag, e um job cujo `needs` foi PULADO é pulado junto. Medido no run 30712454039 — a
+    # primeira versão desta correção declarou o `needs` sem o `if`, e o gate apareceu como
+    # `skipped` num publish que mesmo assim publicou a imagem. A correção parecia feita: o
+    # teste passava, a dependência estava lá, e o portão não rodava.
+    if: ${{ always() && (needs.guard-release-on-main.result == 'success' || needs.guard-release-on-main.result == 'skipped') }}
+    uses: ./.github/workflows/integration.yml
+
   image:
-    needs: [gate-ci]
+    needs: [gate-ci, gate-integration]
     # `if` EXPLÍCITO, e não o default `success()`.
     #
     # O DEFEITO QUE ISTO CORRIGE (run 30572539211): num push de `develop` o
@@ -58,7 +86,17 @@ jobs:
     # CADEIA de `needs`, então este job ficava `skipped` mesmo com o `gate-ci` verde — a
     # imagem NUNCA era publicada, e o workflow reportava `success`. Um pipeline que passa sem
     # produzir o artefato é pior que um que falha: ninguém vai investigar o verde.
-    if: ${{ always() && needs.gate-ci.result == 'success' }}
+    #
+    # O PREÇO DE `always()`, e ele me pegou: com `always()` o `needs` PARA DE VETAR. O job
+    # roda mesmo com dependência falha, e o único veto passa a ser o `result` checado aqui.
+    # Eu declarei `needs: [gate-ci, gate-integration]` e checava só o `gate-ci` — o gate de
+    # integração existia no grafo, aparecia verde no run, e NÃO impedia a imagem de subir com
+    # a integração vermelha. É a mesma classe que este arquivo inteiro documenta: uma camada
+    # afirmando sucesso sobre a falha da anterior — desta vez dentro do próprio gate.
+    #
+    # CADA gate declarado em `needs` precisa ser vetado à mão, aqui. `tests/workflows/gates.test.ts`
+    # trava isso: acrescentar um `needs` sem o veto correspondente deixa a suíte vermelha.
+    if: ${{ always() && needs.gate-ci.result == 'success' && needs.gate-integration.result == 'success' }}
     uses: ./.github/workflows/build-publish.yml
     with:
       image: theo-skills

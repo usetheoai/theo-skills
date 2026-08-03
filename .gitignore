@@ -34,3 +34,8 @@ knowledge-base/references/
 
 # Cross-validation run artifacts (audit output incl. binary SQLite DB — not versioned)
 cross-validation-output/
+
+# Cópias datadas que o instalador do kit cria a cada propagação
+# (.claude/.patch-backups/<timestamp>/…). São backup local de recuperação —
+# versioná-las duplicaria no histórico o que o próprio git já guarda.
+.claude/.patch-backups/

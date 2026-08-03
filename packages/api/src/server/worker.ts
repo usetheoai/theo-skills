@@ -149,8 +149,12 @@ export function createUpdateSkillHandler(
       if (meta.name !== undefined || meta.description !== undefined) {
         await deps.skillsStoreFor(jobWorkspace(data)).updateMetadata(data.skill_id, meta);
       }
+      // `skillMd` ao lado de `zippedFilesystem`: a rota já converteu o `SKILL.md` avulso em zip
+      // antes de enfileirar, então o job é idêntico — só o NOME do campo na máscara difere.
+      // Ignorá-lo aqui faria o PATCH responder 202 e não aplicar nada, que foi o defeito medido:
+      // a fronteira aceitava e a revisão não mudava, sem erro em lugar nenhum.
       if (
-        data.mask.includes('zippedFilesystem') &&
+        (data.mask.includes('zippedFilesystem') || data.mask.includes('skillMd')) &&
         data.payload_b64 !== undefined &&
         data.content_hash !== undefined &&
         data.frontmatter !== undefined

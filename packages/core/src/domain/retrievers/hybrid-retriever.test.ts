@@ -85,3 +85,96 @@ describe('a fusão não pode PERDER campo que só um lado projetou', () => {
     expect(fundido[0]?.category).toBe('Ops');
   });
 });
+
+describe('a degradação da busca precisa ser VISÍVEL', () => {
+  it('quando a perna vetorial falha, o híbrido AVISA — não serve resultado pior com cara de bom', async () => {
+    // Medido em produção 2026-08-01: a conta do provedor de embedding ficou sem crédito, a
+    // perna vetorial passou a falhar, e o `.catch(() => [])` a transformava em lista vazia.
+    // A busca respondia 200 com resultado LEXICAL, e a descoberta semântica — a promessa
+    // central do produto — estava morta sem que nada acusasse. `/v1/health` dizia `ok`.
+    //
+    // Resiliência sem observabilidade é o defeito, não a solução: quem resolve não fica
+    // sabendo, e quem consome não sabe que recebeu menos.
+    const avisos: string[] = [];
+    const explode: SkillRetriever = { retrieve: () => Promise.reject(new Error('sem credito')) };
+    const lista: SkillRetriever = { retrieve: () => Promise.resolve([sk('a')]) };
+
+    const r = createHybridRetriever({
+      vector: explode,
+      keyword: lista,
+      onDegraded: (perna, err) => avisos.push(`${perna}: ${(err as Error).message}`),
+    });
+    const out = await r.retrieve({ query: 'x', topK: 5 });
+
+    expect(out.map((s) => s.skill_id), 'a perna viva ainda responde').toEqual(['a']);
+    expect(avisos, 'e a falha foi ANUNCIADA, com a causa').toEqual(['vector: sem credito']);
+  });
+
+  it('sem falha alguma, ninguém é avisado', async () => {
+    const avisos: string[] = [];
+    const r = createHybridRetriever({
+      vector: { retrieve: () => Promise.resolve([sk('a')]) },
+      keyword: { retrieve: () => Promise.resolve([sk('b')]) },
+      onDegraded: (p) => avisos.push(p),
+    });
+    await r.retrieve({ query: 'x', topK: 5 });
+    expect(avisos).toEqual([]);
+  });
+});
+
+describe('a busca tem TETO de tempo — uma perna lenta não sequestra a resposta', () => {
+  it('perna que demora além do teto é abandonada, e a viva responde', async () => {
+    // Medido em produção 2026-08-01: com a conta do provedor sem crédito, a perna vetorial
+    // levava 9,4 s e a busca inteira ia junto. Detectar o formato do erro do fornecedor é
+    // frágil — ele mudou de `code` entre versões e a mensagem é texto livre. O teto não
+    // depende de adivinhar nada: seja qual for a causa, a descoberta não pode gastar o
+    // orçamento de latência do agente esperando uma metade que não responde.
+    const lenta: SkillRetriever = { retrieve: () => new Promise((r) => setTimeout(() => r([sk('lenta')]), 5_000)) };
+    const rapida: SkillRetriever = { retrieve: () => Promise.resolve([sk('rapida')]) };
+    const avisos: string[] = [];
+
+    const t0 = Date.now();
+    const out = await createHybridRetriever({
+      vector: lenta,
+      keyword: rapida,
+      timeoutMs: 100,
+      onDegraded: (perna) => avisos.push(perna),
+    }).retrieve({ query: 'x', topK: 5 });
+    const gasto = Date.now() - t0;
+
+    expect(out.map((s) => s.skill_id), 'a perna viva responde').toEqual(['rapida']);
+    expect(gasto, 'não esperou a lenta').toBeLessThan(1_000);
+    expect(avisos, 'e o abandono foi anunciado').toEqual(['vector']);
+  });
+
+  it('sem teto configurado, espera — quem não pediu limite não ganha um por surpresa', async () => {
+    const meio: SkillRetriever = { retrieve: () => new Promise((r) => setTimeout(() => r([sk('a')]), 60)) };
+    const out = await createHybridRetriever({
+      vector: meio,
+      keyword: { retrieve: () => Promise.resolve([]) },
+    }).retrieve({ query: 'x', topK: 5 });
+    expect(out.map((s) => s.skill_id)).toEqual(['a']);
+  });
+});
+
+describe('o race não pode ser desfeito por um await posterior', () => {
+  it('a resposta sai no teto mesmo que a perna lenta NUNCA termine', async () => {
+    // Hipótese do coordenador, testada: um `Promise.race` não CANCELA a perna lenta — só
+    // deixa de esperar por ela. Se qualquer passo depois do race (a fusão, um `Promise.all`
+    // das duas, um `finally`) voltar a esperá-la, os 9 s reaparecem e o teto vira decoração.
+    //
+    // Aqui a perna lenta nunca resolve. Se a resposta sair, o race não foi desfeito.
+    const nuncaResolve: SkillRetriever = { retrieve: () => new Promise<RetrievedSkill[]>(() => undefined) };
+    const rapida: SkillRetriever = { retrieve: () => Promise.resolve([sk('viva')]) };
+
+    const t0 = Date.now();
+    const out = await createHybridRetriever({ vector: nuncaResolve, keyword: rapida, timeoutMs: 80 }).retrieve({
+      query: 'x',
+      topK: 5,
+    });
+    const gasto = Date.now() - t0;
+
+    expect(out.map((s) => s.skill_id)).toEqual(['viva']);
+    expect(gasto, 'saiu no teto, não esperou o infinito').toBeLessThan(800);
+  });
+});
