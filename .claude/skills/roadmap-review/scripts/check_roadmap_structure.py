@@ -255,9 +255,11 @@ def _check_milestone_set(
     # would bury the structural problem behind a formatting one.
     if len(set(declared_ids)) > MILESTONE_CAP:
         findings.append(Finding(
-            "milestone_cap_exceeded", BLOCKER, DETERMINISTIC, "document",
-            f"{len(set(declared_ids))} milestones, cap is {MILESTONE_CAP} (M0–M8). Above the cap this "
-            "is a backlog wearing a roadmap's clothes — split the project (roadmap-init anti-pattern 1).",
+            "milestone_cap_exceeded", MINOR, HEURISTIC, "document",
+            f"{len(set(declared_ids))} milestones. `/roadmap-init` caps the INITIAL roadmap at "
+            f"{MILESTONE_CAP} (M0–M8) so inception scope stays honest, but `/roadmap-feature` "
+            "explicitly opens it — 'M9, M10, M11… extend freely'. Worth a glance for backlog creep; "
+            "on a roadmap grown milestone by milestone it is expected, not a defect.",
         ))
 
     if declared_ids and "M0" not in declared_ids:
@@ -386,7 +388,47 @@ def _check_milestone_quality(milestone: Milestone, findings: list[Finding]) -> N
             ))
 
 
-def review(text: str) -> tuple[str, list[Finding]]:
+def check_evidence(milestones: list[Milestone], knowledge_base: Path, findings: list[Finding]) -> None:
+    """Cross-check every `[x]` against the artifacts that are supposed to justify it.
+
+    The roadmap is a claim; the knowledge-base is the evidence. Reading only the
+    document can never catch the drift that matters most — a checkbox flipped by
+    hand, or flipped by a cycle-release from before cycle-acceptance existed. That
+    drift is invisible to every text-level check and is exactly what turns a roadmap
+    into decoration within a quarter.
+    """
+    runs_dir = knowledge_base / "roadmap-runs"
+    acceptance_dir = knowledge_base / "acceptance"
+
+    runs = {p.name.split("-")[0] for p in runs_dir.glob("M*-*.md")} if runs_dir.exists() else set()
+    accepted = {p.name.split("-")[0] for p in acceptance_dir.glob("M*-*.md")} if acceptance_dir.exists() else set()
+
+    released = [m for m in milestones if m.done]
+    if not released:
+        return
+
+    without_run = [m.milestone_id for m in released if m.milestone_id not in runs]
+    without_acceptance = [m.milestone_id for m in released if m.milestone_id not in accepted]
+
+    if without_run:
+        findings.append(Finding(
+            "released_without_roadmap_run", MAJOR, DETERMINISTIC, ", ".join(without_run),
+            f"{len(without_run)} of {len(released)} milestones read `[x]` with no "
+            f"`{runs_dir}/M<N>-*.md`. cycle-roadmap forbids a silent flip: without the run-file "
+            "nobody can answer 'did we actually deliver this?' without spelunking commits.",
+        ))
+
+    if without_acceptance:
+        findings.append(Finding(
+            "released_without_acceptance", MINOR, DETERMINISTIC, ", ".join(without_acceptance),
+            f"{len(without_acceptance)} of {len(released)} milestones read `[x]` with no acceptance "
+            f"record in {acceptance_dir}. Expected for milestones closed BEFORE cycle-acceptance "
+            "existed — their `[x]` means 'we shipped it', not 'we watched it work'. From now on the "
+            "flip is gated on the verdict, so this count should stop growing.",
+        ))
+
+
+def review(text: str, knowledge_base: Path | None = None) -> tuple[str, list[Finding]]:
     """Return (verdict, findings) for a roadmap document."""
     findings: list[Finding] = []
     milestones = parse(text)
@@ -398,6 +440,9 @@ def review(text: str) -> tuple[str, list[Finding]]:
     _check_milestone_set(milestones, declared_ids, findings)
     for milestone in milestones:
         _check_milestone_quality(milestone, findings)
+
+    if knowledge_base is not None:
+        check_evidence(milestones, knowledge_base, findings)
 
     severities = {f.severity for f in findings}
     if BLOCKER in severities:
@@ -416,13 +461,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--roadmap", type=Path, default=Path("ROADMAP.md"))
     parser.add_argument("--json", action="store_true", help="Emit the full report as JSON.")
+    parser.add_argument(
+        "--knowledge-base",
+        type=Path,
+        help="Cross-check every [x] against roadmap-runs/ and acceptance/ under this path "
+             "(e.g. .claude/knowledge-base). Without it, only the document is reviewed.",
+    )
     args = parser.parse_args()
 
     if not args.roadmap.exists():
         print(f"file not found: {args.roadmap} — run /roadmap-init first.", file=sys.stderr)
         return 2
 
-    verdict, findings = review(args.roadmap.read_text(encoding="utf-8"))
+    verdict, findings = review(args.roadmap.read_text(encoding="utf-8"), args.knowledge_base)
 
     if args.json:
         print(json.dumps(

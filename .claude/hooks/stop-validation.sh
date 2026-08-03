@@ -140,33 +140,8 @@ if [ -f "CHANGELOG.md" ]; then
     | grep -vE '(_test|\.test|\.spec)\.[a-z]+$' \
     | grep -vE '(^|/)(node_modules|vendor|dist|build|target|\.venv|__pycache__)/' \
     || true)
-  # O changelog exigido depende de ONDE o codigo mudou — sao dois artefatos com dois publicos:
-  # `CHANGELOG.md` e o contrato publico do PRODUTO; `.claude/CHANGELOG.md` e o do kit do ciclo.
-  # Exigir o da raiz para uma mudanca no kit forcava duas saidas erradas: poluir o changelog do
-  # produto com detalhe interno (o que a propria Regra 6 proibe) ou usar o override. Como
-  # ALL_FILES inclui o ULTIMO COMMIT, todo `chore(kit)` bloqueava a proxima sessao de qualquer
-  # repo por trabalho alheio — e portao que grita sem motivo ensina o time a ignora-lo.
-  # A intencao fica INTEIRA: toda mudanca de codigo segue obrigada a um changelog, o do seu
-  # proprio artefato.
-  #
-  # ATENCAO (2026-08-03): esta correcao JA FOI SOBRESCRITA uma vez pelo sync do kit (commit
-  # 2d4524a, ~1h depois de 8f806ab). O hook e byte-identico em >=6 repos do workspace; enquanto
-  # a correcao nao entrar na ORIGEM do sync, ela morre a cada atualizacao.
-  KIT_CODE=$(echo "$CODE_CHANGED" | grep -E '^\.claude/' || true)
-  PROD_CODE=$(echo "$CODE_CHANGED" | grep -vE '^\.claude/' || true)
-
-  if [ -n "$PROD_CODE" ] && ! echo "$ALL_FILES" | grep -qE '^CHANGELOG\.md$'; then
+  if [ -n "$CODE_CHANGED" ] && ! echo "$ALL_FILES" | grep -qE '^CHANGELOG\.md$'; then
     msg="CHANGELOG.md not updated despite production source changes (Inquebrável Rule 6; cycle-review BLOCKER). Add an entry to [Unreleased] before stopping. Override with STOP_VALIDATION_WARN_ONLY=1 only when the change is a bulk reorg with the rationale documented separately."
-    if [ "$WARN_ONLY" = "1" ]; then
-      WARNINGS+=("$msg")
-    else
-      BLOCKERS+=("$msg")
-    fi
-  fi
-
-  if [ -n "$KIT_CODE" ] && [ -f ".claude/CHANGELOG.md" ] \
-     && ! echo "$ALL_FILES" | grep -qE '^\.claude/CHANGELOG\.md$'; then
-    msg=".claude/CHANGELOG.md not updated despite changes to the cycle kit's own source (Inquebrável Rule 6). The kit is a versioned artifact with its own changelog — log it there, not in the product's CHANGELOG.md."
     if [ "$WARN_ONLY" = "1" ]; then
       WARNINGS+=("$msg")
     else

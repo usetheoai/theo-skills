@@ -247,3 +247,87 @@ class TestVerdict:
 
         assert findings
         assert all(f.source in {"deterministic", "heuristic"} for f in findings)
+
+
+class TestCapIsAdvisory:
+    """O cap de 9 é do /roadmap-init (escopo de concepção); /roadmap-feature abre.
+
+    Marcar como BLOCKER um roadmap maduro de 30 milestones — crescido milestone a
+    milestone, como manda o roadmap-feature — é um falso positivo que treina o time
+    a ignorar o revisor.
+    """
+
+    def test_acima_do_teto_e_minor_heuristico_e_nao_blocker(
+        self, make_roadmap, make_milestone
+    ) -> None:
+        text = make_roadmap(
+            *[make_milestone(f"M{n}", f"Entrega {n}", dependencies="none") for n in range(12)]
+        )
+
+        _v, findings = review(text)
+        cap = [f for f in findings if f.check == "milestone_cap_exceeded"]
+
+        assert len(cap) == 1
+        assert cap[0].severity == "MINOR"
+        assert cap[0].source == "heuristic"
+
+    def test_roadmap_maduro_nao_e_invalid_so_por_tamanho(
+        self, make_roadmap, make_milestone
+    ) -> None:
+        text = make_roadmap(
+            *[make_milestone(f"M{n}", f"Entrega {n}", dependencies="none") for n in range(12)]
+        )
+
+        assert verdict(text) == SHIPPABLE_WITH_CAVEATS
+
+
+class TestEvidenceDrift:
+    """O roadmap é a alegação; o knowledge-base é a evidência."""
+
+    def _kb(self, tmp_path, runs=(), accepted=()):
+        for name, ids in (("roadmap-runs", runs), ("acceptance", accepted)):
+            d = tmp_path / name
+            d.mkdir(parents=True, exist_ok=True)
+            for i in ids:
+                (d / f"{i}-2026-08-03.md").write_text("---\nverdict: ACCEPTED\n---\n", encoding="utf-8")
+        return tmp_path
+
+    def test_milestone_marcado_sem_roadmap_run(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path))
+        drift = [f for f in findings if f.check == "released_without_roadmap_run"]
+
+        assert len(drift) == 1 and drift[0].severity == "MAJOR"
+        assert "M0" in drift[0].where
+
+    def test_com_run_e_aceitacao_nao_ha_deriva(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path, runs=["M0"], accepted=["M0"]))
+
+        assert not [f for f in findings if f.check.startswith("released_without")]
+
+    def test_sem_aceitacao_e_apenas_minor(self, tmp_path, make_roadmap, make_milestone) -> None:
+        """Milestones fechados ANTES do cycle-acceptance existir não são defeito."""
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path, runs=["M0"]))
+        acc = [f for f in findings if f.check == "released_without_acceptance"]
+
+        assert len(acc) == 1 and acc[0].severity == "MINOR"
+
+    def test_milestone_aberto_nao_gera_deriva(self, tmp_path, make_roadmap, make_milestone) -> None:
+        text = make_roadmap(make_milestone("M0", "Skeleton", state=" ", dependencies="none"))
+
+        _v, findings = review(text, self._kb(tmp_path))
+
+        assert not [f for f in findings if f.check.startswith("released_without")]
+
+    def test_sem_knowledge_base_a_checagem_nao_roda(self, make_roadmap, make_milestone) -> None:
+        """Compatível para trás: sem o caminho, só o documento é revisado."""
+        text = make_roadmap(make_milestone("M0", "Skeleton", state="x", dependencies="none"))
+
+        _v, findings = review(text)
+
+        assert not [f for f in findings if f.check.startswith("released_without")]
