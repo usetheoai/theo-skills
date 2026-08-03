@@ -1,0 +1,20 @@
+# AC1, AC2, AC3, AC5 — por que NAO foram exercitados contra o publicado (2026-08-03)
+$ npm view @usetheo/skills-api version   -> (nao existe; private: true por contrato)
+
+A rota POST /v1/skills:validate vive em @usetheo/skills-api, que e private e NUNCA vai
+ao registry. Nao ha artefato publicado que a contenha.
+
+Tentativa pelo caminho que o cycle-acceptance preve para pacote interno (construir do
+tag e consumir como o consumidor real):
+
+$ pg_isready -h localhost -p 15999      -> no response
+$ docker ps | grep postgres             -> so theo-promptly-postgres-1 (outro banco)
+$ THEOSKILL_PG_URI=<inalcancavel> node packages/api/dist/server.js
+  {"level":"error","msg":"boot failed","err":"connect ECONNREFUSED"}
+
+O servico exige banco NO ARRANQUE, mesmo para uma rota que nao toca o banco. Sem
+postgres do theo-skills no ar, o consumo real e inalcancavel nesta sessao.
+
+O que EXISTE: 5 testes de contrato exercitando a rota, com 4 mutacoes mortas. Mas suite
+de teste NAO e aceitacao — e o proprio cycle-acceptance nomeia isso como anti-padrao.
+Status honesto: not_exercised.
