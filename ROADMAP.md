@@ -489,7 +489,15 @@ theo-memory dá — resolver skills com escopo, cache e erro classificado, sem f
 - [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
 - [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
 
-**Dependencies:** M12, M7.
+**Dependencies:** M12.
+
+> *Corrigido em 2026-08-03. A linha declarava também o M7, e a inconsistência era real: o M16
+> está `[x]` com o M7 `[ ]`. Nenhum dos dois checkboxes está errado — a **dependência** é que era
+> grossa demais. O bullet de fiação do M16 exige consumo pelo `RemoteSkillsManager`, e ele está
+> entregue: `packages/sdk/src/remote-skills-manager.ts`, 134 linhas, exportado em `index.ts:3`,
+> coberto por `sdk.contract.test.ts:100` ("consumidor real do SDK"). O M7 permanece aberto por
+> outra cláusula — o **dogfood** (≥3 evidências em dias distintos + 1 história de falha) —, que
+> nunca foi pré-requisito do SDK. O M16 dependia do provider, não do uso continuado dele.*
 
 **Top risks:**
 
