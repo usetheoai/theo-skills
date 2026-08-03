@@ -248,13 +248,44 @@ com auditoria.
 **Objective:** Fechar o V1: entregar o provider remoto que o Theokit consome e validar com
 dogfood real — é o critério de "shipped".
 
-**Definition of done:**
+**Definition of done (all must hold):**
 
-- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
-- [x] *(o contrato do ROADMAP estava DESATUALIZADO: o `@theokit/sdk` 4.36.0 aceita `CreateSkillSpec { name, description, instructions, category?, dependencies?, references? }` — **sem `source`, sem `version`, e com `instructions` obrigatório**. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no `toTheokit`)* Formato retornado casa com o `CreateSkillSpec` do Theokit; provado contra o `Skill.create` real.
-- [ ] **Dogfood real** registrado. **Três evidências existem desde 2026-07-31** e agora CONTAM — em 2026-08-01 descobri que não contavam: a regra de dogfood deste projeto seguia com o **template não editado** (`<anchor-slug>`), então o portão falharia por `anchor_missing` — não por uso escasso, mas porque ninguém declarou o que a âncora É; e os três arquivos usavam **dois slugs diferentes** de cenário, de modo que a checagem por `scenario:` casava no máximo dois. Âncora declarada (`theokit-remote-provider`, status `wired`) e slugs unificados — isso torna visível evidência já paga, não infla contador.
-  **O que falta, sem rodeio:** (a) **Recall@5 de uso real** — medi-lo com consultas que eu mesmo escrevi contra skills que eu mesmo publiquei mede a minha expectativa, não o uso. (b) status `running` — o contrato pede ≥ 3 evidências **ao longo do tempo** e ≥ 1 história de falha registrada como `outcome: fail`; as três são **do mesmo dia**, e uma sessão não é uso continuado. Nenhum commit encurta (b): só dias distintos.
-  **O que ainda falta, sem rodeio:** (a) **Recall@5** — medi-lo com consultas que eu mesmo escrevi contra skills que eu mesmo publiquei mede a minha expectativa, não o uso; exige consultas vindas de uso real. (b) status `running` — o contrato de dogfood pede ≥ 3 evidências e ≥ 1 história de falha **ao longo do tempo**. Uma sessão não é uso continuado, e nenhum commit encurta isso.
+- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via
+      HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/`
+      em falha do registry. *(Entregue: `packages/sdk/src/remote-skills-manager.ts`, exportado em
+      `index.ts:3`, coberto por `sdk.contract.test.ts`.)*
+- [x] `toTheokit` produz um objeto que o `Skill.create` do `@theokit/sdk` 4.36.0 aceita sem erro:
+      chaves `{ name, description, instructions }` presentes e não vazias, `instructions` como
+      string. Exercitável contra o SDK real, sem ler este roadmap.
+- [ ] **`npm view @usetheo/skills-sdk version` resolve** (hoje: `E404`) e um projeto novo, fora
+      deste repositório, faz `npm install @usetheo/skills-sdk` e importa `createRemoteSkillsManager`
+      **do pacote publicado** — não do `dist/` local. Entrega declarada em
+      `rules/acceptance-target.txt`.
+- [ ] Contra o registry no ar, o `RemoteSkillsManager` **do pacote publicado** resolve por intenção:
+      `retrieve` devolve **≥ 1** skill para uma consulta sem sobreposição léxica com o nome dela, e
+      `usedFallback === false` — provando que a perna semântica respondeu, não o fallback local.
+- [ ] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `usedFallback === true`
+      em **≤ 5 s** — o caminho de degradação exercitado, não presumido.
+- [ ] **Dogfood com `status: running`**, conforme `rules/dogfood-golden-rule.md`: **≥ 3** arquivos
+      em `.claude/knowledge-base/dogfood/evidence/` com `scenario: theokit-remote-provider`, em
+      **≥ 3 datas distintas** no campo `date:`, e **≥ 1** com `outcome: fail`. Uma sessão não é uso
+      continuado, e nenhum commit encurta este critério — só dias.
+- [ ] **Recall@5 ≥ 0.85 medido sobre consultas de USO REAL** — extraídas dos registros de dogfood
+      acima, não escritas por quem publicou as skills. Consulta própria contra acervo próprio mede
+      expectativa, não uso.
+
+> *Nota histórica (fora dos critérios, de propósito): o contrato antes escrito aqui estava
+> desatualizado — o `@theokit/sdk` 4.36.0 não aceita `source` nem `version`, e exige
+> `instructions`. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no
+> `toTheokit`. Estava DENTRO do AC2, e critério que narra a história do documento em vez da
+> condição observável não é exercitável.*
+
+> *DoD reescrita em 2026-08-03. A anterior tinha o mesmo parágrafo **duplicado** e descrevia estado
+> interno (arquivos de evidência) em prosa — `cycle-acceptance` não tinha como exercitá-la contra a
+> entrega publicada. Nenhum requisito foi afrouxado: os três critérios de npm/registry/fallback são
+> **novos**, e as duas cláusulas que já bloqueavam (dias distintos, Recall@5 de uso real) ficaram
+> com número e local de verificação. Reescrever para facilitar a aprovação seria a violação que
+> `cycle-goal` nomeia; isto aperta.*
 
 **Dependencies:** M4.
 
