@@ -59,6 +59,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 #   from every cycle (replaced the retired skill-writer/validator/register discover tail).
 AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "roadmap-init", "roadmap-feature", "roadmap-review", "cycle-goal", "plan-help", "quality-init", "skill-creator", "frontend-design"}
 
+
+def _is_auto_generated(skill: str) -> bool:
+    """Skills que os proprios cycles ESCREVEM, e nao fases que alguem mantem.
+
+    `/review` emite `review-{slug}-{dimensao}-knowledge` e o discover emite
+    `*-sepa-knowledge`: sao artefatos de execucao. Cobrar delas contrato de cycle
+    ou referencia num cycle-*.md e cobrar a saida de se comportar como entrada.
+
+    Vive aqui, e nao inline num check, porque a primeira versao isentou so o
+    `no_orphan_skills` e deixou o `skill_has_cycle_contract` cobrando -- meia
+    isencao, que trocou 26 WARN por 3 e pareceu conserto. Uma definicao, dois
+    consumidores: e o que impede a proxima metade de escapar.
+    """
+    return skill.endswith("-knowledge") and (skill.startswith("review-") or "-sepa-" in skill)
+
+
 # Patterns to detect file references in markdown
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 BACKTICK_PATH_RE = re.compile(r"`(\.?[a-zA-Z0-9_./\-]+\.(?:md|py|sh|json|txt|yml|yaml))`")
@@ -204,7 +220,7 @@ def validate_xrefs(ecosystem_dir: Path, strict: bool = False) -> dict[str, Any]:
         cycle_ref = _extract_cycle_contract_ref(content)
         skill_to_cycle[skill] = cycle_ref
 
-        if cycle_ref is None and skill not in AUXILIARY_SKILLS:
+        if cycle_ref is None and skill not in AUXILIARY_SKILLS and not _is_auto_generated(skill):
             findings.append({
                 "severity": "WARN",
                 "check": "skill_has_cycle_contract",
@@ -314,10 +330,7 @@ def validate_xrefs(ecosystem_dir: Path, strict: bool = False) -> dict[str, Any]:
     # passava a falhar --strict, e a falha aparecia longe da causa.
     # Medido em 2026-08-03: os tres consumidores monitorados falharam exatamente assim
     # depois de rodarem review, com 26 WARN e nenhum defeito real.
-    auto_generated = {
-        s for s in existing_skills
-        if s.endswith("-knowledge") and (s.startswith("review-") or "-sepa-" in s)
-    }
+    auto_generated = {s for s in existing_skills if _is_auto_generated(s)}
     orphan_skills = existing_skills - skills_in_cycles - AUXILIARY_SKILLS - auto_generated
     for skill in sorted(orphan_skills):
         findings.append({
@@ -382,7 +395,18 @@ def main() -> int:
     if override:
         ecosystem_dir = override.resolve()
     else:
-        ecosystem_dir = _find_ecosystem_dir(Path.cwd())
+        # A raiz vem de ONDE O SCRIPT MORA, nao do cwd. A versao anterior partia de
+        # Path.cwd(), e o efeito era um validador que mente: rodar
+        # `python3 <outro-projeto>/.claude/scripts/check_xrefs.py` de um cwd qualquer
+        # auditava silenciosamente o ecossistema DO CWD e imprimia o veredito dele.
+        # Medido em 2026-08-03: tres consumidores reportados PASS estavam, na verdade,
+        # com 3, 0 e 11 findings -- o PASS era o repo do kit se auto-validando.
+        # Um validador que audita o alvo errado e pior que nenhum, porque produz
+        # confianca infundada. O caminho do proprio arquivo e a unica ancora que nao
+        # depende de quem chamou.
+        ecosystem_dir = _find_ecosystem_dir(Path(__file__).resolve().parent)
+        if ecosystem_dir is None:
+            ecosystem_dir = _find_ecosystem_dir(Path.cwd())
 
     if ecosystem_dir is None or not ecosystem_dir.exists():
         print(json.dumps({
