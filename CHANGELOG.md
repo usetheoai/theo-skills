@@ -7,8 +7,38 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [theo-skills 0.2.1] - 2026-08-03
+
 ### Fixed
 
+- **theo-skills:** `@usetheo/skills-sdk` e `@usetheo/skills-mcp` voltam a entregar tipos. As versões `0.2.0` foram publicadas declarando `types` no manifesto e **sem nenhum `.d.ts` no pacote** — instalavam e importavam em JavaScript, e quebravam com `TS7016` no `tsc` de quem consome. Como o Theokit é TypeScript, o SDK estava inutilizável para seu consumidor principal (#115)
+- **theo-skills:** o workflow `publish-npm` volta a publicar. Falhou **8 de 8 execuções** entre `v0.8.0` e `v0.11.2` sem ninguém notar, porque `secrets.NPM_TOKEN` não existia e o npm responde `404` — não `401` — a um publish sem autorização; o erro se lia como "pacote inexistente". Todos os pacotes no registry haviam sido publicados à mão, e por isso **nenhum tinha provenance** (#116)
+
+### Added
+
+- **theo-skills:** o workflow passa a publicar os **quatro** pacotes públicos — `skills-mcp` e `skills-sdk` nunca estiveram nele e só chegavam ao registry por publicação manual (#116)
+- **theo-skills:** portão que recusa publicar pacote cujo manifesto promete arquivo que o tarball não entrega (`scripts/check-publish-artifacts.mjs`). Substitui a checagem anterior, que verificava a presença do JS de dois pacotes e por isso deixou passar o defeito acima. A lista de arquivos vem de `npm pack --dry-run`, não do disco: um `files` mal escrito deixa o arquivo no diretório e fora do pacote (#115)
+- **theo-skills:** o workflow falha na largada quando falta credencial, em vez de deixar o `E404` do registry se disfarçar de "pacote não existe" — foi esse disfarce que sustentou as oito falhas (#116)
+- **theo-skills:** verificação pós-publicação de que os tipos chegam ao consumidor, a partir do que o registry de fato serve (#115)
+
+## [theo-skills 0.2.0] - 2026-08-03
+
+### Added
+
+- **theo-skills:** `skillMd` avulso aceito onde antes só cabia um ZIP — a maioria das skills é um arquivo só, e obrigar CLI, tela e MCP a empacotar multiplicava o mesmo trabalho por três. O caminho de validação continua único (#M30)
+- **theo-skills:** `POST /v1/skills:validate` — valida uma skill **sem publicá-la**. Mesmo pipeline de ingestão das rotas de escrita, mesma recusa tipada, zero efeito colateral. Escopo de leitura: conferir um payload não exige permissão de escrita (#M30)
+- **theo-skills:** o diagnóstico da validação chega ao autor — `POST /v1/skills` e `PATCH` passam a responder `message`, `field` e `line` além do `error`, em vez de só um código. Campos **acrescentados**, nunca renomeados: quem já lê `error` continua funcionando (#M30)
+- **theo-skills:** erro de frontmatter passa a dizer **onde** — `field` e `line` como dados, além de `{code, message}`. Um editor consegue posicionar o cursor sem fazer regex na mensagem (#M30)
+- Roadmap amended: added M30 A API da autoria: validar sem publicar, publicar sem empacotar (`/roadmap-feature skills-authoring-api`)
+- **Roadmap: M29 — a interface do registro, no padrão do ecossistema.** O produto tem 37 rotas HTTP e nenhuma tela; a única entrada "Skills" do menu leva a outro produto, e promover canal — que aponta **todos** os consumidores para outro conteúdo — só existe por API, sem confirmação nem visibilidade de quem é afetado. A tela nasce no dashboard do control plane, nunca aqui, seguindo o caminho já trilhado por um produto vizinho. Escrita pela tela fica de fora deste milestone. (`/roadmap-feature dashboard-ui`)
+
+- **Uma marca no ponto onde a próxima pessoa precisaria saber de algo que ninguém escreveu.** Hoje as ferramentas que o servidor MCP expõe são todas de leitura, e por isso não há verificação de permissão nessa camada — quem a aplica é a API, por rota. Não é descuido: não há o que guardar. O risco nasce no dia em que alguém acrescentar a primeira ferramenta de **escrita**, porque ela herdaria a credencial da sessão sem passar por verificação alguma, e **nada no código sinalizava isso**. Um produto vizinho já materializou exatamente esse defeito, e aqui seria pior: skill publicada é instrução executável que outros agentes carregam. Agora um teste falha no exato momento em que a primeira ferramenta de escrita é adicionada — não para impedi-la, mas para que quem a adicione **encontre a condição em vez de descobri-la depois**. (#114)
+
+
+### Fixed
+
+- **theo-skills:** PATCH `/v1/skills/:id` aceita `skillMd` na `updateMask` — a assimetria com o `POST`, que passou a aceitar `SKILL.md` avulso, repetia a forma do defeito que fazia `version` nascer nula na segunda publicação. **PARCIAL e não confiável ainda: a fronteira aceita e responde `202`, mas a revisão NÃO é criada — causa não identificada.** Ver `audits/2026-08-03-patch-skillmd-parcial.md` antes de usar (#M30)
+- **theo-skills:** `POST /v1/skills` também aceita `SKILL.md` avulso — antes só o `:validate` aceitava, e um dry-run que aprova o que o publish recusa é a divergência que o dry-run existe para impedir (#M30)
 - **O serviço sobrevivia ao restart do banco e ninguém ficava sabendo.** Os avisos de erro de conexão foram construídos mas nunca ligados: em produção o registrador não era passado, e o aviso virava operação vazia. Medido após dois restarts reais — **nenhuma linha** no log. Resiliência sem observabilidade é o defeito, não a solução: quem opera não descobre, e o incidente seguinte começa do zero. Agora o registrador é **obrigatório** na construção, então esquecê-lo passou a ser erro de compilação em vez de silêncio em produção. (#LT-039)
 
 - **O portão de qualidade da busca voltou a não reprovar — o agregado diluía.** A primeira correção trocou os casos e manteve o defeito: medido com o motor de verdade, o conjunto completo dá o mesmo resultado com a busca semântica **viva** e **morta**. Num conjunto em que a maioria das consultas casa por palavra, a média passa mesmo com a metade semântica desligada. O portão agora vive no subconjunto que **sabe** distinguir — consultas por sinônimo, sem nenhuma palavra em comum com o alvo — e o teste prova os **dois sentidos**: com o motor vivo passa, com o motor morto **reprova**. Registrado também o que a medição mostrou de bom: com o provedor restaurado, **nenhuma** consulta por sinônimo falhou. O produto entrega; o que não entregava era o instrumento. (#LT-035)

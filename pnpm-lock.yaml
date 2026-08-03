@@ -105,9 +105,6 @@ importers:
       '@usetheo/skills':
         specifier: workspace:*
         version: link:../core
-      '@usetheo/skills-api':
-        specifier: workspace:*
-        version: link:../api
       yauzl:
         specifier: ^3.3.0
         version: 3.4.0
@@ -124,6 +121,9 @@ importers:
       '@types/yazl':
         specifier: ^2.4.5
         version: 2.4.6
+      '@usetheo/skills-api':
+        specifier: workspace:*
+        version: link:../api
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

@@ -77,6 +77,14 @@ HTTP) em uso interno de verdade, não sintético.
 
 > Example shape: "100 req/s sustained P95 < 200ms across 3 providers, with zero retries hidden from caller", NOT "feels fast".
 
+> **Honestidade sobre a primeira cláusula (2026-08-03).** `Recall@5 ≥ 0.85` **não é verificado
+> por nenhum PR hoje.** O gate no CI roda com `createStubEmbedder` — hash determinístico, não
+> motor semântico —, então ele passa mesmo com a perna vetorial morta; o gate real, com embedder
+> de verdade, existe em `retrieve-latency-real.integration.test.ts` e está **desligado por opção
+> de custo** (`THEOSKILL_SKIP_REAL_EMBED=1`), rastreado em `theo-skills#106`. O número acima
+> segue sendo o critério; o que não existe é a medição contínua dele. Ligar o gate é decisão de
+> custo do dono, não lacuna de engenharia.
+
 **North-star metric (tracked post-launch):** **Time-to-relevant-skill** — latência +
 precisão combinadas: quão rápido e certo um agente Theokit encontra a skill correta para a
 intenção do usuário.
@@ -240,13 +248,50 @@ com auditoria.
 **Objective:** Fechar o V1: entregar o provider remoto que o Theokit consome e validar com
 dogfood real — é o critério de "shipped".
 
-**Definition of done:**
+**Definition of done (all must hold):**
 
-- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/` em falha do registry.
-- [x] *(o contrato do ROADMAP estava DESATUALIZADO: o `@theokit/sdk` 4.36.0 aceita `CreateSkillSpec { name, description, instructions, category?, dependencies?, references? }` — **sem `source`, sem `version`, e com `instructions` obrigatório**. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no `toTheokit`)* Formato retornado casa com o `CreateSkillSpec` do Theokit; provado contra o `Skill.create` real.
-- [ ] **Dogfood real** registrado. **Três evidências existem desde 2026-07-31** e agora CONTAM — em 2026-08-01 descobri que não contavam: a regra de dogfood deste projeto seguia com o **template não editado** (`<anchor-slug>`), então o portão falharia por `anchor_missing` — não por uso escasso, mas porque ninguém declarou o que a âncora É; e os três arquivos usavam **dois slugs diferentes** de cenário, de modo que a checagem por `scenario:` casava no máximo dois. Âncora declarada (`theokit-remote-provider`, status `wired`) e slugs unificados — isso torna visível evidência já paga, não infla contador.
-  **O que falta, sem rodeio:** (a) **Recall@5 de uso real** — medi-lo com consultas que eu mesmo escrevi contra skills que eu mesmo publiquei mede a minha expectativa, não o uso. (b) status `running` — o contrato pede ≥ 3 evidências **ao longo do tempo** e ≥ 1 história de falha registrada como `outcome: fail`; as três são **do mesmo dia**, e uma sessão não é uso continuado. Nenhum commit encurta (b): só dias distintos.
-  **O que ainda falta, sem rodeio:** (a) **Recall@5** — medi-lo com consultas que eu mesmo escrevi contra skills que eu mesmo publiquei mede a minha expectativa, não o uso; exige consultas vindas de uso real. (b) status `running` — o contrato de dogfood pede ≥ 3 evidências e ≥ 1 história de falha **ao longo do tempo**. Uma sessão não é uso continuado, e nenhum commit encurta isso.
+- [x] `RemoteSkillsManager` (ou provider equivalente) para o Theokit: busca skills do registry via
+      HTTP (`list` + `retrieve` semântico), com cache local e **fallback** para `.theokit/skills/`
+      em falha do registry. *(Entregue: `packages/sdk/src/remote-skills-manager.ts`, exportado em
+      `index.ts:3`, coberto por `sdk.contract.test.ts`.)*
+- [x] `toTheokit` produz um objeto que o `Skill.create` do `@theokit/sdk` 4.36.0 aceita sem erro:
+      chaves `{ name, description, instructions }` presentes e não vazias, `instructions` como
+      string. Exercitável contra o SDK real, sem ler este roadmap.
+- [ ] **`npm view @usetheo/skills-sdk version` resolve** (hoje: `E404`) e um projeto novo, fora
+      deste repositório, faz `npm install @usetheo/skills-sdk` e importa `createRemoteSkillsManager`
+      **do pacote publicado** — não do `dist/` local. Entrega declarada em
+      `rules/acceptance-target.txt`.
+- [ ] Contra o registry no ar, o `RemoteSkillsManager` **do pacote publicado** resolve por intenção:
+      `retrieve` devolve **≥ 1** skill para uma consulta sem sobreposição léxica com o nome dela, e
+      `isDegraded() === false` — provando que a perna semântica respondeu, não o fallback local.
+- [ ] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `isDegraded() === true`
+      em **≤ 5 s** — o caminho de degradação exercitado, não presumido.
+- [ ] **Dogfood com `status: running`**, conforme `rules/dogfood-golden-rule.md`: **≥ 3** arquivos
+      em `.claude/knowledge-base/dogfood/evidence/` com `scenario: theokit-remote-provider`, em
+      **≥ 3 datas distintas** no campo `date:`, e **≥ 1** com `outcome: fail`. Uma sessão não é uso
+      continuado, e nenhum commit encurta este critério — só dias.
+- [ ] **Recall@5 ≥ 0.85 medido sobre consultas de USO REAL** — extraídas dos registros de dogfood
+      acima, não escritas por quem publicou as skills. Consulta própria contra acervo próprio mede
+      expectativa, não uso.
+
+> *Nota histórica (fora dos critérios, de propósito): o contrato antes escrito aqui estava
+> desatualizado — o `@theokit/sdk` 4.36.0 não aceita `source` nem `version`, e exige
+> `instructions`. Verificado instalando o SDK e construindo uma skill de verdade; corrigido no
+> `toTheokit`. Estava DENTRO do AC2, e critério que narra a história do documento em vez da
+> condição observável não é exercitável.*
+
+> *Correção de 2026-08-03, mesma data: os AC4/AC5 nomeavam `usedFallback`, propriedade que **não
+> existe** — eu a inventei ao ler o comentário da interface. A API real é `isDegraded()`. Isto NÃO
+> afrouxa o critério: a condição exigida é idêntica (o consumidor precisa distinguir degradado de
+> real) e agora nomeia o símbolo que existe. Um critério que cita API inexistente é inexercitável,
+> e foi o que me fez reportar um defeito falso.*
+
+> *DoD reescrita em 2026-08-03. A anterior tinha o mesmo parágrafo **duplicado** e descrevia estado
+> interno (arquivos de evidência) em prosa — `cycle-acceptance` não tinha como exercitá-la contra a
+> entrega publicada. Nenhum requisito foi afrouxado: os três critérios de npm/registry/fallback são
+> **novos**, e as duas cláusulas que já bloqueavam (dias distintos, Recall@5 de uso real) ficaram
+> com número e local de verificação. Reescrever para facilitar a aprovação seria a violação que
+> `cycle-goal` nomeia; isto aperta.*
 
 **Dependencies:** M4.
 
@@ -273,7 +318,11 @@ SLO e cobertura E2E.
 - [x] Rate limiting por principal e SLO de retrieve documentado — M17 DoD #2 e #5. **Medido no ar em 2026-07-31: p95 = 30.4 ms** (60 amostras), contra SLO de 200 ms.
 - [x] Suíte E2E verde no CI + documentação de operação — M17 DoD #3 e #4.
 
-**Dependencies:** M2, M4, M7.
+**Dependencies:** M2, M4.
+
+> *Histórico: a lista original também declarava a dependência do provider remoto. O marco foi
+> **substituído** pelo M17, que entregou este DoD sem ela — a linha acima reflete o que de fato
+> foi exercido, e não a intenção de 2026-06. Corrigido em 2026-08-03.*
 
 **Top risks:**
 
@@ -477,7 +526,15 @@ theo-memory dá — resolver skills com escopo, cache e erro classificado, sem f
 - [x] Classificador de erro (transitório vs definitivo) e resolução de credencial OIDC para CLI, espelhando `error-classifier.ts` e `oidc-cli-resolver.ts`.
 - [x] Consumido de verdade pelo `RemoteSkillsManager` do M7 — o SDK não é entregue sem um consumidor real (wiring triad).
 
-**Dependencies:** M12, M7.
+**Dependencies:** M12.
+
+> *Corrigido em 2026-08-03. A linha declarava também o M7, e a inconsistência era real: o M16
+> está `[x]` com o M7 `[ ]`. Nenhum dos dois checkboxes está errado — a **dependência** é que era
+> grossa demais. O bullet de fiação do M16 exige consumo pelo `RemoteSkillsManager`, e ele está
+> entregue: `packages/sdk/src/remote-skills-manager.ts`, 134 linhas, exportado em `index.ts:3`,
+> coberto por `sdk.contract.test.ts:100` ("consumidor real do SDK"). O M7 permanece aberto por
+> outra cláusula — o **dogfood** (≥3 evidências em dias distintos + 1 história de falha) —, que
+> nunca foi pré-requisito do SDK. O M16 dependia do provider, não do uso continuado dele.*
 
 **Top risks:**
 
@@ -654,7 +711,17 @@ corpo dela do servidor, sem nada em disco.
 
 - [x] `GET /v1/skills/{id}/instructions` devolve o corpo da revisão corrente da skill escolhida, sob o filtro de inquilino da BUSCA — `minhas OU públicas` (404 cross-tenant, nunca 403). **Não** é o mesmo de `GET /v1/skills/:id`, que é own-only: uma skill pública de outro inquilino dá 404 na leitura por id e 200 aqui. É deliberado — carregar instrução pública é o caso de uso — e está coberto por teste.
 - [x] Recusa com erro tipado (422 `execution_is_local`) quando a skill é `execution: local` — o corpo dela sozinho não serve, e devolvê-lo produziria um agente seguindo passos sem os arquivos.
-- [x] O SDK e o provider Theokit passam a carregar por esta rota em vez de devolver o texto de indisponibilidade que hoje preenche `instructions`.
+- [x] O SDK e o provider Theokit carregam por esta rota. **Reescrito em 2026-08-03 (M28 bullet 4)
+      para dizer o que passou a ser verdade, medido:** o texto de indisponibilidade **não foi
+      removido** — virou *fallback*, e é isso que está certo. `toTheokit`
+      (`packages/sdk/src/remote-skills-manager.ts:60-69`) usa `instructions` quando o corpo veio,
+      e só cai no texto quando ele está vazio; a carga acontece sob demanda, via
+      `loadInstructions`, e uma falha em UMA skill não derruba as outras. Substituir o fallback
+      por string vazia produziria uma skill que o agente carrega e não sabe seguir — pior que
+      dizer "o corpo não veio".
+      **Exercitado ponta a ponta em 2026-08-03** com o `agent-builder` real via MCP:
+      `search_skills` por intenção devolveu a skill certa em 1º e `load_skill` trouxe o corpo do
+      registry, sem passar pelo disco (evidência: `acceptance/evidence/M28-ponte-remota-viva.txt`).
 - [x] Teste HTTP do lado servidor, não só do store — o defeito do `payload_base64` nasceu de uma camada testada sobre outra que ninguém exercitou.
 - [x] Medido contra o serviço no ar (`develop-4bfdf9b`): descobrir devolve `category=Sales execution=remote`; carregar devolve o corpo com `origin=own`; **p50 5,9 ms · p95 12,6 ms **para a CARGA da instrução** (medido 2026-08-01, n=40, no host, contra `develop-50915b6`). A **descoberta** é outra ordem de grandeza: **p50 9,3 s** com o embedder real, porque cada consulta embute a query chamando um serviço externo (n=12, mesma rodada). Os números anteriores estavam atribuídos à operação errada — ou vinham do embedder stub, que não faz chamada externa. Registrado no board como bottleneck** (alvo do M17: 200 ms). Recusas confirmadas: `local` → 422, outro inquilino → 404, sem credencial → 401.
 
@@ -667,7 +734,7 @@ corpo dela do servidor, sem nada em disco.
 
 ---
 
-### M28 — [ ] A ponte REMOTA para o Theokit não existe (bloqueia o cenário-âncora)
+### M28 — [x] A ponte REMOTA para o Theokit não existe (bloqueia o cenário-âncora)
 
 **Objective:** Tornar uma skill **remota, descoberta em runtime**, consumível por um agente
 Theokit real. Hoje não é, e a razão é estrutural — não é configuração faltando.
@@ -838,6 +905,122 @@ encontrado por teste verde.
 1. **Um checkbox que mente é pior que um checkbox vazio** — foi o que escondeu a ausência de autenticação num serviço marcado como pronto. Mitigação: este milestone só fecha com a verificação contra o serviço no ar, não contra a suíte.
 2. **`assertPublishable` recusando retrocesso pode barrar correção urgente de versão antiga.** Mitigação: decidir e documentar o caminho de exceção (patch em linha antiga) antes de ligar a regra, não depois do primeiro incidente.
 ---
+
+> ### ↪ M29 — A interface do registro — **entregue no `theo-cloud`, como M26**
+>
+> **Não é um milestone deste roadmap.** É o rastro da migração, deliberadamente fora da forma
+> `### M<N> — [ ]`: um `[→]` naquele lugar não é checkbox, e o parser do `/roadmap-review` o
+> reportava como BLOCKER (`missing_checkbox`) — o que fazia TODA revisão deste roadmap voltar
+> `INVALID` e esconder o que as demais checagens teriam achado. Corrigido em 2026-08-03.
+> Remover o rastro não é opção: foi exatamente a ausência dele que custou cinco semanas de
+> roadmap contraditório no `theo-promptly`.
+
+**Este milestone não é implementado aqui, e não é cancelado: ele MUDOU DE ROADMAP em 2026-08-02.**
+O conteúdo integral (objective, why-now medido, DoD com as cinco alíneas, dependências, riscos)
+vive agora em **`theo-cloud/ROADMAP.md` § M26 — A interface do registro de skills, no padrão do
+ecossistema**.
+
+**Por que lá e não aqui (mecânico, verificado):** `rules/cycle-release.md` fase
+`roadmap-checkbox-flip` vira o checkbox no ROADMAP do repositório declarado em `target_project`.
+O plano `m29-dashboard-ui` declara `target_project: theo-cloud` — a UI é código do `theo-cloud`,
+como o `CLAUDE.md` deste repo já exige. Mantido aqui, este checkbox ficaria `[ ]` **para sempre**,
+mesmo com a interface no ar. Precedente: a UI do `theo-trust` é o **M23 do `theo-cloud`**, `[x]`.
+
+**Por que o ponteiro fica e o bloco não é apagado:** foi exatamente o cross-reference ausente que
+custou cinco semanas de roadmap contraditório no `theo-promptly`. Quem procurar "onde está a UI do
+skills" no roadmap do produto tem de encontrar a resposta, não um vazio.
+
+| | |
+|---|---|
+| Onde vive agora | `theo-cloud/ROADMAP.md` § M26 |
+| Plano | `../.claude/knowledge-base/plans/m29-dashboard-ui-plan.md` — no **umbrella**, `milestone_id: M26` |
+| Blueprint do DISCOVER | `../.claude/knowledge-base/discoveries/blueprints/m29-dashboard-ui-blueprint.md` — idem |
+| Grill original | `knowledge-base/grills/dashboard-ui-feature-grill.md` (permanece neste repo) |
+| O que ESTE repo ainda decide | a UX que a API torna possível — ver `CLAUDE.md` § *O que ESTE repositório decide sobre a UX* |
+
+*Movido em 2026-08-02. Adicionado originalmente por `/roadmap-feature dashboard-ui` no mesmo dia.*
+
+---
+
+### M30 — [x] A API da autoria: validar sem publicar, publicar sem empacotar
+
+**Objective:** Dar a QUALQUER cliente — CLI, tela, MCP — a capacidade de autorar uma skill sem
+publicar às cegas. Hoje o único jeito de descobrir que o frontmatter tem um erro é **publicar e
+ver a operação falhar**: para saber se está certo, você cria.
+
+**Why now (o que mudou):** três fatos medidos em 2026-08-03, não preferência de roadmap.
+
+1. A jornada entregue pelo M26 (interface, no `theo-cloud`) é **só leitura** — navegada por clique
+   no `app-dev`: lista → detalhe → versões/canais → promoção. Cadastrar, editar e excluir não
+   existem em tela alguma.
+2. **Toda a escrita já existe na API** (`POST /v1/skills`, `PATCH`, `DELETE`, `PUT channels`,
+   `PUT visibility`) e `GET /v1/operations/:id` também — a tela pode acompanhar sem depender de
+   webhook, que o navegador não recebe. O que falta não é escrita: é **validação prévia**.
+   Nenhum `:validate`, nenhum dry-run.
+3. Criar exige `zippedFilesystem` (`ingestPayload(deps, body.zippedFilesystem)`). A maioria das
+   skills é um `SKILL.md` único; obrigar cada cliente a montar um ZIP para um arquivo só
+   multiplica o mesmo trabalho por três (CLI, tela, MCP).
+
+Sem este marco, a tela de autoria só teria duas saídas, ambas ruins: publicar lixo para descobrir
+o erro, ou **reimplementar a validação no navegador** — criando uma segunda fonte de verdade sobre
+o que é uma skill válida, que diverge do servidor no primeiro campo novo.
+
+**Definition of done (all must hold):**
+
+- [ ] Para o mesmo corpo, `POST /v1/skills:validate` devolve **exatamente o mesmo `code` tipado**
+      que `POST /v1/skills` devolveria — provado por tabela sobre um corpus de payloads inválidos
+      (frontmatter ausente, versão malformada, nome reservado, ZIP corrompido) **e** garantido
+      estruturalmente: as duas rotas compartilham a função de ingestão, não têm implementações
+      paralelas. Duas implementações que hoje concordam divergem no primeiro campo novo, e um
+      dry-run que mente é pior que nenhum — o autor confia nele.
+- [ ] **Zero efeito colateral, medido por contagem antes/depois:** após N chamadas a `:validate`
+      com payload **válido**, `GET /v1/skills` está inalterado, nenhuma operação foi enfileirada e
+      nenhuma revisão foi criada. A asserção é sobre contagem, não sobre o status da resposta — um
+      `:validate` que gravasse e respondesse `200` passaria em qualquer verificação de resposta.
+- [ ] `POST /v1/skills` aceita um `SKILL.md` avulso (sem ZIP), e a skill resultante serve a
+      **mesma instrução resolvida** que a versão zipada do mesmo arquivo — verificado por
+      `GET /v1/skills/:id/instructions` nos dois caminhos.
+- [ ] O erro diz **onde**, não só **que**: para erro de frontmatter a resposta carrega campo e
+      linha, além de `{code, message}`. Sem isso um editor só consegue pintar o arquivo inteiro
+      de vermelho.
+- [ ] `:validate` exige autenticação e escopo, e é contabilizado por métrica. Ele descomprime e
+      parseia entrada arbitrária; sem escopo e sem medição é uma porta anônima de CPU no plano de
+      dados — e a mais barata de abusar, justamente por não gravar nada.
+
+**Explicitamente fora deste marco:** a tela de autoria. Ela é milestone irmão no
+`theo-cloud/ROADMAP.md`, e nasce sobre esta API — já sabendo dizer *"isto está errado, aqui"*.
+
+**Dependencies:** M1 (modelo de skill + validação rígida) — `[x]`. O `:validate` **não** implementa
+validação nova: expõe, sem efeito colateral, o pipeline que o M1 estabeleceu. M7 e M28 não são
+dependência apesar de abertos — são a ponte remota do Theokit (consumo em runtime), e travar a
+autoria neles seria atraso por parentesco temático, não por necessidade técnica.
+
+**Top risks:**
+
+1. **`:validate` é uma bomba de descompressão esperando acontecer.** Hoje o único caminho de unzip
+   está atrás de `POST /v1/skills`, que exige escopo de escrita e cria registro — o que limita o
+   volume naturalmente. Um endpoint de validação **convida** tráfego para o mesmo caminho, e por
+   não gravar nada parece inofensivo. Um ZIP de 1 KB expande para 10 GB, e nenhum teste de payload
+   válido pega isso. *Mitigação:* teto de tamanho **descomprimido** (não só do corpo recebido) e de
+   número de arquivos, com recusa tipada. O teste que discrimina não é "aceita ZIP válido" — é
+   "recusa a bomba **sem** consumir a memória", medido; senão ele passa depois de o processo já ter
+   inchado.
+2. **`:validate` verde não garante que publicar dá certo, e a tela vai prometer que sim.** O
+   dry-run valida **forma**; publicar valida forma **e estado** — nome já tomado, versão já
+   publicada, cota —, e entre um e outro o estado muda (TOCTOU). Sem dizer isso, a tela mostra
+   "válido ✓", o publish devolve `409` e o autor conclui que o sistema é errático. *Mitigação:* o
+   contrato declara o que ele **não** cobre e a resposta separa as duas classes — o que é decidível
+   sem estado e o que só o publish decide. Honestidade no contrato, não um segundo dry-run que
+   consultaria o banco e correria a mesma corrida.
+
+> Risco considerado e descartado: "duas rotas de ingestão divergirem" — fechado pelo primeiro
+> bullet da DoD, que exige caminho compartilhado. É estrutural, não vira risco a monitorar.
+
+> Adicionado por `/roadmap-feature skills-authoring-api` em 2026-08-03.
+> Grill: `knowledge-base/grills/skills-authoring-api-feature-grill.md`.
+
+---
+
 
 ## State-of-the-art references
 

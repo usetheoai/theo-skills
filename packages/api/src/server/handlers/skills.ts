@@ -8,6 +8,8 @@ import {
   validateSkillPayload,
 } from '@usetheo/skills';
 import { type Context, type Hono } from 'hono';
+import yazl from 'yazl';
+
 import { bodyLimit } from 'hono/body-limit';
 import type PgBoss from 'pg-boss';
 
@@ -20,7 +22,18 @@ import { type OperationsStore } from '../store/operations-store.js';
 import { type RevisionsStore } from '../store/revisions-store.js';
 import { type SkillsStore } from '../store/skills-store.js';
 
-const UPDATE_MASK_FIELDS = new Set(['displayName', 'description', 'zippedFilesystem']);
+/**
+ * Campos que a `updateMask` do PATCH aceita.
+ *
+ * `skillMd` entra ao lado de `zippedFilesystem` — não no lugar dele. A assimetria entre criar e
+ * atualizar já produziu defeito neste código: `version` e `category` iam no job de CRIAÇÃO e não
+ * no de atualização, e a segunda publicação em diante nascia sem versão, sem erro algum. Aceitar
+ * `SKILL.md` avulso só no `POST` repetiria a forma exata daquele defeito.
+ *
+ * Exportado porque o contrato é testável como CONJUNTO: assertar sobre a resposta HTTP passa por
+ * vacuidade quando a rota morre antes de chegar à máscara.
+ */
+export const UPDATE_MASK_FIELDS = new Set(['displayName', 'description', 'zippedFilesystem', 'skillMd']);
 
 export interface SkillsRoutesDeps {
   readonly skillsStoreFor: (workspaceId: string) => SkillsStore;
@@ -52,9 +65,34 @@ class BoundaryError extends Error {
   constructor(
     readonly status: 400 | 409,
     readonly code: string,
+    /**
+     * Diagnóstico do core, quando existe. Sem isto o `message`/`field`/`line` que
+     * `validateSkillPayload` produz morre na fronteira e o autor recebe só um código — o
+     * mesmo defeito que o M26 corrigiu no `theo-cloud`.
+     */
+    readonly detail?: { message?: string; field?: string; line?: number },
   ) {
     super(code);
   }
+}
+
+/**
+ * Embrulha um `SKILL.md` avulso no zip de um arquivo que o pipeline já sabe validar.
+ *
+ * A maioria das skills é UM arquivo, e obrigar cada cliente — CLI, tela, MCP — a montar um zip
+ * para isso multiplica o mesmo trabalho por três. Mas o caminho de validação continua ÚNICO: o
+ * conteúdo entra pelo mesmo `validateSkillPayload`, com as mesmas regras de zip-safety, segredo
+ * e frontmatter. Um segundo pipeline seria a divergência que o AC1 existe para impedir.
+ */
+function zipDeUmArquivo(skillMd: string): Promise<string> {
+  return new Promise((resolve) => {
+    const zip = new yazl.ZipFile();
+    zip.addBuffer(Buffer.from(skillMd, 'utf8'), 'SKILL.md');
+    zip.end();
+    const chunks: Buffer[] = [];
+    zip.outputStream.on('data', (c: Buffer) => chunks.push(c));
+    zip.outputStream.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+  });
 }
 
 function decodeBase64Zip(b64: unknown): Buffer {
@@ -79,7 +117,11 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
     if (result.code === 'secret_detected') {
       deps.logger.error({ secret_findings: result.details }, 'payload rejected: secret detected');
     }
-    throw new BoundaryError(400, result.code);
+    throw new BoundaryError(400, result.code, {
+      message: result.message,
+      ...(result.field !== undefined ? { field: result.field } : {}),
+      ...(result.line !== undefined ? { line: result.line } : {}),
+    });
   }
   return {
     buffer,
@@ -95,7 +137,9 @@ async function ingestPayload(deps: SkillsRoutesDeps, b64: unknown): Promise<Inge
 
 function fail(c: Context<AppEnv>, err: unknown): Response {
   if (err instanceof BoundaryError) {
-    return c.json({ error: err.code }, err.status);
+    // ACRESCENTA, nunca renomeia: quem já lê `error` continua funcionando. Renomear
+    // `error`→`code` quebraria todo consumidor existente de POST /v1/skills.
+    return c.json({ error: err.code, ...(err.detail ?? {}) }, err.status);
   }
   if (err instanceof InvalidSkillIdError) {
     return c.json({ error: 'invalid_skill_id', message: err.message }, 400);
@@ -184,12 +228,48 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
   // pode fazer). Sem isto, a segunda dimensão não existia.
   const escreve = requireScope('skills:write');
 
+  // POST /v1/skills:validate — DRY-RUN (M30).
+  //
+  // Chama o MESMO `ingestPayload` das rotas de escrita, de propósito: duas implementações que
+  // hoje concordam divergem no primeiro campo novo, e um dry-run que mente é pior que nenhum
+  // — o autor confia nele e publica quebrado.
+  //
+  // Não enfileira, não grava, não reserva id. O que ele devolve é a mesma recusa tipada que o
+  // `POST` devolveria, para que o autor descubra o erro ANTES de publicar em vez de publicando.
+  //
+  // Escopo de LEITURA, não de escrita: validar não escreve, e exigir `skills:write` impediria
+  // quem só lê de conferir um payload antes de pedir permissão. Mas exige escopo — ele
+  // descomprime entrada arbitrária, e sem isso seria porta anônima de CPU no plano de dados.
+  app.post('/v1/skills:validate', requireScope('skills:read'), limit, async (c) => {
+    try {
+      const body = (await c.req.json().catch(() => null)) as
+        | { zippedFilesystem?: unknown; skillMd?: unknown }
+        | null;
+      if (body === null) {
+        throw new BoundaryError(400, 'invalid_body', { message: 'corpo não é JSON' });
+      }
+      const payload =
+        typeof body.skillMd === 'string' && body.skillMd.length > 0
+          ? await zipDeUmArquivo(body.skillMd)
+          : body.zippedFilesystem;
+      const ingest = await ingestPayload(deps, payload);
+      return c.json(
+        { ok: true, name: ingest.name, description: ingest.description, execution: ingest.execution },
+        200,
+      );
+    } catch (err) {
+      return fail(c, err);
+    }
+  });
+
   // POST /v1/skills — validate payload at the boundary, enqueue, 202.
   app.post('/v1/skills', escreve, limit, async (c) => {
     let skillId: string;
     let ingest: IngestResult;
     try {
-      const body = (await c.req.json().catch(() => null)) as { skill_id?: unknown; zippedFilesystem?: unknown } | null;
+      const body = (await c.req.json().catch(() => null)) as
+        | { skill_id?: unknown; zippedFilesystem?: unknown; skillMd?: unknown }
+        | null;
       if (body === null) {
         return c.json({ error: 'invalid_input' }, 400);
       }
@@ -200,7 +280,15 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
       if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) !== undefined) {
         return c.json({ error: 'already_exists' }, 409);
       }
-      ingest = await ingestPayload(deps, body.zippedFilesystem);
+      // `skillMd` avulso vale nas rotas de ESCRITA também — o AC3 do M30 pede `POST`, e
+      // implementá-lo só no `:validate` daria um dry-run que aceita o que o publish recusa,
+      // que é a divergência que o dry-run existe para impedir.
+      ingest = await ingestPayload(
+        deps,
+        typeof body.skillMd === 'string' && body.skillMd.length > 0
+          ? await zipDeUmArquivo(body.skillMd)
+          : body.zippedFilesystem,
+      );
     } catch (err) {
       return fail(c, err);
     }
@@ -261,16 +349,23 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
     }
 
     const body = (await c.req.json().catch(() => null)) as
-      | { displayName?: unknown; description?: unknown; zippedFilesystem?: unknown }
+      | { displayName?: unknown; description?: unknown; zippedFilesystem?: unknown; skillMd?: unknown }
       | null;
     if (body === null) {
       return c.json({ error: 'invalid_input' }, 400);
     }
 
     let ingest: IngestResult | undefined;
-    if (mask.includes('zippedFilesystem')) {
+    if (mask.includes('zippedFilesystem') || mask.includes('skillMd')) {
       try {
-        ingest = await ingestPayload(deps, body.zippedFilesystem);
+        // Mesmo pipeline dos dois lados: o `SKILL.md` avulso vira zip de um arquivo antes de
+        // entrar no `ingestPayload`, exatamente como no POST e no :validate.
+        ingest = await ingestPayload(
+          deps,
+          typeof body.skillMd === 'string' && body.skillMd.length > 0
+            ? await zipDeUmArquivo(body.skillMd)
+            : body.zippedFilesystem,
+        );
       } catch (err) {
         return fail(c, err);
       }

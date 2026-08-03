@@ -1,0 +1,16 @@
+# AC2 — toTheokit contra o @theokit/sdk REAL (2026-08-03)
+$ npm i @theokit/sdk          -> versao instalada: 4.37.0
+  (a DoD cita 4.36.0; exercitei contra 4.37.0, a disponivel no registry hoje)
+
+$ node ac2.mjs   # a saida de resolve() E a saida de toTheokit
+{"chaves":["name","description","instructions"],
+ "faltando":[],
+ "tipos":{"name":"string","description":"string","instructions":"string"}}
+
+$ node -e "import('@theokit/sdk').then(m=>...)"
+  Skill exportado: function | create: function
+
+# VERIFICADO: as tres chaves exigidas estao presentes, todas string nao-vazia, e
+# `Skill.create` existe no SDK real. LIMITE HONESTO: nao INVOQUEI Skill.create —
+# isso exigiria credencial/rede do Theokit. O criterio, como escrito, define a
+# condicao pela FORMA do objeto, e e essa forma que foi medida.

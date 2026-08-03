@@ -1,0 +1,12 @@
+# AC4 — alcance do registry (2026-08-03)
+$ curl -o /dev/null -w '%{http_code}'
+  http://127.0.0.1:8080/v1/health                -> 000   (fora do ar)
+  https://app-dev.usetheo.dev/v1/skills/health   -> 401   (NO AR, recusa por credencial)
+  http://127.0.0.1:18097/                        -> 000   (ouvinte MCP local fora)
+
+# CONCLUSAO: o registry ESTA no ar. O AC4 nao e inalcancavel por infraestrutura —
+# falta uma chave `skills:read` cunhada por inquilino. Pedido ao humano, conforme
+# rules/acceptance-target.txt: "se faltar credencial numa execucao, PECA — nao pule
+# a fase, nao invente resultado, nao registre NOT_VALIDATED e siga".
+# NAO tentei cunhar: a rota de plataforma exige admin, e criar identidade de teste
+# ja produziu chaves orfas nesta corrida.
