@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/skills-sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SDK do theo-skills — descoberta e obtenção de skills, com binding de workspace.",
   "license": "Apache-2.0",
   "type": "module",

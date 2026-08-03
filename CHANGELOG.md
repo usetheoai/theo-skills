@@ -7,6 +7,20 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [theo-skills 0.2.1] - 2026-08-03
+
+### Fixed
+
+- **theo-skills:** `@usetheo/skills-sdk` e `@usetheo/skills-mcp` voltam a entregar tipos. As versões `0.2.0` foram publicadas declarando `types` no manifesto e **sem nenhum `.d.ts` no pacote** — instalavam e importavam em JavaScript, e quebravam com `TS7016` no `tsc` de quem consome. Como o Theokit é TypeScript, o SDK estava inutilizável para seu consumidor principal (#115)
+- **theo-skills:** o workflow `publish-npm` volta a publicar. Falhou **8 de 8 execuções** entre `v0.8.0` e `v0.11.2` sem ninguém notar, porque `secrets.NPM_TOKEN` não existia e o npm responde `404` — não `401` — a um publish sem autorização; o erro se lia como "pacote inexistente". Todos os pacotes no registry haviam sido publicados à mão, e por isso **nenhum tinha provenance** (#116)
+
+### Added
+
+- **theo-skills:** o workflow passa a publicar os **quatro** pacotes públicos — `skills-mcp` e `skills-sdk` nunca estiveram nele e só chegavam ao registry por publicação manual (#116)
+- **theo-skills:** portão que recusa publicar pacote cujo manifesto promete arquivo que o tarball não entrega (`scripts/check-publish-artifacts.mjs`). Substitui a checagem anterior, que verificava a presença do JS de dois pacotes e por isso deixou passar o defeito acima. A lista de arquivos vem de `npm pack --dry-run`, não do disco: um `files` mal escrito deixa o arquivo no diretório e fora do pacote (#115)
+- **theo-skills:** o workflow falha na largada quando falta credencial, em vez de deixar o `E404` do registry se disfarçar de "pacote não existe" — foi esse disfarce que sustentou as oito falhas (#116)
+- **theo-skills:** verificação pós-publicação de que os tipos chegam ao consumidor, a partir do que o registry de fato serve (#115)
+
 ## [theo-skills 0.2.0] - 2026-08-03
 
 ### Added
