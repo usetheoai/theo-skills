@@ -256,7 +256,9 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
     let skillId: string;
     let ingest: IngestResult;
     try {
-      const body = (await c.req.json().catch(() => null)) as { skill_id?: unknown; zippedFilesystem?: unknown } | null;
+      const body = (await c.req.json().catch(() => null)) as
+        | { skill_id?: unknown; zippedFilesystem?: unknown; skillMd?: unknown }
+        | null;
       if (body === null) {
         return c.json({ error: 'invalid_input' }, 400);
       }
@@ -267,7 +269,15 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
       if ((await deps.skillsStoreFor(workspaceOf(c)).getView(skillId)) !== undefined) {
         return c.json({ error: 'already_exists' }, 409);
       }
-      ingest = await ingestPayload(deps, body.zippedFilesystem);
+      // `skillMd` avulso vale nas rotas de ESCRITA também — o AC3 do M30 pede `POST`, e
+      // implementá-lo só no `:validate` daria um dry-run que aceita o que o publish recusa,
+      // que é a divergência que o dry-run existe para impedir.
+      ingest = await ingestPayload(
+        deps,
+        typeof body.skillMd === 'string' && body.skillMd.length > 0
+          ? await zipDeUmArquivo(body.skillMd)
+          : body.zippedFilesystem,
+      );
     } catch (err) {
       return fail(c, err);
     }

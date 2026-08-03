@@ -116,3 +116,18 @@ describe('SKILL.md avulso, sem ZIP (M30 T4)', () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe('POST /v1/skills aceita skillMd avulso (M30 AC3 — rota de ESCRITA)', () => {
+  it('não recusa com invalid_zip quando o corpo traz skillMd', async () => {
+    // RETRATAÇÃO: o AC3 pede `POST /v1/skills`, e eu havia implementado só no `:validate`.
+    // Medido contra o serviço vivo: `POST` com `skillMd` devolvia `invalid_zip`. Um dry-run
+    // que aceita o que o publish recusa é a divergência que o dry-run existe para impedir.
+    const { app } = appComContador();
+    const r = await app.request('/v1/skills', {
+      method: 'POST', headers: json,
+      body: JSON.stringify({ skill_id: 'ac3-escrita', skillMd: skillMd('ac3-escrita') }),
+    });
+    const j = (await r.json()) as { error?: string };
+    expect(j.error, 'POST recusou skillMd avulso — o AC3 pede esta rota').not.toBe('invalid_zip');
+  });
+});
