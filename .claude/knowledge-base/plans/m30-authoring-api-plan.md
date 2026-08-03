@@ -80,8 +80,10 @@ Duas saídas, e é decisão do dono:
 | **incluir no M30** | alto — mexe no core, no schema e nos testes | AC4 fecha completo |
 | **separar** | baixo | M30 entrega `{code, message}`; campo-e-linha vira milestone próprio, e o AC4 **não fecha** — o M30 não é aceitável até isso ser decidido |
 
-**Não decido sozinho:** a segunda opção deixa um critério da DoD aberto, e mudar a DoD para
-acomodá-la seria a violação que o `cycle-goal` nomeia.
+**DECIDIDO pelo dono (2026-08-03): incluir campo e linha no M30.** O AC4 fecha completo; o
+milestone não fica permanentemente inacetável. Custo aceito: mexe no core, no schema e nos testes.
+
+Isso acrescenta **T1b — o validador de schema devolve `{field, line}`** à Fase 1, antes da T2.
 
 ## Drawbacks & Risks
 
@@ -95,7 +97,6 @@ acomodá-la seria a violação que o `cycle-goal` nomeia.
 
 ## Unresolved Questions
 
-1. **Campo e linha entram no M30?** (bloqueia o AC4 — ver § DECISÃO PENDENTE)
 2. **`:validate` cobra o mesmo escopo que `POST`?** Validar não escreve; exigir `skills:write`
    impediria um leitor de conferir antes de pedir permissão. Sugiro escopo de leitura + limite.
 
