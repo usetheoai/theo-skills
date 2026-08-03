@@ -868,6 +868,86 @@ skills" no roadmap do produto tem de encontrar a resposta, não um vazio.
 
 ---
 
+### M30 — [ ] A API da autoria: validar sem publicar, publicar sem empacotar
+
+**Objective:** Dar a QUALQUER cliente — CLI, tela, MCP — a capacidade de autorar uma skill sem
+publicar às cegas. Hoje o único jeito de descobrir que o frontmatter tem um erro é **publicar e
+ver a operação falhar**: para saber se está certo, você cria.
+
+**Why now (o que mudou):** três fatos medidos em 2026-08-03, não preferência de roadmap.
+
+1. A jornada entregue pelo M26 (interface, no `theo-cloud`) é **só leitura** — navegada por clique
+   no `app-dev`: lista → detalhe → versões/canais → promoção. Cadastrar, editar e excluir não
+   existem em tela alguma.
+2. **Toda a escrita já existe na API** (`POST /v1/skills`, `PATCH`, `DELETE`, `PUT channels`,
+   `PUT visibility`) e `GET /v1/operations/:id` também — a tela pode acompanhar sem depender de
+   webhook, que o navegador não recebe. O que falta não é escrita: é **validação prévia**.
+   Nenhum `:validate`, nenhum dry-run.
+3. Criar exige `zippedFilesystem` (`ingestPayload(deps, body.zippedFilesystem)`). A maioria das
+   skills é um `SKILL.md` único; obrigar cada cliente a montar um ZIP para um arquivo só
+   multiplica o mesmo trabalho por três (CLI, tela, MCP).
+
+Sem este marco, a tela de autoria só teria duas saídas, ambas ruins: publicar lixo para descobrir
+o erro, ou **reimplementar a validação no navegador** — criando uma segunda fonte de verdade sobre
+o que é uma skill válida, que diverge do servidor no primeiro campo novo.
+
+**Definition of done (all must hold):**
+
+- [ ] Para o mesmo corpo, `POST /v1/skills:validate` devolve **exatamente o mesmo `code` tipado**
+      que `POST /v1/skills` devolveria — provado por tabela sobre um corpus de payloads inválidos
+      (frontmatter ausente, versão malformada, nome reservado, ZIP corrompido) **e** garantido
+      estruturalmente: as duas rotas compartilham a função de ingestão, não têm implementações
+      paralelas. Duas implementações que hoje concordam divergem no primeiro campo novo, e um
+      dry-run que mente é pior que nenhum — o autor confia nele.
+- [ ] **Zero efeito colateral, medido por contagem antes/depois:** após N chamadas a `:validate`
+      com payload **válido**, `GET /v1/skills` está inalterado, nenhuma operação foi enfileirada e
+      nenhuma revisão foi criada. A asserção é sobre contagem, não sobre o status da resposta — um
+      `:validate` que gravasse e respondesse `200` passaria em qualquer verificação de resposta.
+- [ ] `POST /v1/skills` aceita um `SKILL.md` avulso (sem ZIP), e a skill resultante serve a
+      **mesma instrução resolvida** que a versão zipada do mesmo arquivo — verificado por
+      `GET /v1/skills/:id/instructions` nos dois caminhos.
+- [ ] O erro diz **onde**, não só **que**: para erro de frontmatter a resposta carrega campo e
+      linha, além de `{code, message}`. Sem isso um editor só consegue pintar o arquivo inteiro
+      de vermelho.
+- [ ] `:validate` exige autenticação e escopo, e é contabilizado por métrica. Ele descomprime e
+      parseia entrada arbitrária; sem escopo e sem medição é uma porta anônima de CPU no plano de
+      dados — e a mais barata de abusar, justamente por não gravar nada.
+
+**Explicitamente fora deste marco:** a tela de autoria. Ela é milestone irmão no
+`theo-cloud/ROADMAP.md`, e nasce sobre esta API — já sabendo dizer *"isto está errado, aqui"*.
+
+**Dependencies:** M1 (modelo de skill + validação rígida) — `[x]`. O `:validate` **não** implementa
+validação nova: expõe, sem efeito colateral, o pipeline que o M1 estabeleceu. M7 e M28 não são
+dependência apesar de abertos — são a ponte remota do Theokit (consumo em runtime), e travar a
+autoria neles seria atraso por parentesco temático, não por necessidade técnica.
+
+**Top risks:**
+
+1. **`:validate` é uma bomba de descompressão esperando acontecer.** Hoje o único caminho de unzip
+   está atrás de `POST /v1/skills`, que exige escopo de escrita e cria registro — o que limita o
+   volume naturalmente. Um endpoint de validação **convida** tráfego para o mesmo caminho, e por
+   não gravar nada parece inofensivo. Um ZIP de 1 KB expande para 10 GB, e nenhum teste de payload
+   válido pega isso. *Mitigação:* teto de tamanho **descomprimido** (não só do corpo recebido) e de
+   número de arquivos, com recusa tipada. O teste que discrimina não é "aceita ZIP válido" — é
+   "recusa a bomba **sem** consumir a memória", medido; senão ele passa depois de o processo já ter
+   inchado.
+2. **`:validate` verde não garante que publicar dá certo, e a tela vai prometer que sim.** O
+   dry-run valida **forma**; publicar valida forma **e estado** — nome já tomado, versão já
+   publicada, cota —, e entre um e outro o estado muda (TOCTOU). Sem dizer isso, a tela mostra
+   "válido ✓", o publish devolve `409` e o autor conclui que o sistema é errático. *Mitigação:* o
+   contrato declara o que ele **não** cobre e a resposta separa as duas classes — o que é decidível
+   sem estado e o que só o publish decide. Honestidade no contrato, não um segundo dry-run que
+   consultaria o banco e correria a mesma corrida.
+
+> Risco considerado e descartado: "duas rotas de ingestão divergirem" — fechado pelo primeiro
+> bullet da DoD, que exige caminho compartilhado. É estrutural, não vira risco a monitorar.
+
+> Adicionado por `/roadmap-feature skills-authoring-api` em 2026-08-03.
+> Grill: `knowledge-base/grills/skills-authoring-api-feature-grill.md`.
+
+---
+
+
 ## State-of-the-art references
 
 ### Referência normativa interna (não é peer clonado)

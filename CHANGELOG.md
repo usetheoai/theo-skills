@@ -9,6 +9,7 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Roadmap amended: added M30 A API da autoria: validar sem publicar, publicar sem empacotar (`/roadmap-feature skills-authoring-api`)
 - **Roadmap: M29 — a interface do registro, no padrão do ecossistema.** O produto tem 37 rotas HTTP e nenhuma tela; a única entrada "Skills" do menu leva a outro produto, e promover canal — que aponta **todos** os consumidores para outro conteúdo — só existe por API, sem confirmação nem visibilidade de quem é afetado. A tela nasce no dashboard do control plane, nunca aqui, seguindo o caminho já trilhado por um produto vizinho. Escrita pela tela fica de fora deste milestone. (`/roadmap-feature dashboard-ui`)
 
 - **Uma marca no ponto onde a próxima pessoa precisaria saber de algo que ninguém escreveu.** Hoje as ferramentas que o servidor MCP expõe são todas de leitura, e por isso não há verificação de permissão nessa camada — quem a aplica é a API, por rota. Não é descuido: não há o que guardar. O risco nasce no dia em que alguém acrescentar a primeira ferramenta de **escrita**, porque ela herdaria a credencial da sessão sem passar por verificação alguma, e **nada no código sinalizava isso**. Um produto vizinho já materializou exatamente esse defeito, e aqui seria pior: skill publicada é instrução executável que outros agentes carregam. Agora um teste falha no exato momento em que a primeira ferramenta de escrita é adicionada — não para impedi-la, mas para que quem a adicione **encontre a condição em vez de descobri-la depois**. (#114)
