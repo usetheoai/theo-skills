@@ -1,17 +1,31 @@
-# Como a entrega PUBLICADA deste projeto é alcançada (ver rules/knowledge-base-location.md
-# e rules/cycle-acceptance.md § Target kinds). /cycle-goal recusa armar sem isto.
+# Como a entrega RELEASED deste projeto é alcançada. /cycle-goal recusa armar sem isto.
+#
+# CORREÇÃO 2026-08-03 (segunda): a versão anterior declarava SÓ os 4 pacotes publicáveis.
+# A aceitação do M30 provou que isso é incompleto — 4 dos 5 critérios exercitam ROTAS
+# (`POST /v1/skills:validate` e afins) que vivem em `@usetheo/skills-api`, que é
+# `private: true` e nunca vai ao registry. Declarar só a metade publicada deixa a outra
+# metade inexercitável por construção. O erro é meu (dono do kit), e é o mesmo que
+# cometi no theo-promptly: escrever o alvo sem verificar onde o código dos critérios vive.
 
+# --- metade PUBLICADA: bibliotecas no registry -----------------------------
 kind = library
 target = @usetheo/skills-sdk @usetheo/skills-cli @usetheo/skills-mcp @usetheo/skills
 build = pnpm install --frozen-lockfile && pnpm -r build
 verify = npm view @usetheo/skills-cli version
 credentials = NPM_TOKEN
 
-# NPM_TOKEN está em ~/.npmrc (escopo de usuário, fora do repo). NUNCA escreva o valor
-# aqui nem em qualquer arquivo do projeto. Se faltar credencial numa execução, PEÇA ao
-# humano — não pule a fase, não invente resultado, não registre NOT_VALIDATED e siga
-# como se o milestone estivesse pronto.
+# NPM_TOKEN vive em ~/.npmrc (escopo de usuário, fora do repo). NUNCA escreva o valor
+# aqui nem em arquivo do projeto. Faltando credencial numa execução: PEÇA ao humano.
+
+# --- metade INTERNA: o serviço, que não é publicado ------------------------
+# `@usetheo/skills-api` é private=true por decisão. Para ele vale a rota interna do
+# cycle-acceptance § Target kinds: build a partir da TAG DE RELEASE em checkout limpo,
+# executado como o consumidor real o executa — nunca a working tree, nunca `pnpm dev`.
 #
-# 4 pacotes deste monorepo são publicáveis (private=false): sdk, cli, mcp e o meta
-# @usetheo/skills. @usetheo/skills-api é private=true e NÃO entra na aceitação por
-# publicação — para ele vale a rota interna (build da tag).
+# internal_target = @usetheo/skills-api servido a partir do build da tag
+# internal_build  = git worktree add /tmp/acc-m30 <tag> && cd /tmp/acc-m30 && pnpm install --frozen-lockfile && pnpm -r build && pnpm --filter @usetheo/skills-api start
+# internal_deps   = postgres do próprio projeto (docker compose -f docker-compose.yaml up -d);
+#                   theoskill_pgvector responde em 127.0.0.1:5432 (user/db: theoskill)
+#
+# A distinção que importa não é publicado vs privado — é O ARTEFATO vs A ÁRVORE DE
+# TRABALHO. Um build da tag reproduz o que o consumidor recebe; `pnpm dev` não.
