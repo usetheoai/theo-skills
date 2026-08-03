@@ -8,11 +8,16 @@ Without this file, `/dogfood` emits `EVIDENCE_INSUFFICIENT` with flag `golden_ru
 
 The anchor scenario is the single use case that, if you cannot dogfood it, you cannot claim production-ready. Pick one. Be specific.
 
-**Slug:** `<anchor-slug>` (kebab-case identifier referenced in the manifest)
+**Slug:** `theokit-remote-provider`
 
-**Description:** Replace this paragraph with a concrete user-visible scenario in which your team — not synthetic load — exercises the product end-to-end on infrastructure you actually own. The scenario should be uncomfortable: the kind of thing that proves the product works when its creators depend on it, not just when synthetic benchmarks do.
+**Description:** Um agente Theokit real consome o registro **publicado** — instala
+`@usetheo/skills-sdk` do npm, descobre por intenção uma skill que não conhecia, e carrega o corpo
+dela do registry no ar. Sem passar pelo disco e sem ler este repositório.
 
-**Why this scenario:** Why is THIS the scenario that, if it works, justifies the v1.0 claim? Tie it to the product's primary promise.
+**Why this scenario:** é a promessa central do produto — *"armazenamos e descobrimos"*. Se um
+agente que não é nosso não consegue descobrir e carregar, o registro é um banco de dados com API,
+não um registro de skills. E o cenário é desconfortável de propósito: ele falha se a publicação,
+a busca semântica ou o isolamento por inquilino estiverem quebrados — os três de uma vez.
 
 ## § 2 — Status vocabulary (LOCKED — do not change without ADR)
 
