@@ -3,6 +3,11 @@
   "version": "0.2.1",
   "description": "Servidor MCP do theo-skills — descoberta e carga de skills por agentes (stdio e streamable-HTTP).",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheoai/theo-skills.git",
+    "directory": "packages/mcp"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
