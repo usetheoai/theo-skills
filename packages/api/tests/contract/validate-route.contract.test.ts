@@ -137,7 +137,7 @@ describe('PATCH /v1/skills/:id aceita skillMd avulso — a assimetria criação/
   // A mesma assimetria já produziu defeito neste código: `version` e `category` iam no job de
   // CRIAÇÃO e não no de atualização, e a segunda publicação em diante nascia sem versão, sem
   // erro algum. Aceitar `SKILL.md` só no POST repetiria a forma exata desse defeito.
-  it('máscara aceita `skillMd` como campo válido', async () => {
+  it('máscara aceita `skillMd` como campo válido', () => {
     // A primeira versão deste teste assertava `not.toBe('invalid_update_mask')` — e passava por
     // VACUIDADE: qualquer outro erro satisfaz, inclusive o 500 do pool falso. Medido contra o
     // serviço vivo, a rota devolvia `invalid_update_mask` de verdade. A asserção agora é sobre

@@ -14,8 +14,10 @@ describe('skill-validation: field e line sobrevivem ao mapeamento (M30 T1a)', ()
   it('erro de frontmatter chega com field e line, não só code+message', async () => {
     const md = '---\ndescription: sem nome\n---\n\n# Corpo\n';
     const r = (await validateSkillPayload(Buffer.from('x'), {
-      payloadValidator: { validate: async () => ({ files: [{ path: 'SKILL.md', content: md }], skillMd: md }) as never },
-      secretScanner: { scan: async () => [] },
+      payloadValidator: {
+        validate: () => Promise.resolve({ files: [{ path: 'SKILL.md', content: md }], skillMd: md } as never),
+      },
+      secretScanner: { scan: () => Promise.resolve([]) },
     })) as SkillValidationFail;
 
     expect(r.ok).toBe(false);
