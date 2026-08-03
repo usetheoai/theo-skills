@@ -55,3 +55,31 @@ vazio. Regra: ausência só se afirma com o comando dizendo que não achou.
 Decidir qual knowledge-base é canônico — provavelmente `.claude/knowledge-base/`, por
 consistência com o kit — e migrar explicitamente. Enquanto os dois coexistirem, toda auditoria
 mede um e ignora o outro.
+
+## Qual dos dois esta sessão usou (medido por git, não por memória)
+
+**A raiz, exclusivamente.** Os 13 artefatos escritos em 2026-08-03 foram todos para
+`knowledge-base/`: 3 plans, 3 blueprints, 3 adrs, 2 grills, 1 audit, 1 acceptance. Zero para
+`.claude/knowledge-base/`.
+
+| | primeiro commit | último commit |
+|---|---|---|
+| `knowledge-base/` (raiz) | 2026-06-22 | **2026-08-03** (vivo) |
+| `.claude/knowledge-base/` | 2026-06-23 | 2026-07-31 (parado há 3 dias) |
+
+## O achado que a pergunta revelou: **o kit é incoerente consigo mesmo**
+
+Os dois lados do mesmo kit apontam para lugares diferentes:
+
+- `hooks/userpromptsubmit-inject.sh` injeta, a cada turno,
+  `Plan: .claude/knowledge-base/plans/close-code-gaps-plan.md` — aponta para **`.claude/`**.
+- `skills/cycle-goal/scripts/install_goal_hook.py` resolveu sozinho para
+  `knowledge-base/acceptance` — aponta para a **raiz**. É lá que o gate que bloqueia esta sessão
+  procura os registros de aceitação.
+
+A bifurcação provavelmente não foi escolha de ninguém: é o kit escrevendo num lugar e anunciando
+outro. **Consequência para a decisão:** mudar só o diretório canônico, sem alinhar esses dois
+pontos, recria a divergência no primeiro sync.
+
+**Alerta operacional:** se o canônico virar `.claude/`, o `cycle-goal` armado nesta sessão passa a
+procurar em lugar que não existe — e um gate que procura no lugar errado não bloqueia, libera.
