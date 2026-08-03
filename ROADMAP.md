@@ -257,15 +257,28 @@ dogfood real — é o critério de "shipped".
 - [x] `toTheokit` produz um objeto que o `Skill.create` do `@theokit/sdk` 4.36.0 aceita sem erro:
       chaves `{ name, description, instructions }` presentes e não vazias, `instructions` como
       string. Exercitável contra o SDK real, sem ler este roadmap.
-- [ ] **`npm view @usetheo/skills-sdk version` resolve** (hoje: `E404`) e um projeto novo, fora
+- [x] **`npm view @usetheo/skills-sdk version` resolve** (hoje: `E404`) e um projeto novo, fora
       deste repositório, faz `npm install @usetheo/skills-sdk` e importa `createRemoteSkillsManager`
       **do pacote publicado** — não do `dist/` local. Entrega declarada em
-      `rules/acceptance-target.txt`.
+      `rules/acceptance-target.txt`. **Medido em 2026-08-03** contra `0.2.1`: projeto novo em
+      diretório temporário, `npm install @usetheo/skills-sdk`, import do símbolo e **`tsc`
+      `strict` saindo 0**. A checagem em JavaScript sozinha teria mentido — passava desde
+      `0.2.0`, enquanto o consumidor TypeScript quebrava com `TS7016` porque o pacote subia sem
+      nenhum `.d.ts` (#115). O erro intermediário do consumidor de teste foi `TS2353`, sobre uma
+      opção que eu escrevi errado: é a prova de que o TypeScript passou a checar o pacote.
 - [ ] Contra o registry no ar, o `RemoteSkillsManager` **do pacote publicado** resolve por intenção:
       `retrieve` devolve **≥ 1** skill para uma consulta sem sobreposição léxica com o nome dela, e
       `isDegraded() === false` — provando que a perna semântica respondeu, não o fallback local.
-- [ ] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `isDegraded() === true`
-      em **≤ 5 s** — o caminho de degradação exercitado, não presumido.
+      *Bloqueado por DUAS coisas, verificadas em 2026-08-03: (a) não há instância no ar — só os
+      containers de Postgres sobem localmente, e `app-dev` responde `401`; (b) mesmo com o
+      serviço no ar, "sem sobreposição léxica" exige a perna vetorial, e o embedder padrão é um
+      hash determinístico — o M4 já mede recall vetorial isolado em **0.308** com ele. Este AC
+      precisa de um provider de embedding real, não só do serviço de pé.*
+- [x] Com o registry **inalcançável**, a mesma chamada devolve o fallback e `isDegraded() === true`
+      em **≤ 5 s** — o caminho de degradação exercitado, não presumido. **Medido em 2026-08-03**
+      contra o pacote **publicado** `0.2.1`, apontando o cliente para uma porta fechada
+      (`127.0.0.1:9`, `attempts: 1`): devolveu o fallback local, `isDegraded() === true`, em
+      **14 ms**. Exercitado de fora do repositório, com o SDK vindo do registry.
 - [ ] **Dogfood com `status: running`**, conforme `rules/dogfood-golden-rule.md`: **≥ 3** arquivos
       em `.claude/knowledge-base/dogfood/evidence/` com `scenario: theokit-remote-provider`, em
       **≥ 3 datas distintas** no campo `date:`, e **≥ 1** com `outcome: fail`. Uma sessão não é uso
