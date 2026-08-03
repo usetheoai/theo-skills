@@ -112,16 +112,64 @@ class TypescriptDetector(BaseDetector):
                 break
         return self._cached_self_name
 
+    def _find_workspace_package_names(self, changed_files: list[Path]) -> frozenset[str]:
+        """Every package name declared INSIDE this repo — not just the root's.
+
+        Patch 2026-08-03. `_find_self_package_name` resolves the OUTERMOST package.json#name,
+        which in a monorepo is the private root (`theo-promptly`) that nobody imports. Every
+        sibling import (`@usetheo/promptly` from packages/api) therefore fell through to the
+        npm registry, took a 404 and was reported as `Fabricated npm package` — 60 HARD
+        findings on a repo whose build and tests are green. A workspace dependency declared
+        `workspace:*` resolves perfectly; it is simply not published, by design.
+
+        Bounded walk: from each changed file up to the repo root, then one level down over the
+        declared workspace globs. Cached per detector instance.
+        """
+        if hasattr(self, "_cached_ws_names"):
+            return self._cached_ws_names
+        names: set[str] = set()
+        roots: set[Path] = set()
+        for src_file in changed_files:
+            try:
+                cur = src_file.resolve().parent if src_file.exists() else Path.cwd()
+            except OSError:
+                continue
+            for parent in [cur, *cur.parents]:
+                if (parent / ".git").exists() or (parent / "pnpm-workspace.yaml").is_file():
+                    roots.add(parent)
+                    break
+        for root in roots:
+            for pkg_json in root.glob("*/*/package.json"):
+                self._read_pkg_name(pkg_json, names)
+            for pkg_json in root.glob("*/package.json"):
+                self._read_pkg_name(pkg_json, names)
+        self._cached_ws_names = frozenset(names)
+        return self._cached_ws_names
+
+    @staticmethod
+    def _read_pkg_name(pkg_json: Path, sink: set[str]) -> None:
+        try:
+            name = json.loads(pkg_json.read_text(encoding="utf-8")).get("name")
+        except (json.JSONDecodeError, OSError):
+            return
+        if isinstance(name, str) and name:
+            sink.add(name)
+
     @staticmethod
     def _is_self_reference(module: str, self_name: str | None) -> bool:
         if not self_name:
             return False
         return module == self_name or module.startswith(self_name + "/")
 
+    @staticmethod
+    def _is_workspace_reference(module: str, ws_names: frozenset[str]) -> bool:
+        return any(module == n or module.startswith(n + "/") for n in ws_names)
+
     def detect_symbol_fabrication(self, changed_files: list[Path]) -> list[Finding]:
         """T2.3 — Validate imports against npm. Skip relative + node: builtins + monorepo subpath (EC-16) + self-references (patch 2026-05-30)."""
         findings: list[Finding] = []
         self_name = self._find_self_package_name(changed_files)
+        ws_names = self._find_workspace_package_names(changed_files)
         for src_file in changed_files:
             if not src_file.exists():
                 continue
@@ -144,8 +192,14 @@ class TypescriptDetector(BaseDetector):
                 # Patch 2026-05-30 — Self-reference (the workspace IS the package being imported)
                 if self._is_self_reference(module, self_name):
                     continue
-                # Package name for npm lookup
-                pkg = module if module.startswith("@") else module.split("/")[0]
+                # Patch 2026-08-03 — Sibling workspace package (declared `workspace:*`, unpublished by design)
+                if self._is_workspace_reference(module, ws_names):
+                    continue
+                # Package name for npm lookup. `top` already collapses a scoped module to
+                # `@scope/name`; using `module` here sent the whole SUBPATH to the registry
+                # (`@modelcontextprotocol/sdk/server/mcp.js` is not a package name), which is
+                # what produced 52 `ambiguous response` findings against a real, installed SDK.
+                pkg = top if module.startswith("@") else module.split("/")[0]
                 exists = _registry.package_exists_on_npm(pkg)
                 if exists is True:
                     continue
