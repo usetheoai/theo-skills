@@ -23,6 +23,7 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **theo-skills:** PATCH `/v1/skills/:id` aceita `skillMd` na `updateMask` — a assimetria com o `POST`, que passou a aceitar `SKILL.md` avulso, repetia a forma do defeito que fazia `version` nascer nula na segunda publicação. **PARCIAL e não confiável ainda: a fronteira aceita e responde `202`, mas a revisão NÃO é criada — causa não identificada.** Ver `audits/2026-08-03-patch-skillmd-parcial.md` antes de usar (#M30)
 - **theo-skills:** `POST /v1/skills` também aceita `SKILL.md` avulso — antes só o `:validate` aceitava, e um dry-run que aprova o que o publish recusa é a divergência que o dry-run existe para impedir (#M30)
 - **O serviço sobrevivia ao restart do banco e ninguém ficava sabendo.** Os avisos de erro de conexão foram construídos mas nunca ligados: em produção o registrador não era passado, e o aviso virava operação vazia. Medido após dois restarts reais — **nenhuma linha** no log. Resiliência sem observabilidade é o defeito, não a solução: quem opera não descobre, e o incidente seguinte começa do zero. Agora o registrador é **obrigatório** na construção, então esquecê-lo passou a ser erro de compilação em vez de silêncio em produção. (#LT-039)
 
