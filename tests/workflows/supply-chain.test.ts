@@ -130,3 +130,70 @@ describe('supply chain — robustez de execução', () => {
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 });
+
+/**
+ * A imagem de runtime não carrega gerenciador de pacote.
+ *
+ * MEDIDO em 2026-08-04: o gate Trivy do `publish.yml` reprovou a v0.14.0 com duas CVEs HIGH
+ * — `brace-expansion@2.0.2` (CVE-2026-69152) e `ip-address@10.1.0` (CVE-2026-69192). Nenhuma
+ * das duas vem do nosso `pnpm-lock.yaml`, que resolve 5.0.6 e 10.3.1. Elas vivem no **npm
+ * embutido na imagem base**:
+ *
+ *   docker run --rm node:22-slim find / -type d -name brace-expansion
+ *   → /usr/local/lib/node_modules/npm/node_modules/brace-expansion   (2.0.2)
+ *
+ * O estágio de runtime nunca chama npm: o CMD é `node`, o healthcheck é `node -e`, e as
+ * dependências chegam prontas de outro estágio. Carregar um gerenciador de pacote que
+ * ninguém executa é superfície de ataque paga sem contrapartida — e, como se vê, dívida de
+ * CVE herdada de terceiro que trava o release por algo que não é nosso.
+ *
+ * Remover é o fix; um `.trivyignore` seria esconder. A diferença importa: ignorar mantém o
+ * binário vulnerável dentro da imagem que roda em produção.
+ */
+describe('imagem de runtime', () => {
+  const dockerfile = readFileSync(join(process.cwd(), 'Dockerfile'), 'utf8');
+
+  const runtimeStage = (): string => {
+    const i = dockerfile.indexOf('AS runtime');
+    expect(i).toBeGreaterThan(-1);
+    // Continuações de linha (`\\` + newline) são juntadas: um `RUN` é UMA instrução, e um
+    // teste que só olha a primeira linha reprova a mesma remoção só por estar quebrada.
+    return dockerfile.slice(i).replace(/\\\r?\n\s*/g, ' ');
+  };
+
+  it.each(['npm', 'yarn', 'corepack'])(
+    'remove o %s herdado da imagem base — nenhum é executado em runtime',
+    (mgr) => {
+      // Só o npm tinha CVE aberta quando isto foi escrito; yarn e corepack estavam limpos.
+      // Entram junto porque a dívida é da mesma natureza — binário que ninguém invoca,
+      // versionado por terceiro, capaz de travar um release por algo que não é nosso.
+      expect(runtimeStage()).toMatch(new RegExp(`rm -rf[^\\n]*\\b${mgr}\\b`));
+    },
+  );
+
+  it('remove o npm herdado da imagem base — ele nunca é executado em runtime', () => {
+    // A remoção precisa acontecer no estágio de runtime; fazê-la num estágio anterior não
+    // afeta a imagem final, que parte de `node:22-slim` de novo.
+    expect(runtimeStage()).toMatch(/rm -rf[^\n]*\/usr\/local\/lib\/node_modules\/npm/);
+  });
+
+  it('a remoção acontece ANTES de USER node — depois disso não há permissão', () => {
+    const stage = runtimeStage();
+    const rmAt = stage.search(/rm -rf[^\n]*node_modules\/npm/);
+    const userAt = stage.indexOf('USER node');
+    expect(rmAt).toBeGreaterThan(-1);
+    expect(userAt).toBeGreaterThan(-1);
+    expect(rmAt).toBeLessThan(userAt);
+  });
+
+  it('o runtime continua sem invocar npm/pnpm/corepack — a remoção não pode quebrar nada', () => {
+    // Guarda o pressuposto do fix: se um dia o CMD ou o healthcheck passar a usar um
+    // gerenciador de pacote, este teste reprova e a remoção precisa ser reavaliada.
+    const stage = runtimeStage();
+    const cmdAndHealth = stage
+      .split('\n')
+      .filter((l) => /^(CMD|HEALTHCHECK|ENTRYPOINT)/.test(l.trim()) || /^\s+CMD/.test(l))
+      .join('\n');
+    expect(cmdAndHealth).not.toMatch(/\b(npm|pnpm|corepack|npx)\b/);
+  });
+});
