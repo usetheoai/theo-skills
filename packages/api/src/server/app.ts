@@ -21,6 +21,7 @@ import { registerMembersRoutes } from './handlers/members.js';
 import { registerOperationsRoutes } from './handlers/operations.js';
 import { registerPlatformKeysRoutes } from './handlers/platform-keys.js';
 import { registerPublishingRoutes } from './handlers/publishing.js';
+import { registerDiscoverabilityRoutes } from './handlers/discoverability.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
@@ -260,6 +261,31 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // servindo o catálogo inteiro a qualquer tenant.
   const retrieveExecutor = opts.retrieveExecutor ?? createPgExecutor(opts.pool);
   const retrieveEmbedder = opts.embedder ?? selectEmbedder();
+  // M34 — o diagnóstico de descobribilidade REUSA o retriever da busca: medir "esta skill é
+  // achável?" com um mecanismo diferente do que a acha em produção mediria outra coisa.
+  //
+  // Nada aqui executa a skill — só leitura e uma função pura de diagnóstico.
+  registerDiscoverabilityRoutes(app, {
+    vizinhasDe: async (ws, texto, topK) => {
+      const retriever = createDispatchingRetriever({
+        executor: retrieveExecutor,
+        embedder: retrieveEmbedder,
+        workspaceId: ws,
+      });
+      const achadas = await retriever.retrieve({ query: texto, topK, strategy: 'hybrid' });
+      return achadas.map((s) => ({
+        skillId: s.skill_id,
+        // O `score` do RRF não é similaridade de cosseno — é fusão de rankings. Usá-lo como
+        // proxy é a aproximação honesta que temos hoje, e o piso de colisão foi calibrado
+        // contra ELE, não contra cosseno. Trocar a fonte exige recalibrar o piso.
+        similaridade: typeof s.score === 'number' ? s.score : 0,
+      }));
+    },
+    // `provider/model`, não um rótulo nosso: é o que fica gravado em `embeddings`, e é por
+    // esse par que dois resultados são (in)comparáveis.
+    embedderName: () => `${retrieveEmbedder.provider}/${retrieveEmbedder.model}`,
+  });
+
   registerRetrieveRoutes(app, {
     retrieverFor: (ws: string, onDegradedDaRequisicao?: (perna: 'vector' | 'keyword') => void) =>
       createDispatchingRetriever({

@@ -1,0 +1,19 @@
+{
+  "_note": "M34 — dataset de DESCOBRIBILIDADE: `consulta → skill que deveria ser achada`. Distinto de `dataset.json` (M4), que mede o retrieval como SISTEMA; este mede se uma skill específica é encontrada pela intenção que deveria encontrá-la, e o gate REPROVA quando uma que era achada deixa de ser.",
+  "_honestidade": "Roda contra o ACERVO REAL do workspace, não contra fixture. O número mede o embedder tanto quanto a skill: com o stub (hash determinístico) a perna vetorial isolada deu 0.308 no M4, e um resultado nesse ambiente diz mais sobre a infraestrutura do que sobre a descrição. Por isso todo resultado carrega qual embedder o produziu, e comparação entre embedders diferentes é RECUSADA, não normalizada.",
+  "version": 1,
+  "dated": "2026-08-04",
+  "_envelhecimento": "Consultas escritas para um acervo pequeno não discriminam num grande. A data acima aparece no relatório justamente para que um dataset velho seja visível — um recall alto sobre 3 skills não diz nada sobre 300.",
+  "cases": [
+    {
+      "query": "converter dólar para real",
+      "expect_skill_id": "sk_cambio_v1",
+      "_why": "sinônimo de domínio: a consulta não repete as palavras da descrição ('moeda estrangeira'), então exercita a perna vetorial e não só a léxica"
+    },
+    {
+      "query": "quanto vale a moeda estrangeira hoje",
+      "expect_skill_id": "sk_cambio_v1",
+      "_why": "fraseado de usuário, não de catálogo — é como um agente de fato perguntaria"
+    }
+  ]
+}
