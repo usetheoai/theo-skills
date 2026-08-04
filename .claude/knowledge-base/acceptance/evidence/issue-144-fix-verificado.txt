@@ -1,0 +1,56 @@
+theo-skills#144 — verificacao do fix contra o registry REAL
+Data: 2026-08-04. API do theo-skills (workspace, com o fix) + pgvector real.
+
+O defeito: em contexto de autoria a tela mandava has_embedding: false fixo para uma
+skill que ainda nao existe. O servico acusava no_embedding com o conselho
+"Republique para gerar o vetor" — impossivel para algo nunca publicado. E por
+disparar SEMPRE, essa causa dominava o veredito e encobria as duas que o autor
+poderia corrigir ali mesmo.
+
+--------------------------------------------------------------------------
+RASCUNHO — campo has_embedding AUSENTE
+--------------------------------------------------------------------------
+POST /v1/skills:discoverability
+{"name":"revisar-contrato",
+ "description":"Le a minuta e destaca as clausulas de rescisao, multa e foro que
+                divergem do padrao da empresa."}
+
+{
+  "discoverable": true,
+  "causes": [],
+  "hints": ["Nada a corrigir na descricao. A skill ainda nao esta no acervo — ao
+             publicar, a ingestao gera o vetor e ela passa a ser encontrada por intencao."],
+  "embedder": "stub/stub"
+}
+
+  >> Sem no_embedding. E a ressalva honesta de que ela ainda nao esta no acervo —
+     devolver veredito limpo e calar sobre isso deixaria o autor achando que ja
+     esta resolvido.
+
+--------------------------------------------------------------------------
+PUBLICADA SEM VETOR — has_embedding: false EXPLICITO
+--------------------------------------------------------------------------
+POST /v1/skills:discoverability
+{... , "has_embedding": false}
+
+{
+  "discoverable": false,
+  "causes": ["no_embedding"],
+  "hints": ["A revisao vigente nao tem vetor: a skill so aparece para quem ja sabe
+             o nome dela. Republique para gerar o vetor, ou verifique se a ingestao falhou."],
+  "embedder": "stub/stub"
+}
+
+  >> O detector NAO foi desligado. Para uma revisao publicada, faltar vetor e um
+     achado real e o conselho "republique" faz sentido — ha o que republicar.
+
+--------------------------------------------------------------------------
+A distincao, no contrato
+--------------------------------------------------------------------------
+  has_embedding AUSENTE  -> rascunho: nao ha revisao, logo nao ha vetor a cobrar
+  has_embedding = false  -> publicada e sem vetor: a ingestao falhou ou nao rodou
+  has_embedding = true   -> publicada e com vetor
+
+Ela ja existia no protocolo. O codigo fazia `has_embedding === true`, que colapsa
+ausente e false no mesmo valor — enquanto o comentario logo acima dizia, textual:
+"omitir significa 'ainda nao publiquei', o caso da tela de autoria".
