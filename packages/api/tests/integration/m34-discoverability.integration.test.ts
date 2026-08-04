@@ -149,7 +149,7 @@ describeIntegration('M34 — descobribilidade diagnosticada contra o acervo real
     expect(body.causes).not.toContain('no_embedding');
     expect(body.discoverable).toBe(true);
     // E a ressalva honesta: sem causa alguma, ele ainda não é achável — porque não existe.
-    expect(body.hints.join(' ')).toMatch(/publicar/i);
+    expect(body.hints.join(' ')).toMatch(/published/i);
   });
 
   it('`has_embedding: false` EXPLÍCITO continua acusando — ali o achado é real', async () => {
@@ -164,6 +164,6 @@ describeIntegration('M34 — descobribilidade diagnosticada contra o acervo real
 
     const body = (await res.json()) as { causes: string[]; hints: string[] };
     expect(body.causes).toContain('no_embedding');
-    expect(body.hints.join(' ')).toMatch(/republique/i);
+    expect(body.hints.join(' ')).toMatch(/republish/i);
   });
 });

@@ -76,7 +76,7 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
     const body = (await c.req.json().catch(() => null)) as { revision_id?: unknown } | null;
     const revisionId = typeof body?.revision_id === 'string' ? body.revision_id : '';
     if (revisionId === '') {
-      return c.json({ error: 'invalid_request', details: 'revision_id obrigatório' }, 400);
+      return c.json({ error: 'invalid_request', details: 'revision_id is required' }, 400);
     }
 
     const principal = c.get('principal');
@@ -96,7 +96,7 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
   app.post('/v1/bundles', publica, async (c) => {
     const body = (await c.req.json().catch(() => null)) as { name?: unknown } | null;
     const name = typeof body?.name === 'string' ? body.name.trim() : '';
-    if (name === '') return c.json({ error: 'invalid_request', details: 'name obrigatório' }, 400);
+    if (name === '') return c.json({ error: 'invalid_request', details: 'name is required' }, 400);
     const bundleId = await deps.bundlesStoreFor(workspaceOf(c)).create(name);
     return c.json({ bundle_id: bundleId, name }, 201);
   });
@@ -171,7 +171,7 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
     const ttlDays = typeof body?.ttl_days === 'number' ? body.ttl_days : 0;
     if (!Number.isFinite(ttlDays) || ttlDays <= 0) {
       return c.json(
-        { error: 'invalid_request', details: 'ttl_days obrigatório e > 0 — credencial de terceiro sem prazo não é revogada por ninguém' },
+        { error: 'invalid_request', details: 'ttl_days is required and must be > 0 — a third-party credential with no deadline is one nobody ever revokes' },
         400,
       );
     }

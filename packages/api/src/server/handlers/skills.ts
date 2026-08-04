@@ -246,7 +246,7 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
         | { zippedFilesystem?: unknown; skillMd?: unknown }
         | null;
       if (body === null) {
-        throw new BoundaryError(400, 'invalid_body', { message: 'corpo não é JSON' });
+        throw new BoundaryError(400, 'invalid_body', { message: 'body is not JSON' });
       }
       const payload =
         typeof body.skillMd === 'string' && body.skillMd.length > 0
@@ -447,7 +447,7 @@ export function registerSkillsRoutes(app: Hono<AppEnv>, deps: SkillsRoutesDeps):
       return c.json(
         {
           error: 'execution_is_local',
-          details: `skill "${found.skill_id}" traz script e roda na máquina do cliente; use \`theoskill install\` em vez de carregar`,
+          details: `skill "${found.skill_id}" ships a script and runs on the client machine; use \`theoskill install\` instead of loading it`,
         },
         422,
       );

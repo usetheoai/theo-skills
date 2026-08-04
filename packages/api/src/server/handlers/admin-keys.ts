@@ -32,7 +32,7 @@ export function registerAdminKeysRoutes(app: Hono<AppEnv>, deps: AdminKeysRoutes
     const body = (await c.req.json().catch(() => null)) as { user_id?: unknown; scopes?: unknown } | null;
     const targetUserId = typeof body?.user_id === 'string' ? body.user_id : '';
     const rawScopes = Array.isArray(body?.scopes) ? body.scopes : [];
-    if (targetUserId === '') return c.json({ error: 'invalid_request', details: 'user_id obrigatório' }, 400);
+    if (targetUserId === '') return c.json({ error: 'invalid_request', details: 'user_id is required' }, 400);
 
     const scopes = rawScopes.filter((s): s is Scope => VALID_SCOPES.includes(s as Scope));
     if (scopes.length !== rawScopes.length) {
@@ -55,7 +55,7 @@ export function registerAdminKeysRoutes(app: Hono<AppEnv>, deps: AdminKeysRoutes
     // digitação no `user_id` atrás de uma mensagem de permissão, e o operador procuraria um
     // problema de acesso que não existe.
     if (targetRole === null) {
-      return c.json({ error: 'unprocessable', details: 'usuário não é membro do workspace' }, 422);
+      return c.json({ error: 'unprocessable', details: 'user is not a member of this workspace' }, 422);
     }
 
     const actorRole = await store.roleOf(actor.userId);

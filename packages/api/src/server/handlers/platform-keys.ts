@@ -70,14 +70,14 @@ export function registerPlatformKeysRoutes(app: Hono<AppEnv>, deps: PlatformKeys
     const body = (await c.req.json().catch(() => null)) as { workspace_id?: unknown; scopes?: unknown } | null;
     const workspaceId = typeof body?.workspace_id === 'string' ? body.workspace_id : '';
     if (workspaceId === '') {
-      return c.json({ error: 'invalid_request', details: 'workspace_id obrigatório' }, 400);
+      return c.json({ error: 'invalid_request', details: 'workspace_id is required' }, 400);
     }
 
     const rawScopes = Array.isArray(body?.scopes) ? body.scopes : [];
     if (rawScopes.length === 0) {
       // Chave sem escopo algum não é uma chave restrita: é uma credencial inútil que passa a
       // existir, a expirar e a precisar de rotação sem nunca ter servido para nada.
-      return c.json({ error: 'invalid_request', details: 'scopes não pode ser vazio' }, 400);
+      return c.json({ error: 'invalid_request', details: 'scopes cannot be empty' }, 400);
     }
     const scopes = rawScopes.filter((s): s is Scope => VALID_SCOPES.includes(s as Scope));
     if (scopes.length !== rawScopes.length) {

@@ -105,7 +105,7 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
   if (descricao.length < PISO_DESCRICAO) {
     causes.push(DISCOVERABILITY_CAUSES.DESCRIPTION_TOO_GENERIC);
     hints.push(
-      'A descrição diz o que a skill é, mas não QUANDO usá-la. Escreva a situação em que um agente deveria escolhê-la — é isso que a busca por intenção compara.',
+      'The description says what the skill is, but not WHEN to use it. Write the situation in which an agent should pick it — that is what intent search compares against.',
     );
   }
 
@@ -115,7 +115,7 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
   if (entrada.revisao.publicada && !entrada.revisao.temVetor) {
     causes.push(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
     hints.push(
-      'A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome dela. Republique para gerar o vetor, ou verifique se a ingestão falhou.',
+      'The current revision has no vector: the skill only shows up for whoever already knows its name. Republish to generate the vector, or check whether ingestion failed.',
     );
   }
 
@@ -128,7 +128,7 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
   if (rival !== undefined) {
     causes.push(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
     hints.push(
-      `Ocupa quase o mesmo espaço semântico de \`${rival.skillId}\` (${rival.similaridade.toFixed(2)}): as duas disputam as mesmas consultas, e a busca vai preferir uma delas de forma pouco previsível. Diferencie as descrições, ou descontinue a que saiu de uso.`,
+      `Occupies almost the same semantic space as \`${rival.skillId}\` (${rival.similaridade.toFixed(2)}): both compete for the same queries, and search will favour one of them unpredictably. Differentiate the descriptions, or deprecate the one that fell out of use.`,
     );
   }
 
@@ -138,7 +138,7 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
   // ainda é o estado normal de quem está escrevendo.
   if (!entrada.revisao.publicada && causes.length === 0) {
     hints.push(
-      'Nada a corrigir na descrição. A skill ainda não está no acervo — ao publicar, a ingestão gera o vetor e ela passa a ser encontrada por intenção.',
+      'Nothing to fix in the description. The skill is not in the registry yet — once published, ingestion generates the vector and it becomes findable by intent.',
     );
   }
 

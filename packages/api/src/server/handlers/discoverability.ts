@@ -55,7 +55,7 @@ export function registerDiscoverabilityRoutes(app: Hono<AppEnv>, deps: Discovera
     const description = typeof body?.description === 'string' ? body.description.trim() : '';
     if (name === '' || description === '') {
       return c.json(
-        { error: 'invalid_request', details: 'name e description são obrigatórios' },
+        { error: 'invalid_request', details: 'name and description are required' },
         400,
       );
     }

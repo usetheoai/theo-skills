@@ -11,6 +11,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **O texto que o usuário lê passa a ser inglês.** O produto é monolíngue em inglês — `api-keys` e `billing` sempre estiveram assim — e as superfícies de skills respondiam em português, deixando o dashboard bilíngue conforme a tela. Traduzidos os `hints` do diagnóstico de descobribilidade (o texto de backend mais visível ao usuário, exibido na tela de autoria) e as mensagens de erro tipadas dos handlers. Comentários de código e identificadores internos permanecem como estão: são para quem mantém, não para quem usa.
+
 - **Os testes unitários ao lado do código passam a rodar.** `pnpm test` do `packages/api` incluía apenas `tests/contract/**`, então tudo em `src/**/*.test.ts` ficava fora do gate. Eram dois arquivos e 12 testes — entre eles o do **gate de regressão do M34**, reportado como "6 passed" numa implementação sem que o CI o tivesse executado uma única vez. Um teste que não roda não protege nada, por mais verde que pareça rodando à mão. Os 62 de `tests/integration/` seguem fora de propósito (exigem Postgres, config própria) — essa metade continua sendo o #132.
 
 ### Deprecated
@@ -22,6 +24,8 @@ ao [Semantic Versioning](https://semver.org/).
 - **Na autoria, o diagnóstico sempre acusava falta de vetor — e encobria o que o autor podia corrigir.** Um rascunho não tem revisão, logo não tem vetor: acusá-lo disso reporta como defeito uma consequência de ainda não ter publicado, e o conselho *"Republique para gerar o vetor"* é impossível de seguir para algo nunca publicado. Pior: por disparar sempre, `no_embedding` **dominava o veredito** e soterrava as duas causas acionáveis — descrição genérica e colisão com uma vizinha. O autor perguntava "minha descrição está boa?" e a tela respondia sobre outra coisa (#144)
 
   A distinção já existia no protocolo e o código não a honrava: `has_embedding` **ausente** significa rascunho; `false` significa publicada e sem vetor — um achado real, com ação possível. O domínio passa a modelar isso como união discriminada (`{publicada: false} | {publicada: true, temVetor}`), porque "não publicada e com vetor" não é um estado que deva ser representável. Um rascunho sem causa alguma recebe a ressalva de que ainda não está no acervo — calar sobre isso o deixaria achando que já está resolvido.
+
+- **Um rascunho recebia o mesmo aviso duas vezes, em dois idiomas.** Um `git merge` reintroduziu o bloco inteiro do hint de rascunho numa segunda cópia, e a função passou a empurrar **dois** hints para o mesmo caso — o traduzido e o original. Nenhum teste pegou: todos assertavam **presença** (`toContain`, `toMatch`), e presença é indiferente à duplicata. O gate de CHANGELOG foi quem expôs, por um caminho indireto — apontou o arquivo tocado sem entrada, e a duplicação apareceu ao ler o diff do merge. O teste novo trava a cardinalidade, não só o conteúdo (#m34)
 
 - **O dataset do M34 apontava para uma skill que só existe na fixture do teste.** `sk_cambio_v1` é criada pelo `seed()` de `tests/integration/m34-discoverability.integration.test.ts` — e o campo `_honestidade` do próprio dataset afirmava *"roda contra o ACERVO REAL do workspace, não contra fixture"*. Um dataset que semeia a skill que vai procurar mede o semeador, não a descoberta. Agora os identificadores são do acervo real, e o runner consulta se cada skill ainda existe: uma que saiu do acervo é reportada e **não** conta como regressão, porque *"a descoberta piorou"* e *"não há o que descobrir"* são fatos diferentes, com donos diferentes (#m34)
 
