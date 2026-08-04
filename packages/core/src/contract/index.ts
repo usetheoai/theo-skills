@@ -103,11 +103,38 @@ export const RetrieveStrategySchema = z.enum(['vector', 'keyword', 'hybrid']);
 export type RetrieveStrategy = z.infer<typeof RetrieveStrategySchema>;
 
 /** Query params for GET /v1/skills:retrieve (M4). */
+/**
+ * Flag booleana vinda de query-string (M32).
+ *
+ * Aceita a ausência (default `false`) e recusa lixo com erro nomeando o campo — a fronteira
+ * valida, o resto do sistema confia (`rules/architecture.md`). Um `include_deprecated=talvez`
+ * precisa virar 400 explícito, não `false` silencioso: o consumidor pediria o acervo completo e
+ * receberia o recorte, sem nenhum sinal de que foi ignorado.
+ */
+const BooleanFlagSchema = z
+  .enum(['true', 'false', '1', '0'])
+  .optional()
+  .transform((v) => v === 'true' || v === '1');
+
 export const RetrieveParamsSchema = z.object({
   query: z.string().min(1, 'query is required').max(8192),
   top_k: z.coerce.number().int().min(1).max(50).default(5),
   strategy: RetrieveStrategySchema.default('hybrid'),
   category: z.string().min(1).max(64).optional(),
+  /**
+   * Opt-in do ciclo de vida (M32). Ausentes = o default seguro: só `active` e só habilitadas.
+   *
+   * Três flags independentes, e não um único `include_hidden`, porque as perguntas são
+   * diferentes: um autor conferindo os próprios rascunhos não quer ver as descontinuadas do
+   * time, e um operador auditando o que saiu de circulação não quer rascunho alheio no meio.
+   *
+   * `z.coerce.boolean()` seria uma armadilha aqui — ele considera QUALQUER string não-vazia
+   * verdadeira, então `include_draft=false` viria como `true`. A comparação explícita com
+   * `'true'`/`'1'` é o que faz a negação chegar como negação.
+   */
+  include_draft: BooleanFlagSchema,
+  include_deprecated: BooleanFlagSchema,
+  include_disabled: BooleanFlagSchema,
 });
 export type RetrieveParamsInput = z.infer<typeof RetrieveParamsSchema>;
 
