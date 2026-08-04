@@ -20,7 +20,7 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- **theo-skills:** BREAKING: `GET /v1/skills:retrieve` passa a **esconder por padrão** rascunhos, descontinuadas e desabilitadas. Um consumidor que hoje recebe uma skill `deprecated` deixará de recebê-la sem mudar nada do lado dele. A capacidade não foi removida — as três flags (`include_draft`, `include_deprecated`, `include_disabled`) devolvem exatamente o comportamento anterior, e com as três ligadas o resultado é idêntico ao de antes do milestone. São três flags e não um `include_hidden` único porque quem audita o que saiu de circulação não quer rascunho alheio no meio (#M32)
+- BREAKING: **theo-skills:** `GET /v1/skills:retrieve` passa a **esconder por padrão** rascunhos, descontinuadas e desabilitadas. Um consumidor que hoje recebe uma skill `deprecated` deixará de recebê-la sem mudar nada do lado dele. A capacidade não foi removida — as três flags (`include_draft`, `include_deprecated`, `include_disabled`) devolvem exatamente o comportamento anterior, e com as três ligadas o resultado é idêntico ao de antes do milestone. São três flags e não um `include_hidden` único porque quem audita o que saiu de circulação não quer rascunho alheio no meio (#M32)
 
 ### Fixed
 

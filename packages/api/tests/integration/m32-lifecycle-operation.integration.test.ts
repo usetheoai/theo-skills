@@ -191,7 +191,11 @@ describeIntegration('M32 — PUT /v1/skills/:id/lifecycle', () => {
       principalResolver: () => ({ ...adminPrincipal, userId: 'u_intruso', scopes: [] }),
     });
     const res = await put(semPapel, 'op-alvo', { lifecycle: 'draft' });
-    expect([401, 403]).toContain(res.status);
+    // 403 EXATO, não `401 ∪ 403`: aceitar os dois não distingue QUAL portão negou — o de
+    // escopo (`requireScope`) ou o de papel (`requireRole`). É o gate de PAPEL que esta rota
+    // exige, e um teste que não o isola deixa a exigência de papel sem prova.
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: string }).error).toBe('forbidden');
   });
 
   it('habilitar e desabilitar é escrita de produção — não só SQL de teste', async () => {
