@@ -19,6 +19,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **theo-skills:** `GET /v1/bundles/:bundleId/adoption` passa a exigir `skills:publish`, como as cinco rotas irmãs de bundle/token já exigiam. Era a **única da família sem o gate**: um portador de `skills:read` — o escopo que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega — lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. O teste também assere o 403 já existente nos tokens, para deixar claro que a regra não é nova — é a que faltava aplicar (#M35)
+
 
 ## [0.14.0] - 2026-08-04
 
