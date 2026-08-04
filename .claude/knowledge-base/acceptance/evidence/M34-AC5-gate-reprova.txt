@@ -1,0 +1,62 @@
+M34 AC5 — "uma skill que era achada e deixa de ser REPROVA o gate"
+Demonstrado ponta a ponta em 2026-08-04, contra registry real + pgvector real.
+
+Ambiente: API do theo-skills (develop, com os fixes #145 e #146) na 8123,
+contra o Postgres `theoskill_pgvector`. Acervo real, nao mock.
+
+--------------------------------------------------------------------------
+RUN 1 — estado normal: a skill e achada
+--------------------------------------------------------------------------
+$ THEOSKILL_BASE_URL=http://127.0.0.1:8123 npx tsx eval/run-discoverability.ts
+
+  dataset v99 (2026-08-04) — 1/1 achadas
+    #1  sk_cambio_v1  <-  "converter dólar para real"
+
+  baseline criada — a proxima execucao compara contra ela.
+  EXIT=0
+
+  >> Antes do fix #145 este run daria 0/1: o runner lia `body.skills` e a busca
+     devolve `results`. A baseline gravada seria de ZEROS, e dali em diante nao
+     haveria regressao possivel — nao ha como regredir de "nunca achada".
+
+--------------------------------------------------------------------------
+RUN 2 — degradacao REAL: a skill e deprecada (M32 a tira da descoberta)
+--------------------------------------------------------------------------
+$ PUT /v1/skills/sk_cambio_v1/lifecycle {"lifecycle":"deprecated","reason":"..."} -> 200
+$ THEOSKILL_BASE_URL=http://127.0.0.1:8123 npx tsx eval/run-discoverability.ts
+
+  dataset v99 (2026-08-04) — 0/1 achadas
+      —  sk_cambio_v1  <-  "converter dólar para real"
+
+  REGRESSÃO: 1 skill(s) deixaram de ser achadas:
+    sk_cambio_v1  <-  "converter dólar para real"
+  EXIT=1                            <<<<<< O GATE REPROVOU
+
+--------------------------------------------------------------------------
+RUN 3 — a skill e APAGADA: ausencia NAO e regressao de descoberta
+--------------------------------------------------------------------------
+$ DELETE /v1/skills/sk_cambio_v1 -> 202
+$ THEOSKILL_BASE_URL=http://127.0.0.1:8123 npx tsx eval/run-discoverability.ts
+
+  dataset v99 (2026-08-04) — 0/0 achadas
+    fora  sk_cambio_v1  <-  "converter dólar para real"
+
+  1 caso(s) apontam para skill fora do acervo — o dataset envelheceu em relacao
+  a ele. Nao contam como regressao.
+
+  nenhuma regressão — o que era achado continua sendo.
+  EXIT=0
+
+  >> A distincao importa: "a descoberta piorou" e "nao ha o que descobrir" sao
+     fatos com donos diferentes. Sem ela, apagar uma skill acusaria a equipe de
+     busca por uma decisao de curadoria.
+
+--------------------------------------------------------------------------
+Nota sobre o dataset usado
+--------------------------------------------------------------------------
+Os tres runs usaram um dataset LOCAL (v99) apontando para a skill que existe no
+acervo local, porque o dataset versionado aponta para o acervo do app-dev — que
+o runner nao alcanca (ele fala com o registry direto; o app-dev expoe o BFF).
+
+O que se demonstra aqui e o MECANISMO do gate, com degradacao real do sistema,
+nao o recall de um acervo especifico.
