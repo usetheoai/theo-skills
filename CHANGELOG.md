@@ -19,6 +19,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **O dataset do M34 apontava para uma skill que só existe na fixture do teste.** `sk_cambio_v1` é criada pelo `seed()` de `tests/integration/m34-discoverability.integration.test.ts` — e o campo `_honestidade` do próprio dataset afirmava *"roda contra o ACERVO REAL do workspace, não contra fixture"*. Um dataset que semeia a skill que vai procurar mede o semeador, não a descoberta. Agora os identificadores são do acervo real, e o runner consulta se cada skill ainda existe: uma que saiu do acervo é reportada e **não** conta como regressão, porque *"a descoberta piorou"* e *"não há o que descobrir"* são fatos diferentes, com donos diferentes (#m34)
+
 - **O gate de descobribilidade do M34 era inerte: nunca podia reprovar.** O runner lia `body.skills` e a busca devolve **`results`** (`handlers/retrieve.ts:125-127`), então a lista vinha vazia em toda consulta, nenhum caso era achado e a primeira execução gravava uma baseline de zeros. A partir dali não existia regressão detectável — não há como regredir de "nunca foi achada". O critério *"uma skill que era achada e deixa de ser reprova o gate"* estava mecanicamente satisfeito e semanticamente vazio, e um gate que não pode reprovar é pior que gate nenhum: ocupa o lugar de um (#m34)
 
   A leitura saiu do script para `src/eval/retrieve-response.ts`, testada: nada em `eval/` fica fora do `tsconfig` por acaso, e nada em `eval/` era alcançado por teste — que é exatamente como o defeito sobreviveu a ser escrito.

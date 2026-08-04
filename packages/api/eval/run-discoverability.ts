@@ -44,6 +44,16 @@ async function buscar(query: string): Promise<string[]> {
   return idsDaResposta(await res.json());
 }
 
+/** A skill esperada ainda está no acervo? 404 é resposta, não erro. */
+async function existeNoAcervo(skillId: string): Promise<boolean> {
+  const res = await fetch(`${BASE}/v1/skills/${encodeURIComponent(skillId)}`, {
+    headers: TOKEN === '' ? {} : { authorization: `Bearer ${TOKEN}` },
+  });
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`get skill ${res.status} para "${skillId}"`);
+  return true;
+}
+
 async function main(): Promise<void> {
   const baselinePath =
     process.argv.includes('--baseline')
@@ -61,13 +71,29 @@ async function main(): Promise<void> {
       esperada: caso.expect_skill_id,
       achada: i !== -1,
       posicao: i === -1 ? null : i + 1,
+      // Rodando contra o acervo REAL, uma skill do dataset pode ter sido apagada. Sem esta
+      // consulta, "sumiu do acervo" e "existe e não foi achada" chegariam ao gate como o mesmo
+      // fato — e ele acusaria a busca por uma decisão de curadoria.
+      existe: await existeNoAcervo(caso.expect_skill_id),
     });
   }
 
-  const achados = resultados.filter((r) => r.achada).length;
-  console.log(`dataset v${dataset.version} (${dataset.dated}) — ${achados}/${resultados.length} achadas`);
+  const presentes = resultados.filter((r) => r.existe !== false);
+  const ausentes = resultados.filter((r) => r.existe === false);
+  const achados = presentes.filter((r) => r.achada).length;
+
+  console.log(`dataset v${dataset.version} (${dataset.dated}) — ${achados}/${presentes.length} achadas`);
   for (const r of resultados) {
-    console.log(`  ${r.achada ? `#${r.posicao}` : '  —'}  ${r.esperada}  ←  "${r.query}"`);
+    const marca = r.existe === false ? 'fora' : r.achada ? `#${r.posicao}` : '  —';
+    console.log(`  ${marca}  ${r.esperada}  ←  "${r.query}"`);
+  }
+  if (ausentes.length > 0) {
+    // Visível, e deliberadamente NÃO fatal: um dataset envelhecendo é informação para quem o
+    // mantém, não motivo para derrubar o gate de quem mexeu na busca.
+    console.log(
+      `\n${ausentes.length} caso(s) apontam para skill fora do acervo — o dataset envelheceu ` +
+        `em relação a ele. Não contam como regressão.`,
+    );
   }
 
   // ---- O GATE: regressão REPROVA -----------------------------------------------------------

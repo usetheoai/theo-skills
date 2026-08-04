@@ -10,6 +10,14 @@ export interface ResultadoEval {
   readonly esperada: string;
   readonly achada: boolean;
   readonly posicao: number | null;
+  /**
+   * A skill esperada ainda está no acervo?
+   *
+   * Opcional para não invalidar baselines gravadas antes deste campo existir. A ausência é lida
+   * como `true` — o default precisa ser o que MANTÉM o gate ativo; assumir "não existe" o
+   * desligaria para todo caso antigo, silenciosamente.
+   */
+  readonly existe?: boolean;
 }
 
 /**
@@ -26,12 +34,19 @@ export interface ResultadoEval {
  *
  * A identidade de um caso é o par (consulta, skill esperada): a mesma skill pode ser achada por
  * uma frase e não por outra, e é essa diferença que o dataset existe para capturar.
+ *
+ * Uma quarta não-regressão, e a mais sutil: **a skill saiu do acervo**. Rodando contra o acervo
+ * REAL — que é o que o M34 exige — cedo ou tarde uma skill do dataset é apagada. "A descoberta
+ * piorou" e "não há o que descobrir" são fatos diferentes com donos diferentes, e um gate que os
+ * confunde acusa a busca por uma decisão de curadoria.
  */
 export function detectarRegressoes(
   agora: readonly ResultadoEval[],
   baseline: readonly ResultadoEval[],
 ): ResultadoEval[] {
   return agora.filter((r) => {
+    // `!== false` e não `=== true`: o campo é opcional, e ausente significa presente.
+    if (r.existe === false) return false;
     const antes = baseline.find((b) => b.query === r.query && b.esperada === r.esperada);
     return antes?.achada === true && !r.achada;
   });
