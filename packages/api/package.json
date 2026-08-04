@@ -24,13 +24,13 @@
     "eval:storage": "tsx eval/storage-trigger.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^2.0.5",
     "@paralleldrive/cuid2": "^2.3.1",
     "@secretlint/core": "^11.3.1",
     "@secretlint/secretlint-rule-preset-recommend": "^11.3.1",
     "@usetheo/skills": "workspace:*",
     "drizzle-orm": "^0.45.0",
-    "hono": "^4.12.25",
+    "hono": "^4.12.27",
     "pg": "^8.13.0",
     "pg-boss": "^10.4.2",
     "yauzl": "^3.3.0",

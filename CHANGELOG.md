@@ -19,6 +19,12 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+## [Unreleased]
+
+### Security
+
+- **theo-skills:** fecha `GHSA-7p8r-x3mc-p8w7` (**HIGH** — confusão de host em `fast-uri` via barra invertida, transitiva de `@modelcontextprotocol/sdk>ajv`) e `GHSA-8j4g-w8fx-2239` (de-duplicação de header no adapter do Hono). Ambas publicadas entre o run anterior do CI e este, e ambas bloqueavam o gate `pnpm audit --prod --audit-level=high`. Os pins vão para `pnpm-workspace.yaml`, onde o projeto já centraliza overrides de CVE — não para o `package.json` raiz, que o pnpm v11 não lê aqui. `@hono/node-server` subiu de 1.x para 2.x; suíte completa verde (#M32)
+
 ## [0.13.0] - 2026-08-04
 
 ### Added
