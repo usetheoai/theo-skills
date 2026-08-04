@@ -19,7 +19,6 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Security
 
-- **theo-skills:** a imagem de runtime deixa de carregar `npm`, `yarn` e `corepack`. O gate Trivy reprovou a v0.14.0 com duas CVEs **HIGH** — `brace-expansion` (CVE-2026-69152) e `ip-address` (CVE-2026-69192) — que **não vêm do nosso lockfile** (ele resolve 5.0.6 e 10.3.1), e sim do npm embutido na imagem base, em `/usr/local/lib/node_modules/npm/`. Nada em runtime invoca gerenciador de pacote: o CMD é `node`, o healthcheck é `node -e`, e as dependências chegam prontas de outro estágio. Remover é o fix — um `.trivyignore` deixaria o binário vulnerável dentro da imagem que roda em produção. Medido depois: `trivy --severity HIGH,CRITICAL --exit-code 1` sai **0** (#M35)
 
 ## [0.14.0] - 2026-08-04
 
@@ -33,6 +32,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 
 ### Security
+
+- **theo-skills:** a imagem de runtime deixa de carregar `npm`, `yarn` e `corepack`. O gate Trivy reprovou a v0.14.0 com duas CVEs **HIGH** — `brace-expansion` (CVE-2026-69152) e `ip-address` (CVE-2026-69192) — que **não vêm do nosso lockfile** (ele resolve 5.0.6 e 10.3.1), e sim do npm embutido na imagem base, em `/usr/local/lib/node_modules/npm/`. Nada em runtime invoca gerenciador de pacote: o CMD é `node`, o healthcheck é `node -e`, e as dependências chegam prontas de outro estágio. Remover é o fix — um `.trivyignore` deixaria o binário vulnerável dentro da imagem que roda em produção. Medido depois: `trivy --severity HIGH,CRITICAL --exit-code 1` sai **0** (#M35)
 
 - **theo-skills:** fecha `GHSA-7p8r-x3mc-p8w7` (**HIGH** — confusão de host em `fast-uri` via barra invertida, transitiva de `@modelcontextprotocol/sdk>ajv`) e `GHSA-8j4g-w8fx-2239` (de-duplicação de header no adapter do Hono). Ambas publicadas entre o run anterior do CI e este, e ambas bloqueavam o gate `pnpm audit --prod --audit-level=high`. Os pins vão para `pnpm-workspace.yaml`, onde o projeto já centraliza overrides de CVE — não para o `package.json` raiz, que o pnpm v11 não lê aqui. `@hono/node-server` subiu de 1.x para 2.x; suíte completa verde (#M32)
 
