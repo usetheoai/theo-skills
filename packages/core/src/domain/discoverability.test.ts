@@ -31,7 +31,7 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.DESCRIPTION_TOO_GENERIC);
     // A causa vem com O QUE FAZER. Sem isto o autor lê o rótulo e continua sem saber o próximo
     // passo — que é o defeito de um recall sem diagnóstico.
-    expect(d.hints.some((h) => h.toLowerCase().includes('quando'))).toBe(true);
+    expect(d.hints.some((h) => h.toLowerCase().includes('when'))).toBe(true);
   });
 
   it('descrição específica NÃO é acusada — senão a causa vira ruído', () => {
@@ -185,7 +185,7 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
     // Um rascunho com tudo certo ainda não é achável — porque não existe. Dizer "descobrível"
     // sem ressalva afirmaria algo falso sobre o presente.
     const d = diagnosticarDescobribilidade({ ...rascunho, vizinhas: [] });
-    expect(d.hints.join(' ')).toMatch(/publicar/i);
-    expect(d.hints.join(' ')).not.toMatch(/republique/i);
+    expect(d.hints.join(' ')).toMatch(/published/i);
+    expect(d.hints.join(' ')).not.toMatch(/republish/i);
   });
 });

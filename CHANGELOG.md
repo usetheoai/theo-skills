@@ -11,6 +11,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **O texto que o usuário lê passa a ser inglês.** O produto é monolíngue em inglês — `api-keys` e `billing` sempre estiveram assim — e as superfícies de skills respondiam em português, deixando o dashboard bilíngue conforme a tela. Traduzidos os `hints` do diagnóstico de descobribilidade (o texto de backend mais visível ao usuário, exibido na tela de autoria) e as mensagens de erro tipadas dos handlers. Comentários de código e identificadores internos permanecem como estão: são para quem mantém, não para quem usa.
+
 - **Os testes unitários ao lado do código passam a rodar.** `pnpm test` do `packages/api` incluía apenas `tests/contract/**`, então tudo em `src/**/*.test.ts` ficava fora do gate. Eram dois arquivos e 12 testes — entre eles o do **gate de regressão do M34**, reportado como "6 passed" numa implementação sem que o CI o tivesse executado uma única vez. Um teste que não roda não protege nada, por mais verde que pareça rodando à mão. Os 62 de `tests/integration/` seguem fora de propósito (exigem Postgres, config própria) — essa metade continua sendo o #132.
 
 ### Deprecated
