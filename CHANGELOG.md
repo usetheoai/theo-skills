@@ -9,6 +9,16 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **theo-skills:** `POST /v1/skills:discoverability` — medir, **sem executar a skill**, se ela é achada pela intenção que deveria encontrá-la (M34). O `:validate` do M30 responde se a skill é *válida*; nada respondia se ela é *achável*, que é a promessa do produto — e uma skill válida e inachável é, para quem procura, indistinguível de uma que não existe.
+
+  **O resultado nomeia a CAUSA, não só o número:** descrição genérica demais · sem vetor · colide com outra skill do acervo. Um recall sem diagnóstico não diz ao autor o que corrigir — ele lê `0.3` e não sabe qual dos três é o problema, e os três exigem correções opostas. Cada causa vem com o que fazer, e a colisão diz **com quem** colide.
+
+  Roda contra o **acervo real** do workspace, não contra fixture: colisão só existe em relação a um acervo. Rota própria, não um campo no `:validate` — fundir faria toda validação de sintaxe pagar o custo de uma busca vetorial.
+
+  **Nada executa a skill** — não invoca script, não abre sandbox, não carrega runtime. A fronteira *"execução é responsabilidade do Theokit"* permanece intacta e é verificável por teste. E todo resultado carrega **qual embedder o produziu**: o número mede o embedder tanto quanto a skill, e sem esse campo alguém compararia resultados incomparáveis sem perceber (#M34)
+
+- **theo-skills:** dataset de descobribilidade **versionado e datado**, com gate que **reprova regressão** (M34). Comparar contra um piso absoluto mediria o embedder, não a mudança; o que interessa ao autor é *o que era achado continua sendo?*. Nunca-achada é falha conhecida e não reprova — um gate que reprova sempre é um gate que se desliga —, e um caso novo no dataset não pune quem amplia a cobertura (#M34)
+
 ### Changed
 
 - **theo-skills:** `PUT /v1/skills/:id/lifecycle` passa a exigir o **escopo** `skills:publish` em vez do **papel** `admin`. Medido ao construir a tela: `requireRole` resolve o papel na tabela de MEMBROS pelo `userId`, e a credencial que o painel usa carrega `sys_platform_gateway` — um usuário sintético, deliberadamente não-membro, para não atribuir a atividade do gateway a quem não a praticou. O gate respondia **403 a todo pedido vindo da tela**, e o critério de depreciação do M32 era impossível de construir. Não é afrouxamento, é correção de eixo: depreciar é curadoria do acervo, mesma família de promover canal — que já usa `skills:publish` e é a operação **mais** perigosa do produto, porque troca o que os consumidores carregam sem redeploy. Depreciar não faz isso: a deprecada continua resolvível. Exigir mais para o ato menos perigoso era a inversão. ADR `0003-lifecycle-gate-por-escopo` (#M32)
