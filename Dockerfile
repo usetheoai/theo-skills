@@ -65,6 +65,24 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# O npm que vem na imagem base é peso morto AQUI: o CMD é `node`, o healthcheck é `node -e`,
+# e as dependências chegam prontas do estágio `production-deps`. Nada em runtime o invoca.
+#
+# Medido em 2026-08-04: ele custou um release. O gate Trivy reprovou a v0.14.0 com duas CVEs
+# HIGH — `brace-expansion@2.0.2` (CVE-2026-69152) e `ip-address@10.1.0` (CVE-2026-69192) —
+# que NÃO vêm do nosso `pnpm-lock.yaml` (5.0.6 e 10.3.1), e sim de
+# `/usr/local/lib/node_modules/npm/node_modules/`.
+#
+# Remover é o fix; um `.trivyignore` seria esconder — o binário vulnerável continuaria dentro
+# da imagem que roda em produção. Travado por `tests/workflows/supply-chain.test.ts`, que
+# também guarda o pressuposto: se o runtime um dia invocar npm, o teste reprova.
+# `yarn` e `corepack` entram junto: estavam limpos nesta data, mas são a mesma natureza de
+# dívida — binário que ninguém invoca, versionado por terceiro, capaz de travar um release
+# por CVE que não é nossa. Sai também o `/opt/yarn-*` que a base instala fora do prefixo.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+           /usr/local/lib/node_modules/corepack /usr/local/bin/corepack \
+           /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 # Usuário não-root: o `node` já existe na imagem oficial (uid 1000). Rodar como root é
 # escalonamento gratuito para qualquer RCE na dependência mais obscura da árvore.
 USER node
