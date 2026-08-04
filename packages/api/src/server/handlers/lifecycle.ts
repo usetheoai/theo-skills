@@ -3,18 +3,16 @@ import { skills } from '@usetheo/skills/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import { type Hono } from 'hono';
 
-import { requireRole } from '../auth/require-role.js';
+import { requireScope } from '../auth/middleware.js';
 import { type Db } from '../db.js';
 import { type Logger } from '../logger.js';
 import { type AppEnv, getPrincipal } from '../principal-context.js';
-import { type MembersStore } from '../store/members-store.js';
 
 /** Teto do motivo — alinhado ao `compatibility` da spec canônica (500 chars). */
 const MAX_REASON = 500;
 
 export interface LifecycleRoutesDeps {
   readonly db: Db;
-  readonly membersStoreFor: (workspaceId: string) => MembersStore;
   readonly logger: Logger;
 }
 
@@ -41,9 +39,37 @@ interface LifecycleBody {
  * seria cerimônia — `rules/parsimony-ladder.md` rung 1. Se o caso aparecer, é milestone próprio.
  */
 export function registerLifecycleRoutes(app: Hono<AppEnv>, deps: LifecycleRoutesDeps): void {
-  const adminOnly = requireRole('admin', { membersStoreFor: deps.membersStoreFor });
+  /**
+   * O gate é de ESCOPO, não de papel — e a distinção não é estilística.
+   *
+   * `requireRole` resolve o papel consultando a tabela de MEMBROS pelo `userId` do principal. A
+   * credencial que o painel usa é cunhada pelo broker Model B em `/v1/platform/keys`, que grava
+   * `userId: 'sys_platform_gateway'` — um usuário sintético, deliberadamente NÃO-membro, para não
+   * atribuir a atividade do gateway a uma pessoa que não a praticou.
+   *
+   * Medido em 2026-08-04: com `requireRole('admin')`, `roleOf('sys_platform_gateway')` devolvia
+   * `null` e a rota respondia **403 a todo pedido vindo da tela**. A capacidade existia aqui e
+   * nenhum consumidor a alcançava — o AC5 do M32 era impossível de construir.
+   *
+   * Por que `skills:publish` é o escopo certo, e não uma escolha de conveniência:
+   *
+   *  - papel governa a administração do WORKSPACE (membros, chaves para pessoas), onde a pergunta
+   *    "quem é você aqui dentro" faz sentido;
+   *  - depreciar é curadoria do ACERVO — mesma família de `PUT /v1/skills/:id/channels/:channel`,
+   *    que já exige `skills:publish`.
+   *
+   * E promover canal é a operação **mais perigosa** do produto: troca o que os consumidores
+   * carregam, sem redeploy. Depreciar não faz isso — esta mesma DoD exige que a deprecada continue
+   * resolvível para quem já a referencia. Exigir MAIS para o ato menos perigoso era a inversão que
+   * esta mudança corrige, não um afrouxamento.
+   *
+   * `m32-lifecycle-reachable.integration.test.ts` trava os DOIS lados: o gateway consegue, e quem
+   * só tem `skills:read` continua recebendo 403 — sem a segunda metade, remover o gate inteiro
+   * passaria no teste, e recusa cega é indistinguível de segurança.
+   */
+  const publica = requireScope('skills:publish');
 
-  app.put('/v1/skills/:id/lifecycle', adminOnly, async (c) => {
+  app.put('/v1/skills/:id/lifecycle', publica, async (c) => {
     const body = (await c.req.json().catch(() => null)) as LifecycleBody | null;
 
     let alvo: SkillLifecycle;

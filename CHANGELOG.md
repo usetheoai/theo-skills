@@ -11,6 +11,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **theo-skills:** `PUT /v1/skills/:id/lifecycle` passa a exigir o **escopo** `skills:publish` em vez do **papel** `admin`. Medido ao construir a tela: `requireRole` resolve o papel na tabela de MEMBROS pelo `userId`, e a credencial que o painel usa carrega `sys_platform_gateway` — um usuário sintético, deliberadamente não-membro, para não atribuir a atividade do gateway a quem não a praticou. O gate respondia **403 a todo pedido vindo da tela**, e o critério de depreciação do M32 era impossível de construir. Não é afrouxamento, é correção de eixo: depreciar é curadoria do acervo, mesma família de promover canal — que já usa `skills:publish` e é a operação **mais** perigosa do produto, porque troca o que os consumidores carregam sem redeploy. Depreciar não faz isso: a deprecada continua resolvível. Exigir mais para o ato menos perigoso era a inversão. ADR `0003-lifecycle-gate-por-escopo` (#M32)
+
 ### Deprecated
 
 ### Removed
