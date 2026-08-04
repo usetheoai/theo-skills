@@ -9,6 +9,20 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.13.0] - 2026-08-04
+
+### Added
+
 - **theo-skills:** o domínio ganha o **ciclo de vida da skill** — `active` · `draft` · `deprecated` — como eixo editorial separado da habilitação e da exclusão. Até aqui o registro só sabia existir ou ter sido apagado, e apagar **reserva o identificador**: não havia como dizer "não use mais esta" sem quebrar quem já a referenciava. O vocabulário é fechado, com erro tipado (`INVALID_LIFECYCLE`) que enumera os valores aceitos, e `DELETED` é recusado de propósito — pertence a outro eixo (#M32)
 - **theo-skills:** o contrato de leitura passa a devolver `lifecycle`, `enabled`, `deprecation_reason` e `superseded_by`. Sem eles, uma skill descontinuada era **indistinguível de uma ativa** para SDK, MCP, CLI e painel — a capacidade existia no banco e não chegava a ninguém, o mesmo defeito que `visibility` carregou até o M31. Campos aditivos: nenhum consumidor quebra (#M32)
 - **theo-skills:** `PUT /v1/skills/:id/lifecycle` aceita `enabled`, dando **escritor de produção** ao segundo eixo. Sem ele, `include_disabled=true` era uma flag pública que optava por um estado que a aplicação não conseguia criar — capacidade anunciada e inalcançável (#M32)
@@ -18,9 +32,11 @@ ao [Semantic Versioning](https://semver.org/).
 - **theo-skills:** duas **CHECK constraints** no banco: o estágio só aceita o vocabulário do domínio, e `deprecated` sem motivo é recusado. A fronteira HTTP não é o único caminho de escrita — um script de dados ou um `psql` durante plantão gravam direto, e sem restrição um estágio inexplicável entra na tabela. Divergência deliberada do padrão local (`state` e `visibility` são texto livre), registrada em ADR: é essa ausência que o milestone paga (#M32)
 - **theo-skills:** `buildLifecycleFilter` define o que a **descoberta** enxerga, e apenas ela. A resolução por identificador não o consulta, e é essa assimetria que faz a deprecação não quebrar consumidor já integrado. Os dois eixos compõem: pedir os desabilitados não passa a devolver rascunhos junto (#M32)
 
+
 ### Changed
 
 - BREAKING: **theo-skills:** `GET /v1/skills:retrieve` passa a **esconder por padrão** rascunhos, descontinuadas e desabilitadas. Um consumidor que hoje recebe uma skill `deprecated` deixará de recebê-la sem mudar nada do lado dele. A capacidade não foi removida — as três flags (`include_draft`, `include_deprecated`, `include_disabled`) devolvem exatamente o comportamento anterior, e com as três ligadas o resultado é idêntico ao de antes do milestone. São três flags e não um `include_hidden` único porque quem audita o que saiu de circulação não quer rascunho alheio no meio (#M32)
+
 
 ### Fixed
 
