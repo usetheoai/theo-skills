@@ -1,6 +1,9 @@
 import { createKeywordRetriever } from '@usetheo/skills';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
+import { createDb } from '../../src/server/db.js';
+import { createSkillsStore } from '../../src/server/store/skills-store.js';
+
 import { closePool, getPool, truncateAll } from './_helpers/db.js';
 import { describeIntegration } from './_helpers/env.js';
 
@@ -72,26 +75,38 @@ describeIntegration('M32 — deprecar remove da busca, não da resolução', () 
     expect(results.map((r) => r.skill_id)).toContain('conversor-velho');
   });
 
-  it('a skill deprecada CONTINUA resolvível por identificador', async () => {
-    // A metade que protege quem já integrou. Se este teste reprovar, o milestone entregou o
-    // oposto do que promete — e a quebra seria silenciosa, do lado do consumidor.
-    const { rows } = await getPool().query<{ skill_id: string; lifecycle: string }>(
-      `SELECT skill_id, lifecycle FROM skills
-        WHERE workspace_id = $1 AND skill_id = $2 AND deleted_at IS NULL`,
-      [WS, 'conversor-velho'],
-    );
+  it('a skill deprecada CONTINUA resolvível pelo CAMINHO DE LEITURA do produto', async () => {
+    // A metade que protege quem já integrou.
+    //
+    // POR QUE VIA `store.getView` E NÃO VIA SQL: a versão anterior deste teste consultava a
+    // tabela direto e por isso NÃO exercitava o caminho que o produto usa. Um review acabou
+    // provando empiricamente: uma edição que acrescentou `eq(skills.lifecycle,'active')` ao
+    // `getView` — precisamente a quebra que este teste existe para impedir — passou com o teste
+    // VERDE. Um teste que consulta o banco em vez do código prova que a coluna foi escrita,
+    // nunca que a garantia vale.
+    const store = createSkillsStore(createDb(getPool()), WS);
+    const view = await store.getView('conversor-velho');
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.lifecycle).toBe('deprecated');
+    expect(view).toBeDefined();
+    expect(view?.lifecycle).toBe('deprecated');
   });
 
-  it('o motivo da deprecação viaja junto — o agente sabe o que fazer, não só que parou', async () => {
-    const { rows } = await getPool().query<{ deprecation_reason: string | null }>(
-      'SELECT deprecation_reason FROM skills WHERE workspace_id = $1 AND skill_id = $2',
-      [WS, 'conversor-velho'],
-    );
+  it('o motivo e a sucessora chegam ao CONTRATO DE LEITURA — não só ao banco', async () => {
+    // Um agente que descobre "deprecada" sem saber por quê nem o que usar no lugar tem a mesma
+    // informação de um 404. Por isso a asserção é sobre o que o contrato DEVOLVE.
+    const store = createSkillsStore(createDb(getPool()), WS);
+    const view = await store.getView('conversor-velho');
 
-    expect(rows[0]?.deprecation_reason).toBe('substituída por conversor-vivo');
+    expect(view?.deprecation_reason).toBe('substituída por conversor-vivo');
+  });
+
+  it('a skill viva não carrega motivo nem sucessora', async () => {
+    const store = createSkillsStore(createDb(getPool()), WS);
+    const view = await store.getView('conversor-vivo');
+
+    expect(view?.lifecycle).toBe('active');
+    expect(view?.deprecation_reason).toBeUndefined();
+    expect(view?.superseded_by).toBeUndefined();
   });
 
   it('desabilitar também esconde da busca, e os dois eixos compõem', async () => {
@@ -117,5 +132,39 @@ describeIntegration('M32 — deprecar remove da busca, não da resolução', () 
       `UPDATE skills SET enabled = true WHERE workspace_id = $1 AND skill_id = 'conversor-vivo'`,
       [WS],
     );
+  });
+
+  it('deprecada E desabilitada ao mesmo tempo continua resolvível', async () => {
+    // Linha 4 da tabela do ADR D1: os dois eixos podem estar "desligados" juntos e ainda assim
+    // a resolução serve quem já referencia. Sem este caso, a composição das dimensões só era
+    // provada na busca, nunca na leitura.
+    await getPool().query(
+      `UPDATE skills SET enabled = false WHERE workspace_id = $1 AND skill_id = 'conversor-velho'`,
+      [WS],
+    );
+    try {
+      const store = createSkillsStore(createDb(getPool()), WS);
+      const view = await store.getView('conversor-velho');
+      expect(view?.lifecycle).toBe('deprecated');
+      expect(view?.enabled).toBe(false);
+    } finally {
+      await getPool().query(
+        `UPDATE skills SET enabled = true WHERE workspace_id = $1 AND skill_id = 'conversor-velho'`,
+        [WS],
+      );
+    }
+  });
+
+  it('a skill APAGADA não resolve — deprecar e apagar são eixos diferentes', async () => {
+    // O contraste que dá sentido ao milestone: `deprecated` continua servindo, `DELETED` não.
+    // Sem este caso, nada no repositório prova que os dois eixos se comportam de forma oposta.
+    await getPool().query(
+      `INSERT INTO skills (workspace_id, skill_id, name, description, search_text, state, deleted_at)
+       VALUES ($1,'conversor-apagado','apagado','converte documentos','converte documentos','DELETED', now())`,
+      [WS],
+    );
+
+    const store = createSkillsStore(createDb(getPool()), WS);
+    expect(await store.getView('conversor-apagado')).toBeUndefined();
   });
 });

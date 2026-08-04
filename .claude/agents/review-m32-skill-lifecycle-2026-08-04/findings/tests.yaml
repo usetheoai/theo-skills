@@ -1,0 +1,194 @@
+agent: review-m32-skill-lifecycle-tests
+review_target: 3b85e5f..HEAD for plan m32-skill-lifecycle
+plan: .claude/knowledge-base/plans/m32-skill-lifecycle-plan.md
+executed:
+  unit_core: "npx vitest run --root packages/core src/domain/skill-lifecycle.test.ts src/contract/retrieve.test.ts -> 20 passed (158ms)"
+  integration_m32: "THEOSKILL_PG_URI=... vitest run --config vitest.integration.config.ts m32-lifecycle -> 29 passed (4.27s), AFTER running pnpm db:migrate"
+  note_migration: "First run FAILED 19/29 with 'column lifecycle does not exist' — the integration config has no setupFiles and does not self-migrate; migration 0014 must be applied by hand."
+test_pyramid:
+  unit_added_in_range: 2          # packages/core/src/contract/retrieve.test.ts (+2 casos)
+  unit_pre_range_reviewed: 13     # packages/core/src/domain/skill-lifecycle.test.ts (criado em 3b85e5f)
+  integration_added: 29
+  e2e_added: 0
+  total_reviewed: 44
+  skips_or_only: 0                # grep '.skip|.only|xit|xdescribe' nos arquivos M32 -> nenhum
+edge_cases_from_plan:
+  covered:
+    - "todas as flags true -> sem restrição (T1.2 / T4.1)"
+    - "ortogonalidade estágio x habilitação, no domínio, no SQL e no HTTP"
+    - "linha pré-existente nasce active+enabled (T2.1)"
+    - "deprecar sem motivo recusado no banco E na fronteira"
+    - "flag não-booleana -> 400 nomeando o campo (negative case)"
+    - "reason acima do teto (501 chars) -> 400"
+    - "sair de deprecated limpa motivo e sucessora"
+  missing:
+    - "deprecada E desabilitada continua resolvível por id (T3.2 RED)"
+    - "skill DELETED não resolve (T3.2 RED — o outro eixo)"
+    - "reason e superseded_by chegam ao contrato de leitura (T5.1 RED)"
+    - "sem escopo de escrita -> 403 com o texto do serviço (T5.1 RED / Deep Dive negative case)"
+    - "row_with_null_lifecycle_is_treated_as_active (T2.1 Task 2 / v1.1 EC-4)"
+    - "GET /v1/skills (lista) com as três flags (T4.1 — o título da task cobre os dois endpoints)"
+
+findings:
+  - id: F-tests-1
+    severity: BLOCKER
+    file: packages/api/tests/integration/m32-lifecycle-discovery.integration.test.ts
+    line: 75
+    plan_ref: 'T3.2 — "provar que ele discrimina"; Goal do plano'
+    summary: >-
+      O teste de regressão do Goal ("a skill deprecada CONTINUA resolvível por identificador")
+      NÃO discrimina: ele resolve por SELECT cru na tabela e nunca toca o caminho real de
+      resolução (skills-store.getView / GET /v1/skills/:id). Se alguém acoplar ciclo de vida à
+      leitura amanhã — exatamente a fragilidade que o blueprint aponta no peer — o teste segue
+      verde. A garantia continua sendo convenção, que é o que o M32 se propôs a substituir.
+    evidence: |
+      Medido, não inferido. Injetei o filtro no caminho REAL de leitura:
+        skills-store.ts:322  .where(and(ws, eq(skills.skillId, skillId), isNull(skills.deletedAt),
+                                        eq(skills.lifecycle, 'active')))
+      Resultado com o caminho envenenado:
+        vitest ... m32-lifecycle          -> Test Files 4 passed | Tests 29 passed
+        vitest ... (suíte completa)       -> Tests 285 passed (único vermelho: arquivo que exige OPENAI_API_KEY)
+      Arquivo restaurado depois: `git diff --exit-code -- skills-store.ts` limpo.
+      O plano exigia essa prova (T3.2 Task 2) e o AC "[ ] O teste foi provado discriminante"
+      não pode ser marcado.
+    recommended_action: >-
+      Reescrever o teste contra o caminho de produção — createSkillsStore(...).getView('conversor-velho')
+      e .getInstructions(...), ou app.request('/v1/skills/conversor-velho') — e repetir a prova de
+      discriminação (envenenar getView, ver reprovar, restaurar).
+
+  - id: F-tests-2
+    severity: HIGH
+    file: packages/api/tests/integration/m32-lifecycle-discovery.integration.test.ts
+    line: 24
+    plan_ref: 'T3.2 #### TDD (RED 2 e 3) + Deep Dives (edge case / negative case)'
+    summary: >-
+      Dois testes RED declarados na T3.2 não existem: `deprecated_and_disabled_still_resolves_by_id`
+      (as duas dimensões juntas — linha 4 da tabela do D1) e `deleted_skill_does_not_resolve`
+      (o eixo de exclusão continua negando). Sem o segundo, nada no branch prova que `deprecated`
+      e `DELETED` se comportam DIFERENTE na resolução — que é a razão declarada do ADR D1.
+    evidence: |
+      grep -rn "deleted\|DELETED" packages/api/tests/integration/m32-*.ts
+        -> só duas ocorrências: um `deleted_at IS NULL` dentro do SELECT cru (discovery:80)
+           e o CHECK de vocabulário (schema:100), que é outra coisa.
+      Nenhum teste resolve uma skill deprecada+desabilitada, nem verifica que uma DELETED não resolve.
+    recommended_action: >-
+      Acrescentar ao mesmo arquivo, sobre o caminho real de resolução (ver F-tests-1):
+      deprecada+enabled=false resolve; skill com deleted_at preenchido NÃO resolve.
+
+  - id: F-tests-3
+    severity: HIGH
+    file: packages/api/tests/integration/m32-lifecycle-operation.integration.test.ts
+    line: 88
+    plan_ref: 'T5.1 #### TDD — reason_and_successor_reach_the_read_contract(); AC "Os dois campos chegam ao contrato de leitura"'
+    summary: >-
+      O teste declarado que provaria que `reason` e `superseded_by` CHEGAM ao consumidor não existe,
+      e a capacidade também não: `SkillViewSchema` não tem os campos e `skills-store.ts` não os
+      seleciona. Os testes só confirmam a gravação por SELECT cru — ou seja, o dado existe no banco
+      e é invisível para quem consome a API. É exatamente o defeito que o CLAUDE.md deste repo
+      nomeia: "campo que a jornada exige, ausente na resposta".
+    evidence: |
+      grep SkillViewSchema -A25 packages/core/src/contract/index.ts | grep 'deprecat|superseded' -> vazio
+      grep -n "lifecycle\|deprecation_reason\|supersededBy" packages/api/src/server/store/skills-store.ts -> 0 ocorrências
+      m32-lifecycle-operation:96-108 e m32-lifecycle-discovery:88-95 asseveram via `getPool().query(...)`.
+    recommended_action: >-
+      Estender SkillViewSchema + toView e escrever o teste declarado: após PUT lifecycle=deprecated,
+      GET /v1/skills/:id devolve deprecation_reason e superseded_by no corpo.
+
+  - id: F-tests-4
+    severity: HIGH
+    file: packages/api/tests/integration/m32-lifecycle-operation.integration.test.ts
+    line: 29
+    plan_ref: 'T5.1 #### TDD — without_write_scope_returns_403_with_service_text(); Deep Dive "Negative case"'
+    summary: >-
+      Não há caso negativo de autorização. O arquivo inteiro roda com um principal fixo que já tem
+      `skills:admin`, então a exigência de escopo da rota nunca é exercitada — um `PUT` que passasse
+      a aceitar qualquer principal manteria os 9 testes verdes. Rota que muda o que TODO o workspace
+      descobre sem um teste de negação é a lacuna mais cara desta task.
+    evidence: |
+      grep -rn "403\|scope" packages/api/tests/integration/m32-*.ts
+        -> operation:33 `scopes: ['skills:admin']` (o principal do happy path)
+        -> operation:161 um 404, que testa outra coisa
+      Nenhum teste constrói um principal sem `skills:admin`.
+    recommended_action: >-
+      Adicionar um teste com principal sem `skills:admin` asseverando 403 E o texto que nomeia o
+      escopo exigido (não só o status — `rules/testing.md` § 4.1).
+
+  - id: F-tests-5
+    severity: MEDIUM
+    file: packages/api/tests/integration/m32-lifecycle-schema.integration.test.ts
+    line: 53
+    plan_ref: 'T2.1 Tasks #2 (v1.1 EC-4) + T1.2 Deep Dives "Invariante de retrocompatibilidade"'
+    summary: >-
+      `row_with_null_lifecycle_is_treated_as_active` não existe, e nenhum teste o substitui. A coluna
+      saiu `NOT NULL DEFAULT 'active'`, o que é uma resposta legítima ao risco — mas ninguém assevera
+      essa garantia, e o predicado do domínio contradiz o invariante do plano: `buildLifecycleClause`
+      usa `lifecycle IN (...)`, que EXCLUI NULL. A tolerância prometida na T1.2 não foi implementada
+      nem testada; hoje só o schema segura, e o schema não tem teste que prove que segura.
+    evidence: |
+      0014_lean_living_mummy.sql:1  ADD COLUMN "lifecycle" text DEFAULT 'active' NOT NULL
+      lifecycle-clause.ts:30        `${alias}.lifecycle IN (${stagePlaceholders})`  # NULL nunca casa
+      grep -rn "null" m32-lifecycle-schema.integration.test.ts -> só asserções de deprecation_reason/superseded_by
+    recommended_action: >-
+      Trocar o teste declarado pelo caso negativo equivalente: inserir `lifecycle = NULL` por SQL
+      direto e asseverar rejeição pela NOT NULL — e registrar no plano que a tolerância a NULL foi
+      substituída pela restrição, em vez de deixar o invariante contraditório sem menção.
+
+  - id: F-tests-6
+    severity: MEDIUM
+    file: packages/api/tests/integration/m32-lifecycle-endpoint.integration.test.ts
+    line: 70
+    plan_ref: 'T4.1 — ":retrieve` e `GET /v1/skills` aceitam as três flags"'
+    summary: >-
+      Metade da T4.1 não tem teste porque não tem implementação: só `:retrieve` recebeu as flags.
+      `GET /v1/skills` (a listagem) continua sem `include_*` e sem filtro de ciclo de vida — então
+      a skill deprecada, escondida da busca, segue aparecendo na lista, e nenhum teste percebe a
+      incoerência entre os dois caminhos de descoberta.
+    evidence: |
+      git diff 3b85e5f..HEAD --stat -> handlers/skills.ts NÃO aparece; só retrieve.ts e lifecycle.ts
+      grep "app.get('/v1/skills'" -A20 handlers/skills.ts | grep 'lifecycle|include_' -> nenhum
+      grep -rn "/v1/skills?" packages/api/tests/integration/m32-*.ts -> nenhum teste da listagem
+    recommended_action: >-
+      Ou estender a listagem e cobri-la com os mesmos 4 casos do endpoint de retrieve, ou registrar
+      um ADR/followup explícito de que a listagem fica fora do M32 — hoje a divergência é silenciosa.
+
+  - id: F-tests-7
+    severity: MEDIUM
+    file: packages/api/tests/integration/m32-lifecycle-discovery.integration.test.ts
+    line: 97
+    plan_ref: 'rules/testing.md § 3 (independência, sem dependência de ordem) e § 6'
+    summary: >-
+      O arquivo usa fixture compartilhada de `beforeAll` sem reset por teste, e o último teste MUTA
+      o estado (`enabled = false`) restaurando-o inline, na última linha do corpo. Qualquer asserção
+      que falhe antes do restore deixa `conversor-vivo` desabilitada para o resto da execução — o
+      relatório passaria a acusar falhas em cascata longe da causa. O mesmo teste ainda mede duas
+      coisas ("desabilitar esconde" E "os dois eixos compõem"), o "e" que a regra chama de smell.
+    evidence: |
+      discovery:25-37   beforeAll(truncateAll + INSERT), sem beforeEach
+      discovery:98-101  UPDATE ... SET enabled = false
+      discovery:103-114 três asserções ENTRE a mutação e o restore
+      discovery:116-119 restore fora de try/finally, no fim do corpo
+      (Contraste: os arquivos endpoint e operation usam beforeEach + truncateAll — o padrão certo.)
+    recommended_action: >-
+      Mover a restauração para `afterEach` (ou try/finally) e quebrar o teste em dois — um por
+      comportamento.
+
+  - id: F-tests-8
+    severity: LOW
+    file: packages/core/src/domain/skill-lifecycle.test.ts
+    line: 26
+    plan_ref: 'T1.1 #### TDD ("erro é InvalidLifecycleError, code INVALID_LIFECYCLE"); rules/testing.md § 4.1'
+    summary: >-
+      Dois casos negativos param no tipo/status e não chegam ao erro tipado que a regra exige.
+      A string vazia assevera só `toThrow(InvalidLifecycleError)` — sem `code` nem mensagem, embora
+      a T1.1 nomeie o `code`; e "uma skill não pode suceder a si mesma" assevera só `status 400`,
+      sem o `field`, enquanto o teste irmão de sucessora inexistente assevera. Some-se a isto que
+      `pnpm test` do pacote api roda `vitest.contract.config.ts`: os 29 testes de integração deste
+      milestone NÃO são exercitados pelo `npm test — PASS` do relatório de validação.
+    evidence: |
+      skill-lifecycle.test.ts:26-28   expect(() => parseLifecycle('')).toThrow(InvalidLifecycleError)
+      m32-lifecycle-operation:121-128 só expect(res.status).toBe(400)  (cf. :111-119, que assevera field)
+      packages/api/package.json       "test": "vitest run --config vitest.contract.config.ts"
+      vitest.integration.config.ts    include: ['tests/integration/**/*.test.ts']  (config separada)
+    recommended_action: >-
+      Asseverar `code`/`field` nos dois casos negativos, e rodar `pnpm test:integration` no gate
+      antes de considerar a task fechada (o relatório de validação atual não o fez).

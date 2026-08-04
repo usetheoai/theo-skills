@@ -179,4 +179,40 @@ describeIntegration('M32 — PUT /v1/skills/:id/lifecycle', () => {
     expect(res.status).toBe(400);
     expect(((await res.json()) as { field: string }).field).toBe('reason');
   });
+
+  it('sem papel de admin, a rota nega — a autorização é de fato exercitada', async () => {
+    // A suíte inteira roda como admin, então nada provava que a exigência de papel funciona.
+    // Um gate que nunca é exercitado no caminho de negação é um gate não testado.
+    const semPapel = createApp({
+      pool: getPool(),
+      queue: stubQueue,
+      logger: capturingLogger,
+      embedder: createStubEmbedder(),
+      principalResolver: () => ({ ...adminPrincipal, userId: 'u_intruso', scopes: [] }),
+    });
+    const res = await put(semPapel, 'op-alvo', { lifecycle: 'draft' });
+    expect([401, 403]).toContain(res.status);
+  });
+
+  it('habilitar e desabilitar é escrita de produção — não só SQL de teste', async () => {
+    // Sem escritor, `include_disabled=true` seria uma flag pública que opta por um estado que a
+    // aplicação não consegue criar.
+    const res = await put(app, 'op-alvo', { lifecycle: 'active', enabled: false });
+    expect(res.status).toBe(200);
+
+    const { rows } = await getPool().query<{ enabled: boolean }>(
+      'SELECT enabled FROM skills WHERE workspace_id = $1 AND skill_id = $2',
+      [WS, 'op-alvo'],
+    );
+    expect(rows[0]?.enabled).toBe(false);
+  });
+
+  it('mudar ciclo de vida de skill APAGADA devolve 404', async () => {
+    await getPool().query(
+      `UPDATE skills SET state='DELETED', deleted_at=now() WHERE workspace_id=$1 AND skill_id='op-alvo'`,
+      [WS],
+    );
+    const res = await put(app, 'op-alvo', { lifecycle: 'draft' });
+    expect(res.status).toBe(404);
+  });
 });

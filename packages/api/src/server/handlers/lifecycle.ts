@@ -1,6 +1,6 @@
 import { parseLifecycle, InvalidLifecycleError, type SkillLifecycle } from '@usetheo/skills';
 import { skills } from '@usetheo/skills/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { type Hono } from 'hono';
 
 import { requireRole } from '../auth/require-role.js';
@@ -20,6 +20,7 @@ export interface LifecycleRoutesDeps {
 
 interface LifecycleBody {
   readonly lifecycle?: unknown;
+  readonly enabled?: unknown;
   readonly reason?: unknown;
   readonly superseded_by?: unknown;
 }
@@ -54,6 +55,18 @@ export function registerLifecycleRoutes(app: Hono<AppEnv>, deps: LifecycleRoutes
       const detail = err instanceof InvalidLifecycleError ? err.message : 'lifecycle is required';
       return c.json({ error: 'invalid_request', field: 'lifecycle', details: detail }, 400);
     }
+
+    // A habilitação é o SEGUNDO eixo, e precisa de escritor de produção: sem ele,
+    // `include_disabled=true` seria uma flag pública que opta por um estado que a aplicação
+    // não consegue criar — capacidade anunciada e inalcançável. Omitir preserva o valor atual,
+    // porque desligar e descontinuar são ações distintas e não devem se arrastar uma à outra.
+    if (body?.enabled !== undefined && typeof body.enabled !== 'boolean') {
+      return c.json(
+        { error: 'invalid_request', field: 'enabled', details: 'enabled must be a boolean' },
+        400,
+      );
+    }
+    const enabled = typeof body?.enabled === 'boolean' ? body.enabled : undefined;
 
     const reason = typeof body?.reason === 'string' ? body.reason.trim() : '';
     const supersededBy = typeof body?.superseded_by === 'string' ? body.superseded_by.trim() : '';
@@ -96,7 +109,13 @@ export function registerLifecycleRoutes(app: Hono<AppEnv>, deps: LifecycleRoutes
       const sucessora = await deps.db
         .select({ skillId: skills.skillId })
         .from(skills)
-        .where(and(eq(skills.workspaceId, actor.workspaceId), eq(skills.skillId, supersededBy)))
+        .where(
+          and(
+            eq(skills.workspaceId, actor.workspaceId),
+            eq(skills.skillId, supersededBy),
+            isNull(skills.deletedAt),
+          ),
+        )
         .limit(1);
       if (sucessora.length === 0) {
         return c.json(
@@ -111,13 +130,23 @@ export function registerLifecycleRoutes(app: Hono<AppEnv>, deps: LifecycleRoutes
       .update(skills)
       .set({
         lifecycle: alvo,
+        ...(enabled !== undefined ? { enabled } : {}),
         // Ao sair de `deprecated`, os dois campos são LIMPOS: manter o motivo afirmaria que a
         // skill está descontinuada por uma razão quando ela não está mais descontinuada.
         deprecationReason: deprecando ? reason : null,
         supersededBy: deprecando && supersededBy.length > 0 ? supersededBy : null,
         updateTime: new Date(),
       })
-      .where(and(eq(skills.workspaceId, actor.workspaceId), eq(skills.skillId, skillId)))
+      // `deleted_at IS NULL`: uma skill tombstoned não tem ciclo de vida a mudar. Sem esta
+      // cláusula a rota devolvia 200 sobre uma skill apagada, divergindo de `skills-store.ts`,
+      // que filtra soft-delete em toda leitura e escrita.
+      .where(
+        and(
+          eq(skills.workspaceId, actor.workspaceId),
+          eq(skills.skillId, skillId),
+          isNull(skills.deletedAt),
+        ),
+      )
       .returning({ skillId: skills.skillId, lifecycle: skills.lifecycle });
 
     // 404 para skill de outro workspace — mesmo contrato de não-enumeração do M11: um 403
@@ -140,6 +169,7 @@ export function registerLifecycleRoutes(app: Hono<AppEnv>, deps: LifecycleRoutes
     return c.json({
       skill_id: skillId,
       lifecycle: alvo,
+      ...(enabled !== undefined ? { enabled } : {}),
       reason: deprecando ? reason : null,
       superseded_by: deprecando && supersededBy.length > 0 ? supersededBy : null,
     });
