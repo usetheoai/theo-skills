@@ -103,7 +103,22 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
 
   app.get('/v1/bundles', publica, async (c) => {
     const bundles = await deps.bundlesStoreFor(workspaceOf(c)).list();
-    return c.json({ bundles: bundles.map((b) => ({ bundle_id: b.bundleId, name: b.name, items: b.items })) }, 200);
+    // `create_time` viaja porque a tela o mostra. Sem ele a coluna "Criado em" ficava `—` para
+    // TODO pacote — medido no app-dev em 2026-08-04, inclusive num criado segundos antes. O dado
+    // sempre existiu (`bundles.create_time`, `notNull().defaultNow()`); era a projeção que o
+    // descartava. Mesma classe do `conversationId` que o theo-trust pagou: campo que a jornada
+    // exige, ausente da resposta, transformando uma coluna em código morto.
+    return c.json(
+      {
+        bundles: bundles.map((b) => ({
+          bundle_id: b.bundleId,
+          name: b.name,
+          items: b.items,
+          create_time: b.createTime.toISOString(),
+        })),
+      },
+      200,
+    );
   });
 
   /**
