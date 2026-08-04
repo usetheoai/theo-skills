@@ -246,11 +246,7 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   registerVisibilityRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   // M32 — o ciclo de vida é escrita de curadoria, ao lado da visibilidade e pelo mesmo motivo:
   // muda o que TODOS os agentes do workspace conseguem descobrir.
-  registerLifecycleRoutes(app, {
-    db,
-    membersStoreFor: (ws: string) => createMembersStore(db, ws),
-    logger,
-  });
+  registerLifecycleRoutes(app, { db, logger });
   registerWebhookEndpointRoutes(app, {
     endpointsStoreFor: (ws: string) => createWebhookEndpointsStore(db, ws),
     logger,
