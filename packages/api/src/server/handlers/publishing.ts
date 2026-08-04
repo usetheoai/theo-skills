@@ -177,6 +177,37 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
     );
   });
 
+  /**
+   * Os tokens de um bundle (M35) — identidade e ciclo de vida, nunca o segredo.
+   *
+   * Sem esta rota, `DELETE .../tokens/:tokenId` exigia um id que a tela não tinha como descobrir:
+   * um token emitido pela CLI ou por outro operador era invisível e, na prática, irrevogável. O
+   * store já sabia listar; faltava a porta.
+   *
+   * O 404 quando o bundle não é do workspace segue o contrato de não-enumeração do M11 — um 403
+   * confirmaria que o bundle existe.
+   */
+  app.get('/v1/bundles/:bundleId/tokens', publica, async (c) => {
+    const store = deps.bundlesStoreFor(workspaceOf(c));
+    const bundleId = c.req.param('bundleId');
+    if ((await store.get(bundleId)) === null) return c.json({ error: 'not_found' }, 404);
+    const tokens = await store.listTokens(bundleId);
+    return c.json(
+      {
+        bundle_id: bundleId,
+        tokens: tokens.map((tk) => ({
+          token_id: tk.tokenId,
+          label: tk.label,
+          quota_per_window: tk.quotaPerWindow,
+          expires_at: tk.expiresAt.toISOString(),
+          revoked_at: tk.revokedAt === null ? null : tk.revokedAt.toISOString(),
+          create_time: tk.createTime.toISOString(),
+        })),
+      },
+      200,
+    );
+  });
+
   app.delete('/v1/bundles/:bundleId/tokens/:tokenId', publica, async (c) => {
     const ok = await deps.bundlesStoreFor(workspaceOf(c)).revokeToken(c.req.param('tokenId'));
     return ok ? c.json({ revoked: true }, 200) : c.json({ error: 'not_found' }, 404);

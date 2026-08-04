@@ -1244,9 +1244,16 @@ capacidade que o roadmap marca como entregue e que nenhuma tela expõe.
 **Definition of done:**
 
 - [ ] **Bundles gerenciáveis pela tela** — listar, criar e editar itens, sem CLI.
-- [ ] **Adoção visível na granularidade que medimos**, e a tela **diz** que é por bundle, não por
-      skill. Apresentar métrica de bundle como se fosse de skill é o defeito que este milestone não
-      pode introduzir.
+- [ ] **Adoção visível na granularidade que medimos**, e a tela **diz qual é**: a contagem é *da
+      skill, dentro deste bundle*, e **não soma entre bundles**. Todo número aparece com o
+      denominador da janela ao lado — contagem isolada não distingue sucesso de irrelevância.
+
+      > **Corrigido em 2026-08-04 pelo `/discover-plan m35-bundles-adoption-surface`.** O texto
+      > anterior mandava a tela dizer que a métrica *"é por bundle, não por skill"*. Medido em
+      > `packages/api/src/server/store/adoption-store.ts:7-19`: `InstallEvent` registra `skillId` e
+      > `AdoptionRow` devolve `skillId`/`version`/`installs` — a medição **é por skill**, escopada ao
+      > bundle. Cumprir o critério original faria a tela negar a granularidade que ela própria exibe.
+      > A limitação real, que permanece, é a ausência de agregação **entre** bundles.
 - [ ] **Tokens delegados emitidos e revogados pela tela**, sob a coreografia do `DESIGN.md` §2.2.
 - [ ] **Nenhum segredo relegível.** O token aparece uma vez, na criação; depois só o identificador.
 - [ ] **Alcançável por clique a partir da raiz.**

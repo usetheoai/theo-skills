@@ -17,15 +17,23 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+### Security
+
+
+## [0.14.0] - 2026-08-04
+
 ### Added
 
+- **theo-skills:** `GET /v1/bundles/:bundleId/tokens` — a **porta** que faltava. O primeiro passe deste milestone implementou `listTokens` no store, viu nove testes verdes e não criou a rota: o método ficou sem chamador de produção, e a tela continuava sem como listar — portanto sem como revogar, que era exatamente a lacuna que o M35 dizia fechar. Um store correto atrás de uma porta que não existe é indistinguível de nada implementado (#M35)
+- **theo-skills:** `listTokens` fecha a lacuna que tornava a revogação impossível na prática. O store tinha `mintToken` e `revokeToken`, e nenhuma forma de **listar** — o `revokeToken` recebia um id que a tela não tinha como descobrir, então token emitido por outro operador ou pela CLI era invisível e portanto irrevogável. A listagem devolve identidade e ciclo de vida; **nunca o valor nem o hash**, com teste que compara a resposta serializada contra os dois (#M35)
+- **theo-skills:** a adoção passa a devolver `total_installs` — o **denominador** da janela. Somar as linhas recebidas só parece equivalente: sob paginação ou top-N a soma é de um recorte, e a proporção que a tela desenha sai errada em silêncio. O total isola por workspace como as linhas, porque vazamento por contagem agregada é o mais fácil de deixar passar — nenhuma linha vaza, só o número (#M35)
+- **theo-skills:** o isolamento entre publishers deixa de ser só estrutural e ganha **teste**. O comentário do `adoption-store` afirmava impedir "inclusive o vazamento por diferença de contagem agregada" e nada verificava; o registry investigado também não testa isso — os testes dele provam atribuição, não isolamento. Provado discriminante: removido o escopo de workspace, o teste reprova (#M35)
 - **theo-skills:** o ciclo de vida atravessa até o **agente**. `SkillSummary` (MCP) e `Skill` (SDK) passam a declarar `lifecycle`, `deprecation_reason` e `superseded_by`. Sem eles nos tipos, os campos existiam na resposta da API e **nenhum consumidor os via** — um agente carregaria uma skill descontinuada sem saber, que é o cenário nomeado na Definition of done do M32. Opcionais: um registry mais antigo simplesmente não os devolve, e ausência não é o mesmo que `active` (#M32)
 
-### Security
-
-## [Unreleased]
 
 ### Security
+
+- **theo-skills:** a imagem de runtime deixa de carregar `npm`, `yarn` e `corepack`. O gate Trivy reprovou a v0.14.0 com duas CVEs **HIGH** — `brace-expansion` (CVE-2026-69152) e `ip-address` (CVE-2026-69192) — que **não vêm do nosso lockfile** (ele resolve 5.0.6 e 10.3.1), e sim do npm embutido na imagem base, em `/usr/local/lib/node_modules/npm/`. Nada em runtime invoca gerenciador de pacote: o CMD é `node`, o healthcheck é `node -e`, e as dependências chegam prontas de outro estágio. Remover é o fix — um `.trivyignore` deixaria o binário vulnerável dentro da imagem que roda em produção. Medido depois: `trivy --severity HIGH,CRITICAL --exit-code 1` sai **0** (#M35)
 
 - **theo-skills:** fecha `GHSA-7p8r-x3mc-p8w7` (**HIGH** — confusão de host em `fast-uri` via barra invertida, transitiva de `@modelcontextprotocol/sdk>ajv`) e `GHSA-8j4g-w8fx-2239` (de-duplicação de header no adapter do Hono). Ambas publicadas entre o run anterior do CI e este, e ambas bloqueavam o gate `pnpm audit --prod --audit-level=high`. Os pins vão para `pnpm-workspace.yaml`, onde o projeto já centraliza overrides de CVE — não para o `package.json` raiz, que o pnpm v11 não lê aqui. `@hono/node-server` subiu de 1.x para 2.x; suíte completa verde (#M32)
 
