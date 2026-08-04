@@ -129,3 +129,54 @@ describeIntegration('M35 — contrato HTTP de tokens e adoção', () => {
     expect(body.total_installs).toBe(0);
   });
 });
+
+/**
+ * `GET /v1/bundles` precisa devolver quando o pacote foi criado.
+ *
+ * MEDIDO no app-dev em 2026-08-04: a coluna "Criado em" da tela de distribuição mostrava `—`
+ * para TODOS os pacotes, inclusive um criado segundos antes. O dado existe — `bundles.create_time`
+ * é `notNull().defaultNow()` e o store faz `select()` sem projeção — mas o handler o descartava
+ * ao montar a resposta.
+ *
+ * É a mesma classe de defeito que o `theo-trust` pagou com o `conversationId`: um campo que a
+ * jornada exige, ausente da resposta, transformando uma coluna da tela em código morto.
+ */
+describeIntegration('M35 — a listagem de bundles carrega a data de criação', () => {
+  let boss: Awaited<ReturnType<typeof startBoss>>;
+
+  beforeEach(async () => {
+    boss ??= await startBoss();
+    await truncateAll();
+  });
+  afterAll(async () => {
+    await boss.stop();
+    await closePool();
+  });
+
+  it('GET /v1/bundles devolve create_time — sem ele a coluna da tela é sempre "—"', async () => {
+    const app = createApp({
+      pool: getPool(),
+      queue: boss,
+      logger: createNoopLogger(),
+      reservationHours: 1,
+      distribution: { defaultQuota: 600, windowMs: 60_000 },
+      principalResolver: () => ({ workspaceId: 'ws_pub', userId: 'u', role: 'admin', scopes: ['skills:admin'] }),
+    });
+
+    await app.request('/v1/bundles', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'pacote' }),
+    });
+
+    const body = (await (await app.request('/v1/bundles')).json()) as {
+      bundles: { bundle_id: string; name: string; create_time?: string }[];
+    };
+
+    expect(body.bundles).toHaveLength(1);
+    const criadoEm = body.bundles[0]?.create_time;
+    expect(criadoEm).toBeDefined();
+    // Data real e parseável — não uma string qualquer que a tela renderizaria como "Invalid Date".
+    expect(Number.isNaN(Date.parse(criadoEm ?? ''))).toBe(false);
+  });
+});

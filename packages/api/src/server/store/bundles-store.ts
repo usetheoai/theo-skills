@@ -12,6 +12,8 @@ export interface Bundle {
   readonly bundleId: string;
   readonly name: string;
   readonly items: readonly { skillId: string; channel: string }[];
+  /** Quando o pacote foi criado. A tela o exibe; sem ele a coluna "Criado em" fica sempre `—`. */
+  readonly createTime: Date;
 }
 
 /** O que uma resolução de token devolve — a identidade do DESTINATÁRIO, não do publisher. */
@@ -88,6 +90,7 @@ export function createBundlesStore(db: Db, workspaceId: string): BundlesStore {
         bundleId: b.bundleId,
         name: b.name,
         items: items.map((i) => ({ skillId: i.skillId, channel: i.channel })),
+        createTime: b.createTime,
       };
     },
 
@@ -118,7 +121,14 @@ export function createBundlesStore(db: Db, workspaceId: string): BundlesStore {
         lista.push({ skillId: i.skillId, channel: i.channel });
         porBundle.set(i.bundleId, lista);
       }
-      return rows.map((b) => ({ bundleId: b.bundleId, name: b.name, items: porBundle.get(b.bundleId) ?? [] }));
+      // `createTime` entra na projeção porque a tela o mostra. O `select()` já o trazia do banco
+      // e este `map` o descartava — o handler não tinha como devolver o que nunca chegou aqui.
+      return rows.map((b) => ({
+        bundleId: b.bundleId,
+        name: b.name,
+        items: porBundle.get(b.bundleId) ?? [],
+        createTime: b.createTime,
+      }));
     },
 
     async setItems(bundleId, items) {

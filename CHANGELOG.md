@@ -17,6 +17,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **theo-skills:** `GET /v1/bundles` passa a devolver `create_time`. O dado sempre existiu (`bundles.create_time`, `notNull().defaultNow()`) e o `select()` já o trazia — a **projeção** o descartava, no store e no handler. Medido no app-dev: a coluna "Criado em" da tela de distribuição mostrava `—` para todos os pacotes, inclusive um criado segundos antes. Mesma classe do `conversationId` que o theo-trust pagou: campo que a jornada exige, ausente da resposta, transformando uma coluna da tela em código morto (#M35)
+
 ### Security
 
 - **theo-skills:** `GET /v1/bundles/:bundleId/adoption` passa a exigir `skills:publish`, como as cinco rotas irmãs de bundle/token já exigiam. Era a **única da família sem o gate**: um portador de `skills:read` — o escopo que o dashboard cunha para o cliente de leitura, e o que um agente consumidor carrega — lia a telemetria comercial de quem publica. Mesmo workspace, então não é vazamento entre inquilinos; é privilégio a mais dentro dele, e a assimetria com as irmãs mostra que não foi decisão, foi esquecimento. O teste também assere o 403 já existente nos tokens, para deixar claro que a regra não é nova — é a que faltava aplicar (#M35)
