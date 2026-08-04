@@ -275,7 +275,19 @@ seu. Custo aceito: quem prefere densidade não a tem na tela de descoberta.
 **Consequences:** a faceta é nossa responsabilidade e nossa dívida. Se quisermos tags livres além de
 `category`, isso é campo novo no registro — trabalho de milestone, não de tela.
 
-### D3 — Nenhuma métrica de adoção no card enquanto não medirmos por skill
+### D3 — Nenhuma métrica de adoção no card enquanto não houver agregação entre bundles
+
+> **Premissa corrigida em 2026-08-04** pelo blueprint `m35-bundles-adoption-surface`. A versão
+> original deste ADR dizia *"nós não medimos carregamento por skill; o M21 mede adoção por bundle,
+> granularidade errada"*. **Isso é falso** — `adoption-store.ts:7-19` registra `InstallEvent` com
+> `skillId` e devolve `AdoptionRow{skillId, version, installs}`. A medição **é** por skill.
+>
+> A conclusão do ADR permanece válida, por outro motivo: **não existe agregação entre bundles**. Uma
+> skill distribuída em três bundles produz três linhas independentes, e "instalações totais da skill
+> X" não é computável. Exibir a contagem de um bundle como se fosse da skill continua sendo mentira
+> — mas por particionamento, não por granularidade.
+
+### D3 (texto original, premissa incorreta) — Nenhuma métrica de adoção no card enquanto não medirmos por skill
 
 **Decisão:** o card exibe `category`, `execution`, `visibility` e `embedded`. **Não** exibe estrelas,
 downloads nem "populares".
