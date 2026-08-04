@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createHttpRegistry } from '../../src/http-registry.js';
-import { createSkillTools, type RegistryPort, TOOL_NAMES } from '../../src/tools.js';
+import { createSkillTools, type RegistryPort, type SkillSummary, TOOL_NAMES } from '../../src/tools.js';
 
 /**
  * M15 — ferramentas MCP, e o âncora de tenant que o DoD exige.
@@ -153,5 +153,31 @@ describe('createHttpRegistry — falha do registry não vira lista vazia', () =>
   it('401 também lança — credencial errada não é "catálogo vazio"', async () => {
     const r = createHttpRegistry({ baseUrl: 'https://r.test', auth: 'errada', fetch: fetchStatus(401) });
     await expect(r.retrieve('q', 5)).rejects.toThrow(/HTTP 401/);
+  });
+});
+
+describe('M32 — o ciclo de vida atravessa até o agente', () => {
+  it('SkillSummary carrega lifecycle, motivo e sucessora quando o registry os devolve', () => {
+    // Sem estes campos no tipo, o agente carrega uma skill DESCONTINUADA sem saber — o cenário
+    // que a DoD do M32 nomeia textualmente. O teste é sobre a FORMA que atravessa a porta: um
+    // campo que o tipo não declara é um campo que o consumidor nunca vê, por mais que a API o
+    // devolva no corpo.
+    const doRegistro: SkillSummary = {
+      skill_id: 'conversor-velho',
+      name: 'conversor velho',
+      description: 'converte documentos',
+      lifecycle: 'deprecated',
+      deprecation_reason: 'substituída por conversor-vivo',
+      superseded_by: 'conversor-vivo',
+    };
+
+    expect(doRegistro.lifecycle).toBe('deprecated');
+    expect(doRegistro.deprecation_reason).toContain('substituída');
+    expect(doRegistro.superseded_by).toBe('conversor-vivo');
+  });
+
+  it('a ausência dos campos é distinta de active — um registry antigo simplesmente não os manda', () => {
+    const antigo: SkillSummary = { skill_id: 's', name: 'n', description: 'd' };
+    expect(antigo.lifecycle).toBeUndefined();
   });
 });

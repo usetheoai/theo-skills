@@ -17,6 +17,10 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+### Added
+
+- **theo-skills:** o ciclo de vida atravessa até o **agente**. `SkillSummary` (MCP) e `Skill` (SDK) passam a declarar `lifecycle`, `deprecation_reason` e `superseded_by`. Sem eles nos tipos, os campos existiam na resposta da API e **nenhum consumidor os via** — um agente carregaria uma skill descontinuada sem saber, que é o cenário nomeado na Definition of done do M32. Opcionais: um registry mais antigo simplesmente não os devolve, e ausência não é o mesmo que `active` (#M32)
+
 ### Security
 
 ## [Unreleased]

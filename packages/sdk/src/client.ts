@@ -8,6 +8,18 @@ export interface Skill {
   readonly origin?: 'own' | 'public';
   /** Corpo da skill, quando a rota o fornece. A busca devolve resumo; `get` pode trazê-lo. */
   readonly instructions?: string;
+  /**
+   * Ciclo de vida (M32): `active` · `draft` · `deprecated`.
+   *
+   * Sem este campo, um agente carrega uma skill DESCONTINUADA sem saber — é o cenário que a
+   * DoD do M32 nomeia. Opcional porque um registry mais antigo simplesmente não o devolve, e
+   * ausência não é o mesmo que `active`.
+   */
+  readonly lifecycle?: string;
+  /** Por que foi descontinuada. Presente só quando `lifecycle === 'deprecated'`. */
+  readonly deprecation_reason?: string;
+  /** O que usar no lugar. Sem isto, saber que parou não diz o que fazer. */
+  readonly superseded_by?: string;
 }
 
 export interface SkillsClientOptions {
