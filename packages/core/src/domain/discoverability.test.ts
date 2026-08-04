@@ -181,6 +181,24 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
     expect(d.discoverable).toBe(true);
   });
 
+  it('o rascunho recebe UM hint, não dois — cada causa fala uma vez', () => {
+    // Um `git merge` reintroduziu o bloco inteiro do hint numa segunda versão, e a função passou a
+    // empurrar DOIS hints para o mesmo rascunho — um em cada idioma. Nenhum teste pegou: todos
+    // assertavam PRESENÇA (`toContain`, `toMatch`), e presença é indiferente à duplicata.
+    //
+    // O gate do CHANGELOG foi quem expôs, por um caminho indireto: ele apontou o arquivo tocado
+    // sem entrada, e foi lendo o diff do merge que a duplicação apareceu.
+    const d = diagnosticarDescobribilidade({
+      name: 'Converter moeda',
+      description: 'Converte moeda estrangeira para reais usando a cotação do dia, com a taxa oficial.',
+      revisao: { publicada: false },
+      vizinhas: [],
+    });
+    expect(d.hints).toHaveLength(1);
+    // E não há duas frases dizendo a mesma coisa em idiomas diferentes.
+    expect(new Set(d.hints).size).toBe(d.hints.length);
+  });
+
   it('o hint do rascunho fala de PUBLICAR, não de republicar', () => {
     // Um rascunho com tudo certo ainda não é achável — porque não existe. Dizer "descobrível"
     // sem ressalva afirmaria algo falso sobre o presente.

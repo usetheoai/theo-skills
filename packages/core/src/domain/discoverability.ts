@@ -142,15 +142,5 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
     );
   }
 
-  // Um rascunho sem causa alguma NÃO é achável hoje — ele não existe no acervo. Devolver o
-  // veredito limpo e calar sobre isso deixaria o autor com a impressão de que já está resolvido.
-  // A ressalva vai no hint, não numa causa: causa é problema a corrigir, e não haver publicado
-  // ainda é o estado normal de quem está escrevendo.
-  if (!entrada.revisao.publicada && causes.length === 0) {
-    hints.push(
-      'Nada a corrigir na descrição. A skill ainda não está no acervo — ao publicar, a ingestão gera o vetor e ela passa a ser encontrada por intenção.',
-    );
-  }
-
   return { discoverable: causes.length === 0, causes, hints };
 }
