@@ -1,19 +1,25 @@
 {
   "_note": "M34 — dataset de DESCOBRIBILIDADE: `consulta → skill que deveria ser achada`. Distinto de `dataset.json` (M4), que mede o retrieval como SISTEMA; este mede se uma skill específica é encontrada pela intenção que deveria encontrá-la, e o gate REPROVA quando uma que era achada deixa de ser.",
-  "_honestidade": "Roda contra o ACERVO REAL do workspace, não contra fixture. O número mede o embedder tanto quanto a skill: com o stub (hash determinístico) a perna vetorial isolada deu 0.308 no M4, e um resultado nesse ambiente diz mais sobre a infraestrutura do que sobre a descrição. Por isso todo resultado carrega qual embedder o produziu, e comparação entre embedders diferentes é RECUSADA, não normalizada.",
-  "version": 1,
+  "_acervo": "Os identificadores são do ACERVO REAL do workspace. A versão 1 apontava para `sk_cambio_v1`, que só existe no `seed()` de `tests/integration/m34-discoverability.integration.test.ts` — e o campo `_honestidade` dela afirmava rodar contra o acervo real. Um dataset que semeia a própria skill que vai procurar mede o semeador, não a descoberta. Rodar num acervo diferente é esperado e não quebra o gate: o runner consulta se cada skill existe e as ausentes são reportadas sem contar como regressão.",
+  "_honestidade": "O número mede o embedder tanto quanto a skill. Todo resultado carrega qual embedder o produziu, e comparação entre embedders diferentes é RECUSADA, não normalizada. Medido em 2026-08-04 no app-dev: o embedder é `openai/text-embedding-3-small`, e duas das três skills antigas do acervo estavam SEM VETOR — para elas só a perna léxica responde, o que o `matched` da resposta torna explícito.",
+  "version": 2,
   "dated": "2026-08-04",
-  "_envelhecimento": "Consultas escritas para um acervo pequeno não discriminam num grande. A data acima aparece no relatório justamente para que um dataset velho seja visível — um recall alto sobre 3 skills não diz nada sobre 300.",
+  "_envelhecimento": "Consultas escritas para um acervo pequeno não discriminam num grande. A data acima aparece no relatório justamente para que um dataset velho seja visível — um recall alto sobre 10 skills não diz nada sobre 300.",
   "cases": [
     {
       "query": "converter dólar para real",
-      "expect_skill_id": "sk_cambio_v1",
-      "_why": "sinônimo de domínio: a consulta não repete as palavras da descrição ('moeda estrangeira'), então exercita a perna vetorial e não só a léxica"
+      "expect_skill_id": "redteam-cambio-1785615135",
+      "_why": "sinônimo de domínio: a consulta não repete as palavras da descrição ('moeda estrangeira'), então mede se a intenção alcança a skill. MEDIDO: hoje ela responde pela perna léxica (`matched: keyword`) porque a revisão vigente está sem vetor — o caso continua válido, e o `matched` diz por qual perna passou."
     },
     {
-      "query": "quanto vale a moeda estrangeira hoje",
-      "expect_skill_id": "sk_cambio_v1",
-      "_why": "fraseado de usuário, não de catálogo — é como um agente de fato perguntaria"
+      "query": "quais dependencias tem CVE e precisam de upgrade",
+      "expect_skill_id": "auditar-dependencias-m33",
+      "_why": "skill COM vetor no acervo (marcada DESCOBRÍVEL), então exercita a perna que o caso anterior não alcança. Sem um caso assim o dataset inteiro mediria só FTS, e um embedder quebrado passaria despercebido."
+    },
+    {
+      "query": "revisar as clausulas de rescisao de um contrato",
+      "expect_skill_id": "revisar-contrato",
+      "_why": "fraseado de usuário, não de catálogo. Há sobreposição léxica parcial com a descrição ('destaca as clausulas de rescisao, multa e foro'), então mede a combinação das duas pernas em vez de uma isolada."
     }
   ]
 }
