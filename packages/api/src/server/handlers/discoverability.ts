@@ -61,8 +61,22 @@ export function registerDiscoverabilityRoutes(app: Hono<AppEnv>, deps: Discovera
     }
 
     // Um rascunho AINDA NÃO publicado não tem vetor por definição — e isso não é defeito dele.
-    // Quem consulta declara; omitir significa "ainda não publiquei", o caso da tela de autoria.
-    const hasEmbedding = body?.has_embedding === true;
+    // Quem consulta declara; **omitir** o campo significa "ainda não publiquei", que é o caso da
+    // tela de autoria.
+    //
+    // Este comentário já estava aqui e o código NÃO o honrava: fazia `has_embedding === true`,
+    // que colapsa ausente e `false` no mesmo valor. Um rascunho era acusado de não ter vetor, com
+    // o conselho "republique" — impossível para algo nunca publicado — e essa causa, disparando
+    // sempre, encobria as que o autor podia corrigir (theo-skills#144).
+    //
+    // A distinção que o protocolo já carregava:
+    //   campo AUSENTE  → rascunho: não há revisão, logo `no_embedding` não se aplica
+    //   `false`        → publicada e sem vetor: achado real, a ingestão falhou ou não rodou
+    //   `true`         → publicada e com vetor
+    const revisao =
+      body?.has_embedding === undefined
+        ? ({ publicada: false } as const)
+        : ({ publicada: true, temVetor: body.has_embedding === true } as const);
     const skillId = typeof body?.skill_id === 'string' ? body.skill_id : '';
 
     const encontradas = await deps.vizinhasDe(principal.workspaceId, `${name} ${description}`, TOP_K_VIZINHAS);
@@ -70,7 +84,7 @@ export function registerDiscoverabilityRoutes(app: Hono<AppEnv>, deps: Discovera
     // ~1.0 e o diagnóstico acusaria colisão consigo, que é conselho impossível de seguir.
     const vizinhas = skillId === '' ? encontradas : encontradas.filter((v) => v.skillId !== skillId);
 
-    const diagnostico = diagnosticarDescobribilidade({ name, description, hasEmbedding, vizinhas });
+    const diagnostico = diagnosticarDescobribilidade({ name, description, revisao, vizinhas });
 
     return c.json(
       {

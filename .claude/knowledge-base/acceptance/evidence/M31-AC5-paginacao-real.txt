@@ -1,0 +1,29 @@
+M31 AC5 — busca e paginacao REAIS na lista
+Medido no app-dev (dashboard 6e147fc) em 2026-08-04, via BFF autenticado.
+
+O defeito que o criterio existe para eliminar: "next_page_token hoje esta TIPADO E NAO USADO,
+entao acima de 100 skills o excedente some sem erro algum."
+
+--- paginacao ---
+
+GET /v1/dashboard/skills?limit=4  -> 200
+  4 skills: acc-m31-publicar, auditar-dependencias-m33, conciliar-extrato, dimensionar-cluster
+  next_page_token: PRESENTE
+
+GET /v1/dashboard/skills?limit=4&page_token=<token>  -> 200
+  4 skills: lt020-1785621219, m26-verify-clique, planejar-sprint, redigir-changelog
+
+  paginas DISJUNTAS: sim (nenhum id repetido)
+
+Nota: este resultado so foi possivel depois de corrigir o nome do parametro. Antes,
+`limit` era ignorado em silencio (o registro le `page_size`) e a chamada devolvia o acervo
+inteiro com `next_page_token: null` — a paginacao era inobservavel pela propria API.
+
+--- busca ---
+
+O filtro da lista DECLARA seu alcance, em vez de parecer varrer tudo:
+
+  "filtra o que esta carregado — [buscar no acervo inteiro]"
+
+O link leva a Descoberta, que busca por intencao no acervo todo. A contagem diz
+"N carregada(s) (acervo completo)" — distingue o que esta na tela do que existe.

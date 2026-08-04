@@ -34,11 +34,29 @@ export interface CandidataVizinha {
   readonly similaridade: number;
 }
 
+/**
+ * O estado de publicação da candidata — e, só quando publicada, se a revisão tem vetor.
+ *
+ * União discriminada em vez de um `hasEmbedding: boolean` porque **"não publicada e com vetor"
+ * não existe**: vetor é propriedade de uma revisão, e um rascunho não tem revisão. Com o booleano
+ * plano esse estado era representável, e a consequência apareceu em produção — a tela de autoria
+ * mandava `false` para um rascunho e o diagnóstico o acusava de não ter vetor (theo-skills#144).
+ *
+ * A distinção não é formal: ela muda qual pergunta está sendo respondida.
+ *
+ * | | Pergunta do autor | `no_embedding` significa |
+ * |---|---|---|
+ * | rascunho | "minha descrição está boa?" | nada — ele não tem revisão |
+ * | publicada | "por que não me acham?" | achado real: a ingestão falhou ou não rodou |
+ */
+export type EstadoDaRevisao =
+  | { readonly publicada: false }
+  | { readonly publicada: true; readonly temVetor: boolean };
+
 export interface EntradaDiagnostico {
   readonly name: string;
   readonly description: string;
-  /** Se a revisão vigente tem vetor. Ausência de vetor não é ausência de skill. */
-  readonly hasEmbedding: boolean;
+  readonly revisao: EstadoDaRevisao;
   readonly vizinhas: readonly CandidataVizinha[];
 }
 
@@ -91,7 +109,10 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
     );
   }
 
-  if (!entrada.hasEmbedding) {
+  // Falta de vetor só é ACHADO quando há revisão publicada para tê-lo. Num rascunho, acusá-la
+  // seria reportar como defeito uma consequência de ainda não ter publicado — e, pior, essa
+  // causa dispararia SEMPRE, encobrindo as duas que o autor pode corrigir agora.
+  if (entrada.revisao.publicada && !entrada.revisao.temVetor) {
     causes.push(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
     hints.push(
       'A revisão vigente não tem vetor: a skill só aparece para quem já sabe o nome dela. Republique para gerar o vetor, ou verifique se a ingestão falhou.',
@@ -108,6 +129,16 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
     causes.push(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
     hints.push(
       `Ocupa quase o mesmo espaço semântico de \`${rival.skillId}\` (${rival.similaridade.toFixed(2)}): as duas disputam as mesmas consultas, e a busca vai preferir uma delas de forma pouco previsível. Diferencie as descrições, ou descontinue a que saiu de uso.`,
+    );
+  }
+
+  // Um rascunho sem causa alguma NÃO é achável hoje — ele não existe no acervo. Devolver o
+  // veredito limpo e calar sobre isso deixaria o autor com a impressão de que já está resolvido.
+  // A ressalva vai no hint, não numa causa: causa é problema a corrigir, e não haver publicado
+  // ainda é o estado normal de quem está escrevendo.
+  if (!entrada.revisao.publicada && causes.length === 0) {
+    hints.push(
+      'Nada a corrigir na descrição. A skill ainda não está no acervo — ao publicar, a ingestão gera o vetor e ela passa a ser encontrada por intenção.',
     );
   }
 

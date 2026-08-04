@@ -78,9 +78,16 @@ describeIntegration('M34 — descobribilidade diagnosticada contra o acervo real
     expect(body.hints.length).toBeGreaterThan(0);
   });
 
-  it('um rascunho sem vetor é diagnosticado como tal, não como erro', async () => {
+  it('um rascunho é ANALISADO, não recusado — e sem ser acusado do que não é culpa dele', async () => {
     // Quem está autorando ainda NÃO publicou: não ter vetor é o estado normal dele, e recusar a
     // análise por isso deixaria o autor sem o diagnóstico justamente quando ele ainda pode agir.
+    //
+    // Esta frase é a original deste teste, e ela sempre esteve certa. A asserção abaixo é que
+    // não estava: ela exigia `causes` conter `no_embedding` — ou seja, **codificava o defeito**
+    // que a theo-skills#144 descreveu, afirmando o oposto do comentário logo acima dela.
+    //
+    // Enquanto ela existiu, corrigir o defeito reprovaria o teste, e o teste "protegia" o
+    // comportamento errado. Um teste que contradiz o próprio comentário é um alarme.
     const res = await diagnosticar({
       name: 'Analisar contrato',
       description: 'Lê um contrato em PDF e aponta cláusulas de rescisão e multa para revisão jurídica.',
@@ -88,7 +95,7 @@ describeIntegration('M34 — descobribilidade diagnosticada contra o acervo real
 
     const body = (await res.json()) as { causes: string[] };
     expect(res.status).toBe(200);
-    expect(body.causes).toContain('no_embedding');
+    expect(body.causes).not.toContain('no_embedding');
   });
 
   it('o relatório carrega QUAL EMBEDDER o produziu — risco #1 do milestone', async () => {
@@ -127,5 +134,36 @@ describeIntegration('M34 — descobribilidade diagnosticada contra o acervo real
 
     const { rows } = await getPool().query<{ n: string }>('SELECT count(*) AS n FROM operations');
     expect(Number(rows[0]?.n ?? 0)).toBe(0);
+  });
+  it('rascunho (has_embedding AUSENTE) não é acusado de não ter vetor — theo-skills#144', async () => {
+    // O contexto da tela de autoria: a skill ainda não foi publicada, então não tem revisão e
+    // não tem vetor. Acusá-la disso reporta como defeito uma consequência de ainda não ter
+    // publicado — e, por disparar sempre, ENCOBRE as causas que o autor pode corrigir agora.
+    //
+    // Medido no app-dev antes da correção: `causes: ["no_embedding"]` com o hint "Republique
+    // para gerar o vetor", instrução impossível para algo nunca publicado.
+    const res = await diagnosticar({ name: 'Converter moeda', description: 'x'.repeat(80) });
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { discoverable: boolean; causes: string[]; hints: string[] };
+    expect(body.causes).not.toContain('no_embedding');
+    expect(body.discoverable).toBe(true);
+    // E a ressalva honesta: sem causa alguma, ele ainda não é achável — porque não existe.
+    expect(body.hints.join(' ')).toMatch(/publicar/i);
+  });
+
+  it('`has_embedding: false` EXPLÍCITO continua acusando — ali o achado é real', async () => {
+    // O contraste que prova que a correção não desligou o detector. Para uma revisão publicada,
+    // faltar vetor significa que a ingestão falhou ou não rodou, e o autor pode agir.
+    const res = await diagnosticar({
+      name: 'Converter moeda',
+      description: 'x'.repeat(80),
+      has_embedding: false,
+    });
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { causes: string[]; hints: string[] };
+    expect(body.causes).toContain('no_embedding');
+    expect(body.hints.join(' ')).toMatch(/republique/i);
   });
 });
