@@ -1,4 +1,5 @@
 import { createId } from '@paralleldrive/cuid2';
+import { buildLifecycleFilter } from '@usetheo/skills';
 import { RetrieveParamsSchema } from '@usetheo/skills/contract';
 import { type Hono } from 'hono';
 
@@ -52,11 +53,24 @@ export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDe
       // busca voltava sem restrição alguma. Resultado plausível, nunca erro — o modo mais
       // caro de errar, porque ninguém investiga uma resposta que parece certa.
       category: c.req.query('category'),
+      // M32 — o opt-in do ciclo de vida. Ausentes, o default esconde rascunhos,
+      // descontinuadas e desabilitadas: a descoberta serve quem procura algo para USAR.
+      include_draft: c.req.query('include_draft'),
+      include_deprecated: c.req.query('include_deprecated'),
+      include_disabled: c.req.query('include_disabled'),
     });
     if (!parsed.success) {
       return c.json({ error: 'invalid_request', details: parsed.error.flatten() }, 400);
     }
-    const { query, top_k, strategy, category } = parsed.data;
+    const { query, top_k, strategy, category, include_draft, include_deprecated, include_disabled } =
+      parsed.data;
+    // A especificação de visibilidade nasce no DOMÍNIO a partir das flags da fronteira — a
+    // rota não monta o predicado à mão (ADR D3).
+    const lifecycle = buildLifecycleFilter({
+      includeDraft: include_draft,
+      includeDeprecated: include_deprecated,
+      includeDisabled: include_disabled,
+    });
 
     // O tenant vem do Principal resolvido na fronteira — nunca da query string nem do
     // corpo, que o cliente controla (M11 DoD #1).
@@ -72,6 +86,7 @@ export function registerRetrieveRoutes(app: Hono<AppEnv>, deps: RetrieveRoutesDe
       topK: top_k,
       strategy,
       ...(category !== undefined ? { category } : {}),
+      lifecycle,
     });
     const latencyMs = clock.now() - start;
 

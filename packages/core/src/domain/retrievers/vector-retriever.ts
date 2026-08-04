@@ -1,5 +1,6 @@
 import { assertEmbeddingDim, type EmbeddingProvider } from '../embedders/index.js';
 
+import { buildLifecycleClause } from './lifecycle-clause.js';
 import { runRetrieveQuery } from './map-row.js';
 import { ParamBuilder } from './param-builder.js';
 import { type QueryExecutor, type RetrievedSkill, type RetrieveParams, type SkillRetriever } from './types.js';
@@ -50,6 +51,10 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
       // a fusão então mantinha. O agente pedia uma categoria e recebia outra, sem erro —
       // resultado plausível, o modo mais caro de errar.
       const categoryClause = params.category !== undefined ? ` AND s.category = ${b.bind(params.category)}` : '';
+      // M32 — mesma cláusula do keyword-retriever, mesmo helper: as duas pernas da busca
+      // precisam esconder exatamente o mesmo conjunto, senão a fusão RRF reintroduz o que uma
+      // delas filtrou.
+      const lifecycleClause = buildLifecycleClause(b, params.lifecycle);
       const sql = `
         SELECT s.skill_id, s.name, s.description, 1 - (e.vector <=> ${vecPh}::vector) AS score,
                s.category, s.execution,
@@ -61,7 +66,7 @@ export function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever
          AND e.revision_id = s.latest_revision_id
          AND e.provider = ${providerPh}
          AND e.model = ${modelPh}
-        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public') AND s.deleted_at IS NULL${categoryClause}
+        WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public') AND s.deleted_at IS NULL${categoryClause}${lifecycleClause}
         ORDER BY e.vector <=> ${vecPh}::vector ASC, s.skill_id ASC
         LIMIT ${limitPh}
       `;

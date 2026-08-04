@@ -1,0 +1,274 @@
+agent: review-m32-skill-lifecycle-domain-database
+review_target: 3b85e5f..HEAD for plan m32-skill-lifecycle
+domain: database
+environment_measured:
+  postgres: "15.4 (Debian 15.4-2.pgdg120+1)"
+  pgvector: "0.5.1"
+  skills_row_count: 2
+  note: >-
+    EXPLAIN was run against the local dev DB (2 rows in `skills`). At that size the planner
+    picks Seq Scan / Nested Loop regardless of predicates, so the plans below prove PLAN SHAPE
+    (which relation carries which filter) and NOT cost. No cost claim in this report is
+    presented as measured at scale.
+domain_specific_patterns_checked:
+  - "additive migration (no DROP/RENAME/type change)"
+  - "ADD COLUMN ... DEFAULT rewrite behaviour on PG >= 11"
+  - "CHECK constraint validation lock (NOT VALID / VALIDATE two-step)"
+  - "CHECK constraint truth table vs domain vocabulary (SKILL_LIFECYCLES)"
+  - "SQL parameterization (no interpolation of caller-supplied values)"
+  - "index support for the new discovery predicate"
+  - "pgvector post-filter / under-fill on HNSW with cross-table predicates"
+  - "soft-delete (deleted_at) convention consistency with skills-store"
+  - "read-then-write race / transactional boundary"
+  - "column with no write path (dead schema)"
+  - "rollback path / down-migration convention"
+
+verified_ok:
+  - "Migration is strictly additive: 4 ADD COLUMN + 2 ADD CONSTRAINT. No DROP, RENAME, type change or data mutation. Confirmed by reading 0014_lean_living_mummy.sql in full."
+  - "ADD COLUMN ... DEFAULT ... NOT NULL does NOT rewrite the table on PG 15.4 (measured version); the default is stored in pg_attribute since PG 11. The three volatile-free defaults ('active', true, NULL) all qualify."
+  - "skills_lifecycle_check matches SKILL_LIFECYCLES exactly ('active','draft','deprecated' — skill-lifecycle.ts:19). Verified live: CHECK (lifecycle = ANY (ARRAY['active','draft','deprecated']))."
+  - "skills_deprecation_reason_check truth table is correct: (deprecated, NULL) rejected; (deprecated, reason) accepted; (active|draft, anything) accepted. The implication form `lifecycle <> 'deprecated' OR deprecation_reason IS NOT NULL` is the right encoding — a plain AND would have wrongly forbidden a reason-less active row."
+  - "All lifecycle values reach SQL through ParamBuilder.bind() -> $N placeholders (lifecycle-clause.ts:29). Nothing caller-supplied is interpolated. The only interpolated token is `alias`, whose sole call sites pass the code-controlled default 's'. No injection vector found."
+  - "Both retriever legs call the SAME helper (keyword-retriever.ts:38, vector-retriever.ts:60), so RRF fusion cannot reintroduce what one leg hid."
+
+findings:
+  - id: F-dom-db-1
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/migrations/0014_lean_living_mummy.sql
+    line: 17
+    plan_ref: ADR D5 — hand-written CHECK because Drizzle's text enum does not reach Postgres
+    domain_anchor: "PostgreSQL 15 docs, ALTER TABLE ADD CONSTRAINT: a CHECK without NOT VALID scans the whole table to validate, holding ACCESS EXCLUSIVE"
+    summary: >-
+      Both CHECK constraints are added in the validating form. `ALTER TABLE ... ADD CONSTRAINT
+      ... CHECK (...)` takes ACCESS EXCLUSIVE and seq-scans every row to validate before it
+      returns. Drizzle's migrator wraps the file in one transaction, so that lock is held across
+      all six statements — the cheap metadata-only ADD COLUMNs inherit the CHECK's blocking
+      window. On the 2-row dev DB this is invisible; on a `skills` table with real volume it is
+      a write-and-read stall on the hottest table in the product.
+    evidence: |
+      ```sql
+      ALTER TABLE "skills" ADD CONSTRAINT "skills_lifecycle_check"
+        CHECK ("lifecycle" IN ('active', 'draft', 'deprecated'));
+      ```
+      Measured on the live dev DB — both constraints landed already VALIDATED:
+      ```
+      Check constraints:
+          "skills_deprecation_reason_check" CHECK (lifecycle <> 'deprecated'::text OR ...)
+          "skills_lifecycle_check" CHECK (lifecycle = ANY (ARRAY['active','draft','deprecated']))
+      ```
+      No `NOT VALID` appears anywhere in the file.
+    recommended_action: >-
+      Split into the standard two-step: `ADD CONSTRAINT ... CHECK (...) NOT VALID` (metadata
+      only, ACCESS EXCLUSIVE for microseconds), then `VALIDATE CONSTRAINT ...` in a separate
+      statement/migration (SHARE UPDATE EXCLUSIVE — concurrent reads and writes proceed). Because
+      the columns are brand new with a constant default, every existing row trivially satisfies
+      both predicates, so validation cannot fail. Same file also has no down path — the repo has
+      0 down-migrations across all 15 files, so that is project convention, not a regression here;
+      the manual rollback is `DROP CONSTRAINT` x2 + `DROP COLUMN` x4 and is worth one comment line.
+
+  - id: F-dom-db-2
+    severity: MEDIUM
+    file: packages/api/src/server/handlers/lifecycle.ts
+    line: 120
+    plan_ref: M32 T5.1 — lifecycle change operation
+    domain_anchor: "packages/api/src/server/store/skills-store.ts:323,398 — every read and write path filters isNull(skills.deletedAt)"
+    summary: >-
+      The UPDATE targets a skill by (workspace_id, skill_id) only, with no `deleted_at IS NULL`
+      predicate. A soft-deleted skill can therefore have its lifecycle changed and the endpoint
+      answers 200 with a body, as if the skill were live. Every other write path in this codebase
+      filters the tombstone — skills-store.ts:398 (delete) and :323 (get) both do — so this is a
+      local deviation from an established convention, not a project-wide gap.
+    evidence: |
+      ```ts
+      .where(and(eq(skills.workspaceId, actor.workspaceId), eq(skills.skillId, skillId)))
+      .returning({ skillId: skills.skillId, lifecycle: skills.lifecycle });
+      ```
+      vs. the store convention (skills-store.ts:398):
+      ```ts
+      .where(and(ws, eq(skills.skillId, skillId), isNull(skills.deletedAt)))
+      ```
+    recommended_action: >-
+      Add `isNull(skills.deletedAt)` to the where clause. The empty `returning()` then falls
+      through to the existing `404 not_found` at line 122, which is the correct answer and
+      already matches the M11 non-enumeration contract the comment there cites.
+
+  - id: F-dom-db-3
+    severity: MEDIUM
+    file: packages/api/src/server/handlers/lifecycle.ts
+    line: 96
+    plan_ref: ADR D3 — deprecation must tell the consumer what to use instead
+    domain_anchor: "live schema: `superseded_by text` has NO foreign key; skills_pkey is (workspace_id, skill_id)"
+    summary: >-
+      The successor-existence SELECT also omits `deleted_at IS NULL`, so a tombstoned skill_id
+      validates as a successor. Nothing downstream catches it: `superseded_by` carries no FK, so
+      the DB will happily store a pointer to a deleted skill. The consumer follows the pointer and
+      gets a 404 — the exact "same information as a 404" failure the reason-required branch at
+      line 66 exists to prevent, arriving through the other field.
+    evidence: |
+      ```ts
+      const sucessora = await deps.db
+        .select({ skillId: skills.skillId })
+        .from(skills)
+        .where(and(eq(skills.workspaceId, actor.workspaceId), eq(skills.skillId, supersededBy)))
+        .limit(1);
+      ```
+      Live `\d skills` shows no FK on superseded_by (the only FK in the vicinity is
+      embeddings_revision_id_skill_revisions_revision_id_fk, on another table).
+    recommended_action: >-
+      Add `isNull(skills.deletedAt)` to this SELECT too. A composite FK
+      `(workspace_id, superseded_by) REFERENCES skills(workspace_id, skill_id)` would be the
+      stronger guard and is now expressible since the PK is composite — but it interacts with
+      soft delete (the row survives, so the FK would not fire) and with the id-reservation
+      semantics of `reserved_until`, so it is a design decision, not a drive-by fix.
+
+  - id: F-dom-db-4
+    severity: MEDIUM
+    file: packages/core/src/domain/retrievers/vector-retriever.ts
+    line: 60
+    plan_ref: ADR D3 — both retrieval legs must hide exactly the same set
+    domain_anchor: "pgvector 0.5.1 (measured). Iterative index scan (hnsw.iterative_scan) landed in 0.8.0 and is absent here — confirmed: `SHOW hnsw.iterative_scan` -> unrecognized configuration parameter"
+    summary: >-
+      On the vector leg the lifecycle predicate is a POST-filter across a join boundary. The HNSW
+      index lives on `embeddings.vector`; `lifecycle`/`enabled` live on `skills`. Once the table
+      grows enough for the planner to drive from the HNSW scan, that scan returns a bounded
+      candidate set (ef_search) ordered by distance, and the lifecycle filter then discards
+      candidates on the `skills` side — AFTER the index has stopped producing. With pgvector 0.5.1
+      there is no iterative rescan, so the query can return FEWER than topK results with no error.
+      This is not the usual "add an index" problem: no index on `skills` can fix it, because the
+      filter is on the wrong side of the join from the index that bounds the scan. Before M32 the
+      default vector query carried no such predicate; M32 adds two to EVERY discovery query.
+    evidence: |
+      Plan shape (dev DB, enable_seqscan=off to force index paths — cost figures meaningless at
+      2 rows, the RELATION each filter sits on is the point):
+      ```
+      ->  Nested Loop
+            ->  Index Scan using embeddings_workspace_idx on embeddings e
+                  Filter: ((provider = 'p') AND (model = 'm'))
+            ->  Index Scan using skills_pkey on skills s
+                  Filter: ((deleted_at IS NULL) AND enabled AND (lifecycle = 'active') AND ...)
+      ```
+      The lifecycle/enabled filter is on the `skills` side of the loop, i.e. downstream of
+      whatever bounds the `embeddings` scan.
+    recommended_action: >-
+      Two honest options, and I do not have the data to pick between them: (a) over-fetch on the
+      vector leg — request `topK * F` from the vector query and truncate after filtering, which
+      costs recall predictability but is a one-line change; (b) denormalize `lifecycle`/`enabled`
+      onto `embeddings` so the predicate can ride the same relation as the HNSW index (a partial
+      index `WHERE enabled` then becomes possible). Whichever is chosen, add a regression test
+      that seeds > ef_search deprecated skills and asserts topK live results still come back —
+      today nothing would catch the under-fill, because it degrades silently.
+
+  - id: F-dom-db-5
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/schema.ts
+    line: 122
+    plan_ref: M32 T2.1 — lifecycle columns and constraints
+    domain_anchor: "rules/cycle-implement.md § Wiring triad — pillar (a): a symbol with no caller is not complete"
+    summary: >-
+      `enabled` is READ by the discovery filter but WRITTEN by nothing. A grep across
+      packages/api/src and packages/core/src (excluding tests) returns exactly three hits: the
+      schema declaration, a doc comment, and the read in lifecycle-clause.ts:33. There is no
+      endpoint, store method or migration that ever sets it to false. In production the column is
+      therefore permanently `true`, which makes `requireEnabled` a filter that can never exclude
+      a row and `include_disabled` a public API flag with no reachable effect.
+    evidence: |
+      ```
+      $ grep -rn "enabled" packages/api/src packages/core/src --include='*.ts' \
+          | grep -v '\.test\.ts' | grep -vi 'requireEnabled|includeDisabled'
+      packages/core/src/domain/retrievers/lifecycle-clause.ts:33:    clauses.push(`${alias}.enabled = true`);
+      packages/core/src/infrastructure/db/schema.ts:104: * ... e de `enabled` (liga/desliga
+      packages/core/src/infrastructure/db/schema.ts:122:    enabled: boolean('enabled').notNull().default(true),
+      ```
+    recommended_action: >-
+      Decide explicitly and record it: either ship the writer in this milestone (a PATCH on the
+      lifecycle route, or a dedicated enable/disable operation), or drop the column and the
+      `include_disabled` flag until the writer exists (parsimony-ladder rung 1) and re-add both
+      together. Shipping a read-only axis leaves a public API flag that documentation will
+      describe and no operator can ever trigger.
+
+  - id: F-dom-db-6
+    severity: LOW
+    file: packages/core/src/infrastructure/db/migrations/0014_lean_living_mummy.sql
+    line: 24
+    plan_ref: ADR D3 — deprecation↔reason pair integrity enforced below the HTTP boundary
+    domain_anchor: "the migration's own comment: 'esta restrição garante que nenhum outro caminho de escrita consiga criar o estado incoerente'"
+    summary: >-
+      The CHECK guards the reason but not the successor, so the DB-level guarantee the comment
+      claims is narrower than stated. An out-of-app write can leave `superseded_by` populated on
+      an `active` row — "use this other skill instead" attached to a skill that is not deprecated.
+      The handler clears both fields on the way out of `deprecated` (line 114-116), so the
+      incoherent state is unreachable through the application; the gap is exactly the
+      out-of-band path the constraint was written to close.
+    evidence: |
+      ```sql
+      ALTER TABLE "skills" ADD CONSTRAINT "skills_deprecation_reason_check"
+        CHECK ("lifecycle" <> 'deprecated' OR "deprecation_reason" IS NOT NULL);
+      ```
+      Nothing constrains `superseded_by`; live `\d skills` confirms only the two CHECKs.
+    recommended_action: >-
+      Either widen the predicate to
+      `CHECK (lifecycle = 'deprecated' OR (deprecation_reason IS NULL AND superseded_by IS NULL))`
+      — which additionally forbids a stale reason on a revived skill, the mirror case the current
+      form also allows — or soften the migration comment to say it guards the reason only. Both
+      are defensible; silently claiming more than the constraint delivers is not.
+
+  - id: F-dom-db-7
+    severity: LOW
+    file: packages/core/src/domain/retrievers/lifecycle-clause.ts
+    line: 29
+    plan_ref: ADR D3 — single helper builds the discovery clause
+    domain_anchor: "PostgreSQL grammar: `IN ()` with an empty list is a syntax error, not an empty result"
+    summary: >-
+      `LifecycleVisibility.stages` is typed as a plain array with no non-empty guarantee. An empty
+      array renders `s.lifecycle IN ()`, which Postgres rejects at parse time — a 500 with an
+      opaque driver error, not a typed domain failure. `buildLifecycleFilter` always seeds
+      `['active']` so the in-repo path is safe today; the exposure is that the interface is
+      exported and any future caller constructing the object literally (as the default at line 26
+      already does) can produce the empty case.
+    evidence: |
+      ```ts
+      const stagePlaceholders = spec.stages.map((stage) => b.bind(stage)).join(', ');
+      const clauses = [`${alias}.lifecycle IN (${stagePlaceholders})`];
+      ```
+      With `stages: []` this yields `s.lifecycle IN ()`.
+    recommended_action: >-
+      Fail fast at the top of the helper — throw a typed domain error when `stages.length === 0`
+      (rules/error-handling.md § 2: validate at the boundary, typed error, never let it surface as
+      a driver exception). A one-line guard; do not "helpfully" fall back to a default set, which
+      would silently widen visibility.
+
+  - id: F-dom-db-8
+    severity: INFO
+    file: packages/core/src/domain/retrievers/keyword-retriever.ts
+    line: 38
+    plan_ref: "review question: does `lifecycle IN (...) AND enabled = true` need index support?"
+    domain_anchor: "live `\\d skills`: skills_pkey (workspace_id, skill_id), skills_search_tsv_gin, skills_workspace_category_idx, skills_workspace_idx"
+    summary: >-
+      Answering the question as asked: NO index is needed on the keyword leg, and I recommend
+      NOT adding `(lifecycle, enabled)`. The predicate never drives a scan there — candidates come
+      from the GIN index on `search_tsv`, and the lifecycle test is a recheck on heap tuples the
+      query was already going to fetch, alongside `deleted_at IS NULL` and the visibility OR. A
+      btree on (lifecycle, enabled) would also be near-useless by selectivity: the default is
+      'active'/true, so the common predicate matches nearly every row and the planner would
+      correctly ignore the index while the write path still paid to maintain it. The real cost of
+      the new predicate is on the vector leg, and it is a post-filter semantics problem rather
+      than a missing-index problem — see F-dom-db-4.
+    evidence: |
+      Plan shape, keyword leg (dev DB, 2 rows — shape only, cost meaningless):
+      ```
+      ->  Seq Scan on skills s
+            Filter: ((deleted_at IS NULL) AND enabled AND (search_tsv @@ '''foo'''::tsquery)
+                     AND (lifecycle = 'active') AND ((workspace_id = 'w1') OR (visibility = 'public')))
+      ```
+      At 2 rows the planner will not choose GIN; the filter list is what carries — lifecycle sits
+      with the other cheap rechecks, not on its own access path.
+    recommended_action: >-
+      No action. Re-measure with `EXPLAIN (ANALYZE, BUFFERS)` on a seeded table (>= 100k skills,
+      realistic deprecated ratio) before adding any index — and if one is ever warranted, the
+      shape to test first is a PARTIAL index `WHERE enabled AND lifecycle = 'active'`, not a
+      composite btree on two low-cardinality columns.
+
+not_assessed:
+  - "Real-scale cost of any plan: the dev DB has 2 rows in `skills`. Every cost number the planner emitted is noise and none is quoted as evidence."
+  - "hnsw.ef_search default value: `SHOW hnsw.ef_search` returned 'unrecognized configuration parameter' in this session, so the concrete candidate bound behind F-dom-db-4 is unmeasured. The absence of iterative scan in 0.5.1 IS measured; the exact under-fill threshold is not."
+  - "Whether a lock-window during migration is operationally acceptable — depends on production `skills` volume and the deploy window, which I do not have."

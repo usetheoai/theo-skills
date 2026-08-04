@@ -14,6 +14,7 @@ import {
 
 import { EMBEDDING_DIM } from '../../domain/embedders/types.js';
 import { DEFAULT_WORKSPACE_ID } from '../../domain/principal.js';
+import { SKILL_LIFECYCLES } from '../../domain/skill-lifecycle.js';
 
 // Single source of truth for the embedding dimension lives in the domain port;
 // infra MAY depend on domain (allowed direction). Avoids drift (DRY).
@@ -97,6 +98,37 @@ export const skills = pgTable(
      * script que se declare remoto — então o default não pode mentir.
      */
     execution: text('execution').notNull().default('remote'),
+    /**
+     * Ciclo de vida EDITORIAL (M32): `active` · `draft` · `deprecated`.
+     *
+     * Eixo distinto de `state` (exclusão, que RESERVA o id) e de `enabled` (liga/desliga
+     * operacional). As três respondem perguntas diferentes — ver `domain/skill-lifecycle.ts`.
+     *
+     * Default `active`, não `draft`: a linha que já existe estava em produção, e marcá-la
+     * rascunho a esconderia da busca no instante da migração — quebra silenciosa justamente
+     * na entrega que promete não quebrar. O `draft` como default de REGISTRO NOVO é regra da
+     * API, não do banco.
+     *
+     * O vocabulário vem do domínio (`SKILL_LIFECYCLES`), nunca de uma segunda lista de
+     * strings — foi a duplicação que deixou `state` virar `text` sem restrição alguma. A
+     * CHECK constraint que trava os valores é aplicada na migração (ADR D5).
+     */
+    lifecycle: text('lifecycle', { enum: SKILL_LIFECYCLES }).notNull().default('active'),
+    /**
+     * Habilitação operacional (M32). Reversível e sem juízo editorial: desligar não é
+     * descontinuar. Compõe com `lifecycle` em vez de anulá-lo — pedir os desabilitados na
+     * busca não passa a devolver rascunhos junto.
+     */
+    enabled: boolean('enabled').notNull().default(true),
+    /**
+     * Por que foi descontinuada, e o que usar no lugar (M32). Obrigatório na fronteira quando
+     * o destino é `deprecated`; a coluna é nula porque skills não-deprecadas não têm motivo.
+     *
+     * Sem estes dois, um agente que recebe "deprecada" tem a mesma informação de um 404: sabe
+     * que parou, não sabe o que fazer. O registry investigado não tem nenhum dos dois.
+     */
+    deprecationReason: text('deprecation_reason'),
+    supersededBy: text('superseded_by'),
     /** Quem promoveu a `public`, e quando — proveniência exigida pelo DoD. */
     publishedBy: text('published_by'),
     publishedAt: timestamp('published_at', { withTimezone: true }),

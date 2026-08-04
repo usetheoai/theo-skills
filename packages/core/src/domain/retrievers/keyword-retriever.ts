@@ -1,3 +1,4 @@
+import { buildLifecycleClause } from './lifecycle-clause.js';
 import { runRetrieveQuery } from './map-row.js';
 import { ParamBuilder } from './param-builder.js';
 import { type QueryExecutor, type RetrievedSkill, type RetrieveParams, type SkillRetriever } from './types.js';
@@ -32,6 +33,9 @@ export function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriev
       // LIVRE vindo de quem publica e repassado por quem busca — concatená-lo no SQL seria
       // injeção pela porta da frente.
       const categoryClause = params.category !== undefined ? ` AND s.category = ${b.bind(params.category)}` : '';
+      // M32 — o ciclo de vida entra AQUI, no caminho de descoberta, e em lugar nenhum do
+      // caminho de resolução. Um helper único monta a cláusula (ADR D3).
+      const lifecycleClause = buildLifecycleClause(b, params.lifecycle);
       const tsQuery = `to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', ${queryPh})), ' | '))`;
       // UNIÃO `minhas + públicas` (M14 DoD #2), e nada mais.
       //
@@ -46,7 +50,7 @@ export function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriev
                s.category, s.execution
         FROM skills s
         WHERE (s.workspace_id = ${wsPh} OR s.visibility = 'public')
-          AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}${categoryClause}
+          AND s.deleted_at IS NULL AND s.search_tsv @@ ${tsQuery}${categoryClause}${lifecycleClause}
         ORDER BY score DESC, s.skill_id ASC
         LIMIT ${limitPh}
       `;

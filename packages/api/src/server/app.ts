@@ -24,6 +24,7 @@ import { registerPublishingRoutes } from './handlers/publishing.js';
 import { registerRetrieveRoutes } from './handlers/retrieve.js';
 import { registerSkillsRoutes } from './handlers/skills.js';
 import { registerVersionRoutes } from './handlers/version.js';
+import { registerLifecycleRoutes } from './handlers/lifecycle.js';
 import { registerVisibilityRoutes } from './handlers/visibility.js';
 import { registerWebhookEndpointRoutes } from './handlers/webhook-endpoints.js';
 import { createJsonLogger, type Logger } from './logger.js';
@@ -243,6 +244,13 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   registerMembersRoutes(app, { membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   registerAdminKeysRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
   registerVisibilityRoutes(app, { db, membersStoreFor: (ws: string) => createMembersStore(db, ws) });
+  // M32 — o ciclo de vida é escrita de curadoria, ao lado da visibilidade e pelo mesmo motivo:
+  // muda o que TODOS os agentes do workspace conseguem descobrir.
+  registerLifecycleRoutes(app, {
+    db,
+    membersStoreFor: (ws: string) => createMembersStore(db, ws),
+    logger,
+  });
   registerWebhookEndpointRoutes(app, {
     endpointsStoreFor: (ws: string) => createWebhookEndpointsStore(db, ws),
     logger,

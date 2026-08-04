@@ -241,13 +241,26 @@ def check_concurrency_tests(plan_path: Path) -> ConcurrencyReport:
         )
 
     # Step 2 — at least one signal present; enforce per-task contract.
+    #
+    # O escape literal é procurado no texto BRUTO, não no despido de blocos de código.
+    # `to-plan/templates/plan-template.md` § "Concurrency tests" instrui a escrever
+    # `(none — single-threaded)` DENTRO de um bloco cercado; ao remover os blocos antes de
+    # procurar, o checker reprovava exatamente os planos que seguiam o próprio template.
+    # Os SINAIS de teste de corrida continuam sendo buscados no texto despido — ali o strip
+    # protege contra exemplo de código lido como prova.
+    raw_subsections = {
+        task_id: _extract_concurrency_subsection(body)
+        for task_id, body in _iter_task_blocks(content)
+    }
+
     tasks_with_subsection = 0
     tasks_passing = 0
     failing: list[str] = []
     reasons: list[str] = []
     for task_id, body in _iter_task_blocks(stripped):
         sub = _extract_concurrency_subsection(body)
-        if sub is None:
+        raw_sub = raw_subsections.get(task_id)
+        if sub is None and raw_sub is None:
             failing.append(task_id)
             reasons.append(
                 f"{task_id} lacks a `#### Concurrency tests` subsection; "
@@ -255,7 +268,11 @@ def check_concurrency_tests(plan_path: Path) -> ConcurrencyReport:
             )
             continue
         tasks_with_subsection += 1
-        if ESCAPE_RE.search(sub) or RACE_TEST_SIGNALS_RE.search(sub):
+        if (
+            (raw_sub is not None and ESCAPE_RE.search(raw_sub))
+            or (sub is not None and ESCAPE_RE.search(sub))
+            or (sub is not None and RACE_TEST_SIGNALS_RE.search(sub))
+        ):
             tasks_passing += 1
         else:
             failing.append(task_id)

@@ -122,12 +122,23 @@ export function rrfFuse(
 export function createHybridRetriever(deps: HybridRetrieverDeps): SkillRetriever {
   return {
     async retrieve(params: RetrieveParams): Promise<RetrievedSkill[]> {
+      // TODO filtro tem de atravessar para as DUAS pernas, e a lista é REPASSADA POR INTEIRO
+      // de propósito.
+      //
+      // A forma anterior enumerava campo a campo (`query`, `topK`, `category`), e o comentário
+      // que ela carregava registrava um defeito já corrigido uma vez: a estratégia PADRÃO
+      // (`hybrid`) descartava o filtro de categoria, e só a `keyword` — inalcançável pela rota —
+      // o honrava. O M32 reproduziu o MESMO defeito com `lifecycle`: a deprecada continuava
+      // aparecendo na busca híbrida enquanto a lexical já a escondia.
+      //
+      // Enumerar campos faz o esquecimento ser o comportamento padrão de todo parâmetro novo.
+      // Espalhar e sobrescrever só o que muda inverte isso: o filtro novo atravessa por
+      // omissão, e quem quiser impedi-lo precisa dizer explicitamente.
       const poolParams: RetrieveParams = {
-        query: params.query,
+        ...params,
+        // A única diferença deliberada: cada perna busca um pool MAIOR que o topK pedido,
+        // porque o RRF funde por posição e precisa de candidatos além do corte final.
         topK: Math.max(params.topK, FUSION_POOL),
-        // O filtro tem de atravessar para as DUAS pernas. Sem isto a estratégia PADRÃO
-        // (`hybrid`) o descartava, e só a `keyword` — inalcançável pela rota — o honrava.
-        ...(params.category !== undefined ? { category: params.category } : {}),
       };
       const degradar = (perna: 'vector' | 'keyword') => (err: unknown): RetrievedSkill[] => {
         deps.onDegraded?.(perna, err);

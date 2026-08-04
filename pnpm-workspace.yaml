@@ -50,3 +50,5 @@ overrides:
   sigstore: '>=4.1.1' # CVE-2026-48815
   picomatch: '>=4.0.4' # CVE-2026-33671
   brace-expansion: '>=2.1.2' # CVE-2026-13149, CVE-2026-14257
+  fast-uri: '>=3.1.5' # GHSA-7p8r-x3mc-p8w7 (HIGH) — host confusion via backslash; transitiva de @modelcontextprotocol/sdk>ajv
+  hono: '>=4.12.27' # GHSA-8j4g-w8fx-2239 — de-duplicação de header no adapter de API Gateway v1

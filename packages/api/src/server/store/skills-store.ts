@@ -25,6 +25,20 @@ export interface SkillView {
    * existia na listagem, e sem ela o operador não sabe por que a skill dele nunca aparece.
    */
   readonly embedded: boolean;
+  /**
+   * Estágio editorial (M32): `active` · `draft` · `deprecated`.
+   *
+   * Sem este campo no contrato de leitura, uma skill descontinuada era indistinguível de uma
+   * ativa para todo consumidor — SDK, MCP, CLI e painel. A capacidade existia no banco e não
+   * chegava a ninguém, que é o mesmo defeito que o `visibility` teve até o M31.
+   */
+  readonly lifecycle: string;
+  /** Habilitação operacional (M32). Reversível, sem juízo editorial. */
+  readonly enabled: boolean;
+  /** Por que foi descontinuada. Ausente quando o estágio não é `deprecated`. */
+  readonly deprecation_reason?: string;
+  /** O que usar no lugar. Ausente quando não há substituta declarada. */
+  readonly superseded_by?: string;
   readonly create_time: string;
   readonly update_time: string;
 }
@@ -120,6 +134,10 @@ function toView(row: {
   execution?: string | null;
   visibility: string;
   embedded: boolean;
+  lifecycle: string;
+  enabled: boolean;
+  deprecationReason?: string | null;
+  supersededBy?: string | null;
   createTime: Date;
   updateTime: Date;
 }): SkillView {
@@ -135,6 +153,16 @@ function toView(row: {
     latest_revision_id: row.latestRevisionId,
     visibility: row.visibility,
     embedded: row.embedded,
+    lifecycle: row.lifecycle,
+    enabled: row.enabled,
+    // Mesma regra do `category`: `null` da coluna vira AUSENTE no JSON. Um
+    // `deprecation_reason: null` obrigaria todo consumidor a distinguir dois "sem motivo".
+    ...(typeof row.deprecationReason === 'string' && row.deprecationReason !== ''
+      ? { deprecation_reason: row.deprecationReason }
+      : {}),
+    ...(typeof row.supersededBy === 'string' && row.supersededBy !== ''
+      ? { superseded_by: row.supersededBy }
+      : {}),
     create_time: row.createTime.toISOString(),
     update_time: row.updateTime.toISOString(),
   };
@@ -169,6 +197,13 @@ const liveColumns = {
     SELECT 1 FROM ${embeddings}
     WHERE ${embeddings.revisionId} = ${skills.latestRevisionId}
   )`,
+  // M32 — o ciclo de vida chega ao contrato de leitura. Escrever sem devolver é a mesma
+  // dívida que o `visibility` carregou até o M31: o operador muda e não tem como conferir,
+  // e a tela do M33 não teria o que mostrar.
+  lifecycle: skills.lifecycle,
+  enabled: skills.enabled,
+  deprecationReason: skills.deprecationReason,
+  supersededBy: skills.supersededBy,
   createTime: skills.createTime,
   updateTime: skills.updateTime,
 };
