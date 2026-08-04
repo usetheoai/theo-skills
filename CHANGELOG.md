@@ -10,6 +10,8 @@ ao [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **theo-skills:** o domínio ganha o **ciclo de vida da skill** — `active` · `draft` · `deprecated` — como eixo editorial separado da habilitação e da exclusão. Até aqui o registro só sabia existir ou ter sido apagado, e apagar **reserva o identificador**: não havia como dizer "não use mais esta" sem quebrar quem já a referenciava. O vocabulário é fechado, com erro tipado (`INVALID_LIFECYCLE`) que enumera os valores aceitos, e `DELETED` é recusado de propósito — pertence a outro eixo (#M32)
+- **theo-skills:** as colunas de ciclo de vida entram por migração **aditiva** — toda skill que já existia nasce `active` e habilitada, verificado em 3/3 linhas do banco de dev. Marcá-las `draft` as esconderia da busca no instante da migração, que seria quebra silenciosa exatamente na entrega que promete não quebrar (#M32)
+- **theo-skills:** duas **CHECK constraints** no banco: o estágio só aceita o vocabulário do domínio, e `deprecated` sem motivo é recusado. A fronteira HTTP não é o único caminho de escrita — um script de dados ou um `psql` durante plantão gravam direto, e sem restrição um estágio inexplicável entra na tabela. Divergência deliberada do padrão local (`state` e `visibility` são texto livre), registrada em ADR: é essa ausência que o milestone paga (#M32)
 - **theo-skills:** `buildLifecycleFilter` define o que a **descoberta** enxerga, e apenas ela. A resolução por identificador não o consulta, e é essa assimetria que faz a deprecação não quebrar consumidor já integrado. Os dois eixos compõem: pedir os desabilitados não passa a devolver rascunhos junto (#M32)
 
 ### Fixed
