@@ -3,16 +3,16 @@ tag=v0.14.0 sha=705ef1e10e490e02a7df3d7159347c9b1c954d7d
 entrypoint=packages/api/dist/server.js  (BUILD, nao src/)
 
 ### AC3/AC4 — emitir token: o valor aparece UMA vez, na criacao
-bundle_id=bdl_wb8e9fq5f01t8t0mvprarq9b
-POST /tokens -> {"token_id":"dtk_j0c90hnmb6m2loln0wnww0bx","token_presente":true}
+bundle_id=bdl_wb8e…q9b
+POST /tokens -> {"token_id":"dtk_j0c9…0bx","token_presente":true}
 
 ### AC3 — LISTAR (a rota deste milestone): sem ela, revogar era impossivel
 GET /tokens -> status=200
 {
-  "bundle_id": "bdl_wb8e9fq5f01t8t0mvprarq9b",
+  "bundle_id": "bdl_wb8e…q9b",
   "tokens": [
     {
-      "token_id": "dtk_j0c90hnmb6m2loln0wnww0bx",
+      "token_id": "dtk_j0c9…0bx",
       "label": "aceite",
       "quota_per_window": null,
       "expires_at": "2026-08-11T11:58:02.998Z",
@@ -27,9 +27,9 @@ AC4=PASS — so o identificador
 AC4=PASS — hash tambem ausente
 
 ### AC3 — revogar usando o id que a listagem revelou
-DELETE /tokens/dtk_j0c90hnmb6m2loln0wnww0bx -> status=200
+DELETE /tokens/dtk_j0c9…0bx -> status=200
 apos revogar, continua listado com a marca:
-{"token_id":"dtk_j0c90hnmb6m2loln0wnww0bx","revoked_at":"2026-08-04T11:58:04.022Z"}
+{"token_id":"dtk_j0c9…0bx","revoked_at":"2026-08-04T11:58:04.022Z"}
 
 ### AC2 — adocao com o denominador da janela
 {"total_installs":0,"adoption_len":0}
