@@ -9,6 +9,13 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **theo-skills:** `listTokens` fecha a lacuna que tornava a revogação impossível na prática. O store tinha `mintToken` e `revokeToken`, e nenhuma forma de **listar** — o `revokeToken` recebia um id que a tela não tinha como descobrir, então token emitido por outro operador ou pela CLI era invisível e portanto irrevogável. A listagem devolve identidade e ciclo de vida; **nunca o valor nem o hash**, com teste que compara a resposta serializada contra os dois (#M35)
+- **theo-skills:** a adoção passa a devolver `total_installs` — o **denominador** da janela. Somar as linhas recebidas só parece equivalente: sob paginação ou top-N a soma é de um recorte, e a proporção que a tela desenha sai errada em silêncio. O total isola por workspace como as linhas, porque vazamento por contagem agregada é o mais fácil de deixar passar — nenhuma linha vaza, só o número (#M35)
+- **theo-skills:** o isolamento entre publishers deixa de ser só estrutural e ganha **teste**. O comentário do `adoption-store` afirmava impedir "inclusive o vazamento por diferença de contagem agregada" e nada verificava; o registry investigado também não testa isso — os testes dele provam atribuição, não isolamento. Provado discriminante: removido o escopo de workspace, o teste reprova (#M35)
+
+
+### Added
+
 ### Changed
 
 ### Deprecated

@@ -24,6 +24,14 @@ export interface AdoptionStore {
   adoption(bundleId: string, since: Date): Promise<AdoptionRow[]>;
   /** Total de eventos numa janela — base do número que o ADR 0005 pede. */
   countSince(since: Date): Promise<number>;
+  /**
+   * Total de instalações do bundle na janela — o DENOMINADOR (M35).
+   *
+   * Existe porque somar as linhas de `adoption()` só parece equivalente: sob paginação ou top-N a
+   * soma é de um recorte, e a proporção que a tela desenha sai errada em silêncio. Um gráfico com
+   * denominador errado é pior que gráfico nenhum — ele afirma.
+   */
+  totalInstalls(bundleId: string, since: Date): Promise<number>;
 }
 
 /**
@@ -66,6 +74,23 @@ export function createAdoptionStore(db: Db, workspaceId: string): AdoptionStore 
         )
         .groupBy(installEvents.skillId, installEvents.version);
       return rows.map((r) => ({ skillId: r.skillId, version: r.version, installs: Number(r.installs) }));
+    },
+
+    async totalInstalls(bundleId, since) {
+      // Mesmo recorte de `adoption()` — inclusive o `workspaceId`. O isolamento tem de valer
+      // também para o agregado: nenhuma linha vazar e o NÚMERO vazar seria exatamente o
+      // "vazamento por diferença de contagem" que o comentário acima diz impedir.
+      const rows = await db
+        .select({ n: sql<string>`count(*)` })
+        .from(installEvents)
+        .where(
+          and(
+            eq(installEvents.workspaceId, workspaceId),
+            eq(installEvents.bundleId, bundleId),
+            gte(installEvents.createTime, since),
+          ),
+        );
+      return Number(rows[0]?.n ?? 0);
     },
 
     async countSince(since) {
