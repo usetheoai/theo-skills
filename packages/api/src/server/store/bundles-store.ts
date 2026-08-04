@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import { createId } from '@paralleldrive/cuid2';
 import { bundleItems, bundles, distributionTokens } from '@usetheo/skills/db';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 
@@ -35,7 +35,33 @@ export interface BundlesStore {
   list(): Promise<Bundle[]>;
   setItems(bundleId: string, items: readonly { skillId: string; channel: string }[]): Promise<void>;
   mintToken(bundleId: string, opts: { ttlMs: number; label?: string; quotaPerWindow?: number }): Promise<MintedToken>;
+  /**
+   * Os tokens de um bundle, SEM o valor e SEM o hash (M35).
+   *
+   * Existe porque revogar exige antes enxergar: o `revokeToken` recebe um id que a tela não tinha
+   * como descobrir — um token emitido por outro operador, ou pela CLI, era invisível e portanto
+   * irrevogável na prática.
+   *
+   * O revogado continua na lista, marcado. Escondê-lo impediria auditar o que já foi concedido,
+   * que é metade da razão de existir de uma credencial delegada.
+   */
+  listTokens(bundleId: string): Promise<TokenSummary[]>;
   revokeToken(tokenId: string): Promise<boolean>;
+}
+
+/**
+ * O que a tela pode ver de um token: identidade e ciclo de vida, nunca o segredo.
+ *
+ * O `tokenHash` é deliberadamente omitido — devolvê-lo transformaria a listagem numa superfície de
+ * ataque offline (o atacante levaria o alvo para casa) sem dar à tela nada que ela use.
+ */
+export interface TokenSummary {
+  readonly tokenId: string;
+  readonly label: string | null;
+  readonly quotaPerWindow: number | null;
+  readonly expiresAt: Date;
+  readonly revokedAt: Date | null;
+  readonly createTime: Date;
 }
 
 const sha256 = (s: string): string => createHash('sha256').update(s).digest('hex');
@@ -123,6 +149,28 @@ export function createBundlesStore(db: Db, workspaceId: string): BundlesStore {
         expiresAt,
       });
       return { tokenId, token, expiresAt };
+    },
+
+    async listTokens(bundleId) {
+      // A projeção é explícita, campo a campo — um `select()` sem argumento traria `tokenHash`
+      // junto, e o segredo vazaria por omissão em vez de por decisão.
+      return db
+        .select({
+          tokenId: distributionTokens.tokenId,
+          label: distributionTokens.label,
+          quotaPerWindow: distributionTokens.quotaPerWindow,
+          expiresAt: distributionTokens.expiresAt,
+          revokedAt: distributionTokens.revokedAt,
+          createTime: distributionTokens.createTime,
+        })
+        .from(distributionTokens)
+        .where(
+          and(
+            eq(distributionTokens.workspaceId, workspaceId),
+            eq(distributionTokens.bundleId, bundleId),
+          ),
+        )
+        .orderBy(desc(distributionTokens.createTime));
     },
 
     async revokeToken(tokenId) {

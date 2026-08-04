@@ -209,7 +209,11 @@ export function registerDistributionRoutes(app: Hono<AppEnv>, deps: Distribution
  * instalaram é informação do negócio do publisher, não dele.
  */
 export interface AdoptionRoutesDeps {
-  readonly adoptionFor: (workspaceId: string) => { adoption: (bundleId: string, since: Date) => Promise<unknown[]> };
+  readonly adoptionFor: (workspaceId: string) => {
+    adoption: (bundleId: string, since: Date) => Promise<unknown[]>;
+    /** O denominador da janela (M35) — ver o comentário na rota sobre por que não é a soma das linhas. */
+    totalInstalls: (bundleId: string, since: Date) => Promise<number>;
+  };
 }
 
 export function registerAdoptionRoutes(app: Hono<AppEnv>, deps: AdoptionRoutesDeps): void {
@@ -220,7 +224,18 @@ export function registerAdoptionRoutes(app: Hono<AppEnv>, deps: AdoptionRoutesDe
     }
     const dias = Number(c.req.query('days') ?? '30');
     const since = new Date(Date.now() - (Number.isFinite(dias) && dias > 0 ? dias : 30) * 86_400_000);
-    const rows = await deps.adoptionFor(principal.workspaceId).adoption(c.req.param('bundleId'), since);
-    return c.json({ bundle_id: c.req.param('bundleId'), since: since.toISOString(), adoption: rows }, 200);
+    const bundleId = c.req.param('bundleId');
+    const store = deps.adoptionFor(principal.workspaceId);
+    // As duas leituras juntas, de propósito: o total é o DENOMINADOR das linhas, e devolver linhas
+    // sem ele obrigaria a tela a somar o que recebeu — errado sob paginação ou top-N, e errado em
+    // silêncio. Se a agregação falhar, a resposta falha inteira em vez de sair pela metade.
+    const [rows, totalInstalls] = await Promise.all([
+      store.adoption(bundleId, since),
+      store.totalInstalls(bundleId, since),
+    ]);
+    return c.json(
+      { bundle_id: bundleId, since: since.toISOString(), total_installs: totalInstalls, adoption: rows },
+      200,
+    );
   });
 }
