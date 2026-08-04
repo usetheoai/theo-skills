@@ -1097,6 +1097,181 @@ milestone é elegível de imediato.
 
 ---
 
+### M32 — [ ] Ciclo de vida: retirar de circulação sem quebrar quem já usa
+
+> Added 2026-08-03 by `/roadmap-feature` (slug: `sota-level`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Dar ao registro estados de ciclo de vida que permitam **descontinuar** uma skill sem
+quebrar quem já a referencia — hoje o domínio só sabe existir ou ter sido apagado.
+
+**Definition of done:**
+
+- [ ] **Duas dimensões ortogonais, não um enum só.** Habilitação (ligada/desligada) e estágio
+      (`active` · `draft` · `deprecated`) são campos independentes, com a tabela de combinações
+      válidas num ADR e teste que rejeita as inválidas. Migração **aditiva**: nenhum consumidor atual
+      quebra.
+- [ ] **Deprecada continua resolvível.** Quem já referencia a skill continua carregando a instrução;
+      o que muda é a descoberta. Existe teste de regressão que **reprova** se uma skill deprecada
+      sumir para quem já a referencia — a quebra silenciosa é o defeito que este milestone existe
+      para impedir.
+- [ ] **A descoberta a exclui por padrão, com opt-in explícito.** `:retrieve` deixa de devolver
+      deprecadas salvo pedido expresso, e a mudança de comportamento é anunciada antes de virar
+      default.
+- [ ] **Motivo e sucessora viajam no contrato.** Deprecar exige motivo; a sucessora é opcional. Os
+      dois chegam a SDK, MCP e CLI — não só ao painel, senão o agente segue instrução descontinuada
+      sem saber.
+- [ ] **A tela diz o que deixa de valer**, com o estado em texto (nunca só cor), sob o contrato do
+      `DESIGN.md` §2.2 quando a ação for destrutiva.
+
+**Dependencies:** M14 `[x]` (visibilidade) e M23 `[x]` (categoria/execução). **Não** depende do M31 —
+nasce no domínio e na API; a tela vem depois.
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **Dois campos ortogonais convidam a estados sem sentido** (desligada e `active` ao mesmo tempo?).
+   *Mitigação:* a tabela de combinações válidas é parte da DoD, com teste que rejeita as inválidas —
+   não um comentário no código.
+2. **Mudar o default de `:retrieve` é mudança de comportamento para consumidor existente.**
+   *Mitigação:* medir quem consome antes de virar o default; entregar o opt-in primeiro.
+
+**Why now (from grill Q1):**
+
+Medido: o domínio só tem `ACTIVE` e `DELETED` (`packages/core/src/infrastructure/db/schema.ts:71`;
+`skills-store.ts:397` faz soft-delete reservando o id). Não existe forma de dizer "não use mais
+esta" sem apagá-la — e apagar reserva o identificador e quebra quem a referencia. A descoberta
+`skills-catalog-ux` trouxe prior art direta: o peer separa `is_enabled` de
+`status: active|draft|deprecated|beta` como dimensões ortogonais
+(`knowledge-base/references/mcp-gateway-registry/frontend/src/types/skill.ts:73,95`) e prova a
+consequência funcional com teste — `excludes disabled items from featured`
+(`.../components/__tests__/DiscoverTab.test.tsx:325`): o desabilitado sai do destaque **sem sair do
+acervo**.
+
+---
+
+### M33 — [ ] Catálogo de descoberta: ver o que existe sem saber o que procurar
+
+> Added 2026-08-03 by `/roadmap-feature` (slug: `sota-level`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Entregar a superfície que atende quem **não sabe o que existe** — a persona que
+nenhuma jornada mapeada até aqui cobre.
+
+**Definition of done:**
+
+- [ ] **O terceiro estado vazio existe.** Busca-sem-resultado é distinto de acervo-vazio e de
+      leitura-falhou, e os três são testados. Hoje temos dois.
+- [ ] **Cards com os slots que medimos** — nome, descrição, `category`, `execution`, `visibility` e
+      **`embedded`**. Nenhum número que não meçamos: sem estrelas, sem downloads (ver riscos).
+- [ ] **Chips de `category` com teto e overflow `+N`, sem contagem.** A contagem por faceta fica
+      adiada até vir do servidor junto da listagem — derivada da página carregada, ela afirmaria
+      sobre o acervo o que não sabe.
+- [ ] **Ordenação determinística com desempate por identificador**, testada — resultado estável
+      independentemente de qual origem responder primeiro.
+- [ ] **Grade responsiva sem dependência nova**, verificada em ≥ 3 larguras (o `DESIGN.md` §13.2
+      pede 8; três é o piso desta DoD).
+- [ ] **Alcançável por clique a partir da raiz** — as três peças da navegação, não só a rota.
+
+**Dependencies:** M31 (as jornadas de tela). O catálogo herda o padrão de `EmptyState`, erro e
+navegação que o M31 estabelece; construí-lo antes duplicaria essas decisões.
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **Card e tabela podem divergir** — um filtro que existe num e não no outro faz o mesmo acervo
+   parecer dois. *Mitigação:* projeção compartilhada, testada fora do React.
+2. **Sem sinal de adoção, a ordenação padrão é arbitrária** e o usuário não sabe por que aquela
+   ordem. *Mitigação:* declarar o critério na própria tela, em vez de deixá-lo implícito.
+
+**Why now (from grill Q1):**
+
+O M31 entrega uma tabela com busca e paginação — resolve "não perder skill acima de 100", não
+resolve "me mostre o que existe". O blueprint `skills-catalog-ux`
+(`knowledge-base/discoveries/blueprints/skills-catalog-ux-blueprint.md`,
+SHIPPABLE_WITH_CAVEATS 89) mediu a forma em dois registries reais e produziu R1–R6, incluindo dois
+achados que **reduzem** escopo: zero dependências novas são necessárias, e o peer não oferece
+alternador grade/lista (o produto escolhe pela função do momento).
+
+---
+
+### M34 — [ ] Eval de descobribilidade: a skill é achada pela intenção certa?
+
+> Added 2026-08-03 by `/roadmap-feature` (slug: `sota-level`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Medir, **sem executar a skill**, se ela é encontrada pela intenção que deveria
+encontrá-la — e dizer a causa quando não é.
+
+**Definition of done:**
+
+- [ ] **Dataset versionado e datado** de `consulta → skill esperada`, rodando contra o acervo real do
+      workspace, não contra fixture sintética.
+- [ ] **O resultado nomeia a causa, não só o número.** Descrição genérica demais · sem embedding ·
+      colide com outra skill do acervo. Um recall sem diagnóstico não diz ao autor o que corrigir.
+- [ ] **Roda no momento da autoria**, devolvendo diagnóstico **antes** de publicar — o mesmo lugar
+      onde o `:validate` já responde `field`/`line`.
+- [ ] **Nenhuma execução da skill acontece.** A fronteira "execução é do Theokit" permanece intacta
+      e é verificável: o eval não invoca script, não abre sandbox, não carrega runtime.
+- [ ] **Regressão detectada:** uma skill que era achada e deixa de ser **reprova** o gate.
+
+**Dependencies:** M4 `[x]` (busca híbrida) e M30 `[x]` (API da autoria). **Não** depende do M31 —
+nasce como API e CLI; a superfície de autoria a consome quando existir.
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **O número mede o embedder, não a skill.** Com o embedder stub (hash determinístico) a perna
+   vetorial isolada deu 0.308 no M4 — um eval nesse ambiente diz mais sobre a infraestrutura do que
+   sobre a descrição. *Mitigação:* todo resultado carrega qual embedder o produziu; comparação entre
+   embedders diferentes é recusada, não normalizada.
+2. **O dataset envelhece com o acervo** — consultas escritas para 3 skills não discriminam entre 300.
+   *Mitigação:* versionar e datar o dataset; a data aparece no relatório.
+
+**Why now (from grill Q1 + Q1.1):**
+
+O `POST /v1/skills:validate` do M30 responde se a skill é **válida**; nada responde se ela é
+**achável**, que é a promessa do produto. A infraestrutura de medição já existe
+(`packages/api/eval/` com recall@5 e `dataset.json`), mas mede o *retrieval* como sistema, não uma
+skill como autora. **Decisão de fronteira registrada no grill Q1.1:** eval que executa a skill
+colidiria com o out-of-scope *"execução é responsabilidade do Theokit"*; optou-se pelo eval híbrido —
+estático agora, execução deixada como decisão futura conjunta com o Theokit. O item **permanece**
+fora de escopo; nada foi removido.
+
+---
+
+### M35 — [ ] Bundles e adoção deixam de ser invisíveis
+
+> Added 2026-08-03 by `/roadmap-feature` (slug: `sota-level`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Dar a quem publica a resposta para *"quem instalou minha skill?"* sem `curl` — uma
+capacidade que o roadmap marca como entregue e que nenhuma tela expõe.
+
+**Definition of done:**
+
+- [ ] **Bundles gerenciáveis pela tela** — listar, criar e editar itens, sem CLI.
+- [ ] **Adoção visível na granularidade que medimos**, e a tela **diz** que é por bundle, não por
+      skill. Apresentar métrica de bundle como se fosse de skill é o defeito que este milestone não
+      pode introduzir.
+- [ ] **Tokens delegados emitidos e revogados pela tela**, sob a coreografia do `DESIGN.md` §2.2.
+- [ ] **Nenhum segredo relegível.** O token aparece uma vez, na criação; depois só o identificador.
+- [ ] **Alcançável por clique a partir da raiz.**
+
+**Dependencies:** M31 (padrão de tela), M20 `[x]` (bundles + tokens delegados), M21 `[x]`
+(telemetria de adoção).
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **Emitir token delegado pela sessão do dashboard amplia o que uma sessão comprometida pode
+   fazer.** *Mitigação:* exibição única, revogação em um passo, emissão auditada. Superfície nova
+   declarada, não reduzida a zero.
+2. **Adoção por bundle lida como adoção por skill** infla a percepção de uso. *Mitigação:* rótulo
+   explícito na tela e no contrato de leitura.
+
+**Why now (from grill Q1):**
+
+M20 e M21 estão `[x]` e têm **zero telas** — a auditoria de 2026-08-03 § "Quem publica para
+terceiros" registra `GET /v1/bundles`, `GET /v1/bundles/:id/adoption` e
+`POST /v1/bundles/:id/tokens` sem superfície alguma. Uma capacidade entregue e invisível é
+indistinguível de uma não entregue, e o roadmap a marca como pronta — que é precisamente a drift que
+o `cycle-acceptance` foi criado para impedir.
+
+---
+
 
 ## State-of-the-art references
 

@@ -241,7 +241,24 @@ def _scan_blueprint_refs(
     prose: str, line_index: list[int], project_root: Path
 ) -> list[tuple[Citation, bool]]:
     out: list[tuple[Citation, bool]] = []
-    blueprints_dir = project_root / "knowledge-base" / "discoveries" / "blueprints"
+    # Plugin layout (`.claude/knowledge-base/`) vem PRIMEIRO: é o canônico por
+    # `rules/knowledge-base-location.md`. O layout standalone (knowledge-base/ na raiz) é o
+    # fallback, e existe só no repositório do próprio kit.
+    #
+    # Sem esta ordem, um projeto em layout de plugin tem TODA citação `Blueprint §X` marcada como
+    # fabricada — hard cap INVALID por um blueprint que existe. `_find_plans_dir` já resolvia o
+    # mesmo par de caminhos; este scanner ficou para trás.
+    blueprints_dir = next(
+        (
+            candidate
+            for candidate in (
+                project_root / ".claude" / "knowledge-base" / "discoveries" / "blueprints",
+                project_root / "knowledge-base" / "discoveries" / "blueprints",
+            )
+            if candidate.is_dir()
+        ),
+        project_root / "knowledge-base" / "discoveries" / "blueprints",
+    )
     available = []
     if blueprints_dir.exists():
         try:

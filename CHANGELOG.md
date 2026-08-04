@@ -7,6 +7,22 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **theo-skills:** o domínio ganha o **ciclo de vida da skill** — `active` · `draft` · `deprecated` — como eixo editorial separado da habilitação e da exclusão. Até aqui o registro só sabia existir ou ter sido apagado, e apagar **reserva o identificador**: não havia como dizer "não use mais esta" sem quebrar quem já a referenciava. O vocabulário é fechado, com erro tipado (`INVALID_LIFECYCLE`) que enumera os valores aceitos, e `DELETED` é recusado de propósito — pertence a outro eixo (#M32)
+- **theo-skills:** `buildLifecycleFilter` define o que a **descoberta** enxerga, e apenas ela. A resolução por identificador não o consulta, e é essa assimetria que faz a deprecação não quebrar consumidor já integrado. Os dois eixos compõem: pedir os desabilitados não passa a devolver rascunhos junto (#M32)
+
+### Fixed
+
+- **umbrella/plan-confidence:** `check_evidence_citations` marcava **toda** citação `Blueprint §X` como fabricada em projetos com layout de plugin. Ele procurava blueprints só em `knowledge-base/discoveries/blueprints/`, enquanto `_find_plans_dir` já resolvia também `.claude/knowledge-base/` — o canônico por `rules/knowledge-base-location.md`. Um plano correto era reprovado com hard cap `INVALID` por citar um blueprint que existe (#M32)
+- **umbrella/plan-confidence:** `check_concurrency_tests` reprovava exatamente os planos que seguiam o template do projeto. O escape `(none — single-threaded)` é escrito **dentro** de um bloco de código, conforme `to-plan/templates/plan-template.md`, e o checker apagava os blocos antes de procurá-lo. Medido no plano do M31: 14 subseções declaradas, zero aceitas. O marcador literal passa a ser buscado no texto bruto; os sinais de teste de corrida continuam no texto despido, onde o strip protege contra exemplo lido como prova (#M32)
+
+- Roadmap amended: added M32 Ciclo de vida — retirar de circulação sem quebrar quem já usa (`/roadmap-feature sota-level`). O registro hoje só sabe `ACTIVE` e `DELETED`: não há como dizer "não use mais esta" sem apagá-la, e apagar reserva o identificador e quebra quem a referencia (#M32)
+- Roadmap amended: added M33 Catálogo de descoberta — ver o que existe sem saber o que procurar (`/roadmap-feature sota-level`). A tabela do M31 resolve escala, não descoberta por navegação; deriva das recomendações R1–R6 do blueprint `skills-catalog-ux` (#M33)
+- Roadmap amended: added M34 Eval de descobribilidade — a skill é achada pela intenção certa? (`/roadmap-feature sota-level`). O `:validate` responde se a skill é válida; nada responde se ela é **achável**, que é a promessa do produto. Estático por decisão de fronteira — não executa a skill (#M34)
+- Roadmap amended: added M35 Bundles e adoção deixam de ser invisíveis (`/roadmap-feature sota-level`). M20 e M21 estão `[x]` com zero telas: quem publica não consegue responder "quem instalou minha skill?" sem `curl` (#M35)
+- **theo-skills:** descoberta de UX de catálogo concluída — blueprint `skills-catalog-ux` (SHIPPABLE_WITH_CAVEATS 89/100, 8 questões, zero citações fabricadas) mede em dois registries reais quando card vence tabela, de onde vem a contagem por faceta e que sinal de adoção é honesto exibir. Dois achados reduzem escopo do M33: nenhuma dependência nova é necessária, e o peer com catálogo maduro **não** oferece alternador grade/lista — o produto escolhe pela função do momento (#M33)
+
 ## [theo-skills 0.3.0] - 2026-08-03
 
 ### Added
