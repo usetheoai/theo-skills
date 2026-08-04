@@ -67,15 +67,14 @@ describeIntegration('M32 — o ciclo de vida é alcançável por credencial de w
       principalResolver: () => principal,
     });
 
-  const gateway = (scopes: string[]): Principal =>
-    ({
-      workspaceId: 'default',
-      // Exatamente o que o broker Model B produz: usuário sintético que NÃO está na tabela de
-      // membros. É esse detalhe que o `requireRole` derrubava.
-      userId: 'sys_platform_gateway',
-      role: 'admin',
-      scopes,
-    }) as Principal;
+  const gateway = (scopes: Principal['scopes']): Principal => ({
+    workspaceId: 'default',
+    // Exatamente o que o broker Model B produz: usuário sintético que NÃO está na tabela de
+    // membros. É esse detalhe que o `requireRole` derrubava.
+    userId: 'sys_platform_gateway',
+    role: 'admin',
+    scopes,
+  });
 
   it('a credencial de GATEWAY (não-membro) consegue depreciar — sem isso a tela é impossível', async () => {
     const res = await appPara(gateway(['skills:read', 'skills:publish'])).request(
