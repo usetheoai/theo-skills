@@ -11,11 +11,17 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Os testes unitários ao lado do código passam a rodar.** `pnpm test` do `packages/api` incluía apenas `tests/contract/**`, então tudo em `src/**/*.test.ts` ficava fora do gate. Eram dois arquivos e 12 testes — entre eles o do **gate de regressão do M34**, reportado como "6 passed" numa implementação sem que o CI o tivesse executado uma única vez. Um teste que não roda não protege nada, por mais verde que pareça rodando à mão. Os 62 de `tests/integration/` seguem fora de propósito (exigem Postgres, config própria) — essa metade continua sendo o #132.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- **O gate de descobribilidade do M34 era inerte: nunca podia reprovar.** O runner lia `body.skills` e a busca devolve **`results`** (`handlers/retrieve.ts:125-127`), então a lista vinha vazia em toda consulta, nenhum caso era achado e a primeira execução gravava uma baseline de zeros. A partir dali não existia regressão detectável — não há como regredir de "nunca foi achada". O critério *"uma skill que era achada e deixa de ser reprova o gate"* estava mecanicamente satisfeito e semanticamente vazio, e um gate que não pode reprovar é pior que gate nenhum: ocupa o lugar de um (#m34)
+
+  A leitura saiu do script para `src/eval/retrieve-response.ts`, testada: nada em `eval/` fica fora do `tsconfig` por acaso, e nada em `eval/` era alcançado por teste — que é exatamente como o defeito sobreviveu a ser escrito.
 
 ### Security
 
