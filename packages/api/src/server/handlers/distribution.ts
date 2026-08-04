@@ -1,3 +1,4 @@
+import { requireScope } from '../auth/middleware.js';
 import { type Hono } from 'hono';
 
 import { type Db } from '../db.js';
@@ -217,7 +218,15 @@ export interface AdoptionRoutesDeps {
 }
 
 export function registerAdoptionRoutes(app: Hono<AppEnv>, deps: AdoptionRoutesDeps): void {
-  app.get('/v1/bundles/:bundleId/adoption', async (c) => {
+  // A adoção é dado de quem PUBLICA, e por isso exige o escopo de quem publica — o mesmo que
+  // `POST /v1/bundles` e as três rotas de token já exigiam.
+  //
+  // Medido em 2026-08-04: esta rota era a única da família sem o gate. Um portador de
+  // `skills:read` — o escopo que o dashboard cunha para o cliente de leitura, e o que um agente
+  // consumidor carrega — lia a telemetria comercial do publisher. Mesmo workspace, então não é
+  // vazamento entre inquilinos; é privilégio a mais dentro dele. A assimetria com as irmãs
+  // mostra que não foi decisão, foi esquecimento.
+  app.get('/v1/bundles/:bundleId/adoption', requireScope('skills:publish'), async (c) => {
     const principal = c.get('principal') as { workspaceId?: string } | undefined;
     if (principal?.workspaceId === undefined) {
       return c.json({ error: 'not_found' }, 404);
