@@ -1,0 +1,222 @@
+agent: review-m32-skill-lifecycle-cross-validation
+review_target: 3b85e5f~1..HEAD for plan m32-skill-lifecycle
+plan: .claude/knowledge-base/plans/m32-skill-lifecycle-plan.md
+commits_in_scope:
+  - 3b85e5f feat(lifecycle): o dominio ganha o ciclo de vida da skill (T1.1, T1.2)
+  - d6392a0 feat(lifecycle): colunas e constraints do ciclo de vida (T2.1)
+  - b5507a4 feat(lifecycle): a descoberta esconde, a resolucao continua servindo (T3.1, T3.2, T4.1)
+  - f24ff10 feat(lifecycle): a operacao de deprecar, com motivo obrigatorio (T5.1)
+  - d0d87ea test(contract): o teste de contrato do retrieve cobre as flags de ciclo de vida
+
+plan_tasks_summary:
+  total_tasks: 7
+  fully_implemented: 2      # T1.1, T1.2
+  partial: 5                # T2.1, T3.1, T3.2, T4.1, T5.1
+  missing: 0
+  diverged: 2               # T3.1 (local de implementacao), T4.1 (lifecycle-flags.ts nao criado)
+
+task_map:
+  T1.1: {commits: [3b85e5f], status: fully_implemented}
+  T1.2: {commits: [3b85e5f], status: fully_implemented}
+  T2.1: {commits: [d6392a0], status: partial, note: "task 2 do plano (teste NULL/EC-4) nao entregue"}
+  T3.1: {commits: [b5507a4], status: partial_diverged, note: "filtro em core/domain/retrievers, nao em skills-store.ts; listagem sem filtro"}
+  T3.2: {commits: [b5507a4], status: partial, note: "2 de 4 testes RED nomeados ausentes"}
+  T4.1: {commits: [b5507a4, d0d87ea], status: partial_diverged, note: ":retrieve sim; GET /v1/skills nao; lifecycle-flags.ts nao criado"}
+  T5.1: {commits: [f24ff10], status: partial, note: "campos nao chegam ao contrato de leitura"}
+
+acceptance_criteria_summary:
+  total: 28                 # criterios por task (nao inclui os 5 da Final Phase)
+  satisfied: 22
+  unverified: 3             # coverage 100% (T1.1, T1.2), prova de discriminancia (T3.2)
+  not_satisfied: 3          # T3.1 tabela D1, T4.1 default na listagem, T5.1 contrato de leitura
+  false_claims: 0           # nenhum checkbox do plano foi marcado [x]
+
+adr_compliance:
+  total_adrs: 5
+  respected: 5
+  diverged_without_new_adr: 0
+  detail:
+    D1: "RESPEITADO — tres dimensoes separadas (lifecycle/enabled/state). Ressalva: a tabela nao e percorrida INTEIRA por teste (linha DELETED ausente) — ver F-xval-9."
+    D2: "RESPEITADO — buildLifecycleClause so e chamado nos retrievers (busca); getView/getInstructions/getSkillById nao o consultam. Verificado por grep em packages/api/src/server/store/skills-store.ts (arquivo nao foi tocado no range)."
+    D3: "RESPEITADO — buildLifecycleFilter (dominio puro) + um unico tradutor SQL em packages/core/src/domain/retrievers/lifecycle-clause.ts."
+    D4: "RESPEITADO — REFUTADA a suspeita de divergencia. Nao ha matriz de transicoes: packages/api/src/server/handlers/lifecycle.ts:44-48 documenta a ausencia deliberada e o codigo aceita qualquer estagio de destino (inclusive deprecated -> active, testado em 'sair de deprecated LIMPA motivo e sucessora')."
+    D5: "RESPEITADO e AMPLIADO — CHECK skills_lifecycle_check escrito a mao em 0014_lean_living_mummy.sql. O commit adicionou uma SEGUNDA constraint (skills_deprecation_reason_check) que o plano nao previa — ver F-xval-8."
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: |
+    `git log -- .claude/knowledge-base/plans/m32-skill-lifecycle-plan.md` devolve UM unico commit
+    (3b85e5f), que e o proprio primeiro commit de implementacao. O plano nao foi editado depois do
+    inicio do /implement — a revisao serve um contrato congelado.
+
+divergencias_investigadas_na_pauta:
+  - pergunta: "handlers/lifecycle-flags.ts (EC-2) foi criado?"
+    resposta: "NAO. Confirmada a divergencia — ver F-xval-3. O parse das flags foi para packages/core/src/contract/index.ts (BooleanFlagSchema + 3 campos no RetrieveParamsSchema), nao inline e nao no arquivo declarado."
+  - pergunta: "Coverage Matrix 6/6 — item 6 (contrato de leitura carrega estagio/motivo/sucessora) foi entregue?"
+    resposta: "NAO. Confirmada a lacuna — ver F-xval-1. GET /v1/skills e GET /v1/skills/:id devolvem SkillView, e liveColumns/toView (skills-store.ts:113-143) nao projetam lifecycle, deprecation_reason nem superseded_by."
+  - pergunta: "ADR D4 (sem matriz de transicoes) foi respeitado?"
+    resposta: "SIM. Refutada a suspeita de divergencia — ver adr_compliance.D4."
+
+findings:
+  - id: F-xval-1
+    severity: BLOCKER
+    file: packages/api/src/server/store/skills-store.ts:113-143
+    plan_ref: 'T5.1 Acceptance Criteria 3 ("Os dois campos chegam ao contrato de leitura (aditivos)") + Coverage Matrix item 6 + TDD RED `reason_and_successor_reach_the_read_contract() — GET devolve os dois`'
+    summary: O contrato de leitura NAO carrega estagio, motivo nem sucessora — a Coverage Matrix declara 6/6 e o item 6 nao foi entregue.
+    evidence: |
+      `liveColumns` (skills-store.ts:113) projeta skillId, name, description, state, latestRevisionId,
+      category, execution, visibility, embedded, createTime, updateTime. `toView` (skills-store.ts:113-143)
+      monta o SkillView com esses e nada mais. Nenhum dos quatro commits toca skills-store.ts:
+        git diff 3b85e5f~1..HEAD --stat -- packages/api/src/server/store/skills-store.ts  → vazio
+      Consequencia medida: `GET /v1/skills/:id` (handlers/skills.ts:329-335) e `GET /v1/skills`
+      (handlers/skills.ts:320-326) devolvem uma skill deprecada indistinguivel de uma ativa.
+      O teste RED nomeado no plano (`reason_and_successor_reach_the_read_contract`) nao existe:
+      `m32-lifecycle-operation.integration.test.ts` prova a gravacao lendo a tabela por SQL direto
+      ('SELECT lifecycle, deprecation_reason, superseded_by FROM skills'), nunca pelo GET.
+      A nota de fronteira do plano (linha 858-863) sustenta o 100% da matriz exatamente nisto:
+      "sem estagio, motivo e sucessora no contrato de leitura, a tela nao teria o que dizer".
+      A condicao necessaria declarada para o M33 nao foi entregue.
+    recommended_action: Projetar os tres campos em liveColumns/toView (aditivo) e escrever o teste `reason_and_successor_reach_the_read_contract` contra o GET — ou, se a exposicao for deliberadamente adiada, corrigir a Coverage Matrix para 5/6 e abrir ADR registrando o adiamento.
+
+  - id: F-xval-2
+    severity: HIGH
+    file: packages/api/src/server/store/skills-store.ts:374-392
+    plan_ref: 'T4.1 titulo (":retrieve e GET /v1/skills aceitam as tres flags") + T4.1 AC 1 ("Default exclui os tres") + T3.1 Objective ("busca e listagem") + Drawbacks linha "a T4.1 cobre GET /v1/skills com teste proprio"'
+    summary: Metade da T4.1 nao foi implementada — a listagem `GET /v1/skills` nao aceita as flags e nao aplica filtro algum de ciclo de vida.
+    evidence: |
+      `listPaginated` filtra apenas por workspace e soft-delete:
+        where = and(ws, isNull(skills.deletedAt))        (skills-store.ts:376-379)
+      `app.get('/v1/skills')` (handlers/skills.ts:320-326) le somente page_size/page_token.
+        grep -n "include_deprecated|include_draft|include_disabled|lifecycle" handlers/skills.ts → 0 acertos
+      Efeito: uma skill deprecada some do `:retrieve` e continua listada em `GET /v1/skills`,
+      sem que o consumidor tenha pedido. A mitigacao declarada no plano para o risco
+      "a coluna listagem da Q3 ficou sem medicao independente" era justamente este teste proprio,
+      e ele nao existe (nenhuma suite m32-* exercita `GET /v1/skills`).
+      A entrada do CHANGELOG afirma "a busca esconde ... por padrao" sem restringir a `:retrieve`.
+    recommended_action: Aplicar buildLifecycleFilter em listPaginated + expor as tres flags em GET /v1/skills com teste proprio; ou reduzir o escopo declarado da T4.1 por ADR e ajustar o CHANGELOG.
+
+  - id: F-xval-3
+    severity: HIGH
+    file: packages/core/src/contract/index.ts:106-137
+    plan_ref: 'T4.1 Files to edit — `packages/api/src/server/handlers/lifecycle-flags.ts (NEW)` + `lifecycle-flags.test.ts (NEW)`, com a nota v1.1 (EC-2): "a extracao e desde o inicio, nao condicional"'
+    summary: Divergencia CONFIRMADA — `handlers/lifecycle-flags.ts` nunca foi criado; o parse foi para o schema Zod do contrato.
+    evidence: |
+      `ls packages/api/src/server/handlers/lifecycle-flags.ts` → inexistente (nenhum commit o cria).
+      O parse vive em BooleanFlagSchema + include_draft/include_deprecated/include_disabled em
+      packages/core/src/contract/index.ts (b5507a4), consumido por handlers/retrieve.ts:56-58.
+      Nao ficou inline: e uma extracao, so que em outro modulo e em outro pacote.
+      A justificativa da EC-2 era o teto de 500 LoC de handlers/skills.ts (497) — que nunca foi
+      atingido porque skills.ts nao foi tocado (consequencia direta de F-xval-2). O local escolhido
+      e defensavel (validacao de fronteira no schema que ja valida a query), mas a mudanca de
+      arquivo declarado nao foi registrada em ADR nem no log de implementacao.
+    recommended_action: Registrar a divergencia em ADR curto (contrato Zod como local do parse) OU criar lifecycle-flags.ts como o plano declara. Se o contrato Zod ficar, o `lifecycle-flags.test.ts` equivale ao `retrieve.test.ts` de d0d87ea — dizer isso explicitamente.
+
+  - id: F-xval-4
+    severity: MEDIUM
+    file: packages/core/src/domain/retrievers/lifecycle-clause.ts:24-36
+    plan_ref: 'T3.1 Files to edit — `packages/api/src/server/store/skills-store.ts` e `skills-store.test.ts`'
+    summary: T3.1 implementada em local diferente do declarado — os dois arquivos declarados nao foram tocados; o filtro vive nos retrievers do core.
+    evidence: |
+      Declarado: skills-store.ts (aplica o predicado) + skills-store.test.ts (RED primeiro).
+      Real: buildLifecycleClause em packages/core/src/domain/retrievers/lifecycle-clause.ts,
+      consumido por keyword-retriever.ts, vector-retriever.ts e hybrid-retriever.ts (b5507a4).
+        git diff 3b85e5f~1..HEAD --stat -- .../skills-store.ts → vazio
+      O local real e coerente com D2/D3 (o caminho de busca real do repo sao os retrievers, nao o
+      store) e ate reforca a garantia — mas o plano descreveu a arquitetura errada e ninguem
+      registrou a correcao. O efeito colateral e F-xval-2: com o filtro so nos retrievers, a
+      listagem — que passa pelo store — ficou de fora sem que isso aparecesse.
+    recommended_action: Registrar em ADR/log de implementacao que o caminho de busca sao os retrievers e que a listagem exige tratamento proprio (liga com F-xval-2).
+
+  - id: F-xval-5
+    severity: MEDIUM
+    file: packages/api/tests/integration/m32-lifecycle-discovery.integration.test.ts
+    plan_ref: 'T3.2 TDD — `deprecated_and_disabled_still_resolves_by_id()` e `deleted_skill_does_not_resolve()`'
+    summary: 2 dos 4 testes RED nomeados na T3.2 nao existem — inclusive o caso negativo que separa os dois eixos.
+    evidence: |
+      Testes presentes na suite (5): busca nao devolve deprecada por padrao; devolve quando pedida;
+      deprecada CONTINUA resolvivel por identificador; motivo viaja junto; desabilitar tambem esconde.
+      Ausentes:
+        - `deprecated_and_disabled_still_resolves_by_id` — o teste 'desabilitar tambem esconde da
+          busca, e os dois eixos compoem' exercita apenas RETRIEVE (retriever().retrieve(...)),
+          nunca a resolucao por id com as duas dimensoes juntas (linha 4 da tabela de D1).
+        - `deleted_skill_does_not_resolve` — grep por DELETED/deleted_at na suite retorna apenas o
+          `AND deleted_at IS NULL` de uma query de setup. O eixo de exclusao nunca e provado negando.
+      Os dois testes nomeados no Goal existem e passam — esta parte da AC esta satisfeita.
+    recommended_action: Adicionar os dois testes; o negativo (`DELETED` nao resolve) e o que impede que os eixos sejam confundidos no futuro.
+
+  - id: F-xval-6
+    severity: MEDIUM
+    file: packages/api/tests/integration/m32-lifecycle-operation.integration.test.ts
+    plan_ref: 'T5.1 TDD — `without_write_scope_returns_403_with_service_text()`; T5.1 Deep Dives "Negative case: sem escopo de escrita → 403 com o texto do servico nomeando o escopo"'
+    summary: O caso negativo de autorizacao da T5.1 nunca e exercitado — a suite roda inteira com um unico principal admin.
+    evidence: |
+      A suite injeta `principalResolver: () => adminPrincipal` (linha 70) com scopes ['skills:admin']
+      e membership 'admin' (linha 64). Nao ha nenhum teste que chame a rota com um principal sem o
+      papel; grep por '403' na suite so encontra o titulo do teste de 404
+      ('skill inexistente devolve 404, nao 403').
+      A AC "Operacao auditada" esta satisfeita (teste 'a mudanca e auditada com ator, skill e estagio'),
+      e `requireRole('admin')` esta wired em handlers/lifecycle.ts:44 — o que falta e a PROVA.
+    recommended_action: Adicionar o teste com principal sem papel admin, assertando 403 e o texto do servico.
+
+  - id: F-xval-7
+    severity: MEDIUM
+    file: packages/core/src/infrastructure/db/migrations/0014_lean_living_mummy.sql:1
+    plan_ref: 'T2.1 Tasks item 2 (v1.1, EC-4) — `row_with_null_lifecycle_is_treated_as_active`; T1.2 Deep Dives "Invariante de retrocompatibilidade"; `## Failure scenarios` linha 3'
+    summary: O teste do NULL exigido pela EC-4 nao foi entregue, e a coluna NOT NULL o torna impossivel — a decisao nao esta registrada em ADR.
+    evidence: |
+      Migracao: `ADD COLUMN "lifecycle" text DEFAULT 'active' NOT NULL` — inserir NULL por SQL direto,
+      como a task 2 manda, e recusado pelo proprio banco.
+      Nenhum teste com esse nome ou proposito existe: grep por lifecycle+NULL em
+      m32-lifecycle-schema.integration.test.ts so acerta os campos de deprecacao (nullable por design).
+      O codigo AINDA carrega a tolerancia que o plano pediu (lifecycle-clause.ts:29 usa
+      `visibility ?? { stages:['active'], requireEnabled:true }`), entao a defesa existe sem prova.
+      Consequencia sobre a Final Phase AC "Toda linha de ## Failure scenarios exercitada": as tres
+      linhas (migracao pela metade, conexao caindo no PUT, linha com lifecycle NULL) nao tem teste
+      correspondente em nenhuma suite m32-*.
+    recommended_action: Registrar em ADR que NOT NULL substitui a tolerancia a NULL (fecha a janela em vez de tolera-la) e remover/reescrever a task 2 no plano; ou exercitar as linhas de Failure scenarios que continuam aplicaveis.
+
+  - id: F-xval-8
+    severity: LOW
+    file: packages/core/src/infrastructure/db/migrations/0014_lean_living_mummy.sql:4,23-25
+    plan_ref: 'T2.1 Files to edit (colunas lifecycle + enabled) vs T5.1 Files to edit ("schema.ts — colunas deprecation_reason, superseded_by"); ADR D5'
+    summary: Escopo antecipado e ampliado na T2.1 — duas colunas da T5.1 e uma CHECK constraint que o plano nao previa entraram no commit da T2.1.
+    evidence: |
+      d6392a0 adiciona `deprecation_reason` e `superseded_by` (declaradas na T5.1) e a constraint
+      `skills_deprecation_reason_check` (CHECK lifecycle <> 'deprecated' OR deprecation_reason IS NOT NULL),
+      que o ADR D5 nao menciona — D5 fala apenas do CHECK de vocabulario.
+      Tecnicamente correto e ate desejavel (uma unica migracao 0014 em vez de duas), e a constraint
+      extra e uma protecao real. Mas o plano exigia a segunda metade na T5.1, e a constraint nova
+      cria uma regra de integridade sem ADR: ela torna impossivel gravar `deprecated` sem motivo por
+      qualquer caminho, inclusive por scripts futuros que talvez precisem disso.
+      O commit atribui a constraint ao "ADR D3", que no plano e o Specification pattern — a citacao
+      correta seria o D3 do BLUEPRINT (motivo e sucessora).
+    recommended_action: Estender o texto do ADR D5 para cobrir a segunda constraint e corrigir a citacao no historico/log de implementacao.
+
+  - id: F-xval-9
+    severity: LOW
+    file: packages/api/tests/integration/m32-lifecycle-discovery.integration.test.ts
+    plan_ref: 'T3.1 Acceptance Criteria 2 ("A tabela de D1 e percorrida por teste"); ADR D1 Consequences ("Um teste a percorre inteira")'
+    summary: A tabela de convivencia do D1 nao e percorrida INTEIRA — a linha `DELETED` (nao resolve, nao aparece) nao tem teste.
+    evidence: |
+      Quatro das cinco linhas tem cobertura entre a suite de descoberta e a de schema
+      (ACTIVE/active/true, ACTIVE/draft, ACTIVE/deprecated, ACTIVE/qualquer/enabled=false).
+      A quinta (`DELETED`) nao aparece em nenhuma suite m32-* — e a mesma lacuna registrada em
+      F-xval-5 (`deleted_skill_does_not_resolve`), vista pelo angulo da AC do D1.
+    recommended_action: Um unico teste que percorra as cinco linhas fecha simultaneamente esta AC e o RED faltante da T3.2.
+
+  - id: F-xval-10
+    severity: LOW
+    file: .claude/knowledge-base/reviews/m32-skill-lifecycle-implement-validate-2026-08-04.md:25-31
+    plan_ref: 'T1.1/T1.2 AC "coverage 100% neste arquivo"; Final Phase AC "Cobertura >= 90% nos arquivos alterados; 100% em skill-lifecycle.ts"; Global DoD "`pnpm test:integration` verde"'
+    summary: Tres criterios do plano ficaram sem evidencia mecanica — nao sao falsos, sao NAO VERIFICADOS.
+    evidence: |
+      O relatorio de validacao registra `coverage — SKIP` com razao "no 'test:coverage' script in
+      package.json" (confirmado: grep por test:coverage em package.json e packages/core/package.json
+      nao acerta nada). Logo o "100% em skill-lifecycle.ts" nao pode ser afirmado nem negado.
+      O mesmo relatorio cobre `npm test`, typecheck e lint (todos PASS) mas nao `pnpm test:integration`;
+      as suites m32-* sao `describeIntegration` e a evidencia de que rodaram e a mensagem de commit
+      ("29 testes de integracao contra Postgres real"), nao um artefato.
+      A prova de discriminancia da T3.2 esta na mesma condicao: b5507a4 afirma "removendo a clausula,
+      3 casos reprovam e os 2 de resolucao seguem passando", sem artefato no repositorio.
+      Nenhum checkbox do plano foi marcado [x] — nao ha reivindicacao falsa, ha lacuna de evidencia.
+    recommended_action: Rodar a suite de integracao e o coverage (adicionando o script) e anexar a saida ao review; ou declarar explicitamente estes tres criterios como nao verificados no veredito.

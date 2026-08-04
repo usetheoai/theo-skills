@@ -5,6 +5,8 @@
  * `EmbeddingProvider` — never on pg/Drizzle directly.
  */
 
+import { type LifecycleVisibility } from '../skill-lifecycle.js';
+
 /** Retrieval request. */
 export interface RetrieveParams {
   readonly query: string;
@@ -17,6 +19,16 @@ export interface RetrieveParams {
    * tenant continua sendo a primeira de toda consulta.
    */
   readonly category?: string;
+  /**
+   * O que o ciclo de vida deixa visível NESTA busca (M32). Ausente = o default seguro da
+   * descoberta: só `active` e só habilitadas.
+   *
+   * Vive aqui, e não no construtor do retriever como o `workspaceId`, porque é decisão POR
+   * CHAMADA — o mesmo consumidor legitimamente quer o default numa busca e o acervo completo
+   * na seguinte (um operador auditando o que foi descontinuado). O tenant, ao contrário, nunca
+   * muda entre chamadas do mesmo retriever, e por isso continua estrutural.
+   */
+  readonly lifecycle?: LifecycleVisibility;
 }
 
 /** A retrieved skill with its (strategy-dependent) relevance score. */

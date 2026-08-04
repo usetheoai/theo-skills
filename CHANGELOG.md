@@ -7,6 +7,56 @@ ao [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [Unreleased]
+
+### Security
+
+- **theo-skills:** fecha `GHSA-7p8r-x3mc-p8w7` (**HIGH** — confusão de host em `fast-uri` via barra invertida, transitiva de `@modelcontextprotocol/sdk>ajv`) e `GHSA-8j4g-w8fx-2239` (de-duplicação de header no adapter do Hono). Ambas publicadas entre o run anterior do CI e este, e ambas bloqueavam o gate `pnpm audit --prod --audit-level=high`. Os pins vão para `pnpm-workspace.yaml`, onde o projeto já centraliza overrides de CVE — não para o `package.json` raiz, que o pnpm v11 não lê aqui. `@hono/node-server` subiu de 1.x para 2.x; suíte completa verde (#M32)
+
+## [0.13.0] - 2026-08-04
+
+### Added
+
+- **theo-skills:** o domínio ganha o **ciclo de vida da skill** — `active` · `draft` · `deprecated` — como eixo editorial separado da habilitação e da exclusão. Até aqui o registro só sabia existir ou ter sido apagado, e apagar **reserva o identificador**: não havia como dizer "não use mais esta" sem quebrar quem já a referenciava. O vocabulário é fechado, com erro tipado (`INVALID_LIFECYCLE`) que enumera os valores aceitos, e `DELETED` é recusado de propósito — pertence a outro eixo (#M32)
+- **theo-skills:** o contrato de leitura passa a devolver `lifecycle`, `enabled`, `deprecation_reason` e `superseded_by`. Sem eles, uma skill descontinuada era **indistinguível de uma ativa** para SDK, MCP, CLI e painel — a capacidade existia no banco e não chegava a ninguém, o mesmo defeito que `visibility` carregou até o M31. Campos aditivos: nenhum consumidor quebra (#M32)
+- **theo-skills:** `PUT /v1/skills/:id/lifecycle` aceita `enabled`, dando **escritor de produção** ao segundo eixo. Sem ele, `include_disabled=true` era uma flag pública que optava por um estado que a aplicação não conseguia criar — capacidade anunciada e inalcançável (#M32)
+- **theo-skills:** a skill descontinuada **continua resolvível por identificador**. O filtro de ciclo de vida existe só no caminho de descoberta; a resolução não o consulta. Provado por teste que reprova quando a garantia é removida — não apenas verde (#M32)
+- **theo-skills:** `PUT /v1/skills/:id/lifecycle` — deprecar exige **motivo**, e a sucessora é opcional e validada (precisa existir, não pode ser a própria skill). Sair de `deprecated` limpa os dois campos: manter o motivo afirmaria que a skill está descontinuada por uma razão quando ela não está mais descontinuada. Exige `admin` pelo mesmo critério da visibilidade — muda o que todos os agentes do workspace descobrem, então é curadoria e não auto-serviço. A mudança é auditada (#M32)
+- **theo-skills:** as colunas de ciclo de vida entram por migração **aditiva** — toda skill que já existia nasce `active` e habilitada, verificado em 3/3 linhas do banco de dev. Marcá-las `draft` as esconderia da busca no instante da migração, que seria quebra silenciosa exatamente na entrega que promete não quebrar (#M32)
+- **theo-skills:** duas **CHECK constraints** no banco: o estágio só aceita o vocabulário do domínio, e `deprecated` sem motivo é recusado. A fronteira HTTP não é o único caminho de escrita — um script de dados ou um `psql` durante plantão gravam direto, e sem restrição um estágio inexplicável entra na tabela. Divergência deliberada do padrão local (`state` e `visibility` são texto livre), registrada em ADR: é essa ausência que o milestone paga (#M32)
+- **theo-skills:** `buildLifecycleFilter` define o que a **descoberta** enxerga, e apenas ela. A resolução por identificador não o consulta, e é essa assimetria que faz a deprecação não quebrar consumidor já integrado. Os dois eixos compõem: pedir os desabilitados não passa a devolver rascunhos junto (#M32)
+
+
+### Changed
+
+- BREAKING: **theo-skills:** `GET /v1/skills:retrieve` passa a **esconder por padrão** rascunhos, descontinuadas e desabilitadas. Um consumidor que hoje recebe uma skill `deprecated` deixará de recebê-la sem mudar nada do lado dele. A capacidade não foi removida — as três flags (`include_draft`, `include_deprecated`, `include_disabled`) devolvem exatamente o comportamento anterior, e com as três ligadas o resultado é idêntico ao de antes do milestone. São três flags e não um `include_hidden` único porque quem audita o que saiu de circulação não quer rascunho alheio no meio (#M32)
+
+
+### Fixed
+
+- **theo-skills:** a busca **híbrida** descartava o filtro de ciclo de vida — a perna lexical escondia a descontinuada e a fusão a trazia de volta. O `hybrid-retriever` remontava os parâmetros campo a campo, e o comentário que ele carregava registrava o mesmo defeito já corrigido uma vez com o filtro de categoria. Enumerar campos faz do esquecimento o comportamento padrão de todo parâmetro novo; agora os parâmetros são repassados por inteiro e só o `topK` é sobrescrito (#M32)
+
+- **umbrella/plan-confidence:** `check_evidence_citations` marcava **toda** citação `Blueprint §X` como fabricada em projetos com layout de plugin. Ele procurava blueprints só em `knowledge-base/discoveries/blueprints/`, enquanto `_find_plans_dir` já resolvia também `.claude/knowledge-base/` — o canônico por `rules/knowledge-base-location.md`. Um plano correto era reprovado com hard cap `INVALID` por citar um blueprint que existe (#M32)
+- **umbrella/plan-confidence:** `check_concurrency_tests` reprovava exatamente os planos que seguiam o template do projeto. O escape `(none — single-threaded)` é escrito **dentro** de um bloco de código, conforme `to-plan/templates/plan-template.md`, e o checker apagava os blocos antes de procurá-lo. Medido no plano do M31: 14 subseções declaradas, zero aceitas. O marcador literal passa a ser buscado no texto bruto; os sinais de teste de corrida continuam no texto despido, onde o strip protege contra exemplo lido como prova (#M32)
+
+- Roadmap amended: added M32 Ciclo de vida — retirar de circulação sem quebrar quem já usa (`/roadmap-feature sota-level`). O registro hoje só sabe `ACTIVE` e `DELETED`: não há como dizer "não use mais esta" sem apagá-la, e apagar reserva o identificador e quebra quem a referencia (#M32)
+- Roadmap amended: added M33 Catálogo de descoberta — ver o que existe sem saber o que procurar (`/roadmap-feature sota-level`). A tabela do M31 resolve escala, não descoberta por navegação; deriva das recomendações R1–R6 do blueprint `skills-catalog-ux` (#M33)
+- Roadmap amended: added M34 Eval de descobribilidade — a skill é achada pela intenção certa? (`/roadmap-feature sota-level`). O `:validate` responde se a skill é válida; nada responde se ela é **achável**, que é a promessa do produto. Estático por decisão de fronteira — não executa a skill (#M34)
+- Roadmap amended: added M35 Bundles e adoção deixam de ser invisíveis (`/roadmap-feature sota-level`). M20 e M21 estão `[x]` com zero telas: quem publica não consegue responder "quem instalou minha skill?" sem `curl` (#M35)
+- **theo-skills:** descoberta de UX de catálogo concluída — blueprint `skills-catalog-ux` (SHIPPABLE_WITH_CAVEATS 89/100, 8 questões, zero citações fabricadas) mede em dois registries reais quando card vence tabela, de onde vem a contagem por faceta e que sinal de adoção é honesto exibir. Dois achados reduzem escopo do M33: nenhuma dependência nova é necessária, e o peer com catálogo maduro **não** oferece alternador grade/lista — o produto escolhe pela função do momento (#M33)
+
 ## [theo-skills 0.3.0] - 2026-08-03
 
 ### Added
