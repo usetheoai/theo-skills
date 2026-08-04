@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 import { detectarRegressoes, type ResultadoEval } from '../src/eval/regression-gate.js';
+import { idsDaResposta } from '../src/eval/retrieve-response.js';
 
 interface Caso {
   readonly query: string;
@@ -36,8 +37,11 @@ async function buscar(query: string): Promise<string[]> {
     headers: TOKEN === '' ? {} : { authorization: `Bearer ${TOKEN}` },
   });
   if (!res.ok) throw new Error(`retrieve ${res.status} para "${query}"`);
-  const body = (await res.json()) as { skills?: { skill_id: string }[] };
-  return (body.skills ?? []).map((s) => s.skill_id);
+  // A leitura mora em `src/eval/` e é TESTADA. Aqui dentro ela lia `body.skills` — chave que o
+  // handler não devolve (é `results`) — e por isso achava zero em toda consulta, gravava uma
+  // baseline de zeros e deixava o gate INERTE: não há regressão possível a partir de "nunca
+  // achada". Nada em `eval/` é alcançado por teste, que é como o defeito sobreviveu.
+  return idsDaResposta(await res.json());
 }
 
 async function main(): Promise<void> {
