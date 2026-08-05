@@ -13,7 +13,7 @@ export interface Member {
 /** Erro tipado do invariante de último dono — o handler o traduz em `409`. */
 export class LastOwnerError extends Error {
   constructor(workspaceId: string) {
-    super(`workspace ${workspaceId} ficaria sem owner`);
+    super(`workspace ${workspaceId} would be left without an owner`);
     this.name = 'LastOwnerError';
   }
 }

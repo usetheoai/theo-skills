@@ -57,8 +57,8 @@ export function createQueue(uri: string, logger: Logger): PgBoss {
   boss.on('error', (err: Error) => {
     recordIdlePoolError();
     logger.error(
-      { erro: err.message, codigo: (err as { code?: unknown }).code ?? null, pool: 'pg-boss' },
-      'erro no pool interno do pg-boss — a fila segue viva e reabre a conexão',
+      { error: err.message, code: (err as { code?: unknown }).code ?? null, pool: 'pg-boss' },
+      'error in the pg-boss internal pool — the queue stays alive and reopens the connection',
     );
   });
   return boss;

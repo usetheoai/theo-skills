@@ -115,7 +115,7 @@ export function withWorkspace(opts: SkillsClientOptions): WorkspaceClient {
   const headers: Record<string, string> = opts.auth === undefined ? {} : { authorization: `Bearer ${opts.auth}` };
 
   async function request<T>(path: string): Promise<T | 'not_found'> {
-    let ultimo: ClassifiedError | null = null;
+    let last: ClassifiedError | null = null;
     for (let tentativa = 1; tentativa <= attempts; tentativa += 1) {
       try {
         const res = await doFetch(`${base}${path}`, { headers });
@@ -130,15 +130,15 @@ export function withWorkspace(opts: SkillsClientOptions): WorkspaceClient {
             kind: 'permanent',
             retryable: false,
             message:
-              `o endereço ${base} não respondeu ${path} como esta API (404 em HTML, não em JSON). ` +
-              'Verifique o --registry: ele é a raiz do serviço, e o /v1 é acrescentado pelo ' +
-              'cliente. A skill pode existir — quem não respondeu foi o endereço.',
+              `the address ${base} did not answer ${path} as this API (404 in HTML, not in JSON). ` +
+              'Check --registry: it is the service root, and /v1 is appended by the ' +
+              'client. The skill may well exist — what did not answer was the address.',
           });
         }
 
         const c = classifyHttpStatus(res.status);
         if (!c.retryable) throw new SkillsApiError(c);
-        ultimo = c;
+        last = c;
 
         // Honra `Retry-After` quando o servidor o envia — foi para isso que o cabeçalho
         // entrou no rate limit e na quota. Ignorá-lo e aplicar backoff próprio é o cliente
@@ -150,11 +150,11 @@ export function withWorkspace(opts: SkillsClientOptions): WorkspaceClient {
         if (err instanceof SkillsApiError) throw err;
         const c = classifyError(err);
         if (!c.retryable) throw new SkillsApiError(c);
-        ultimo = c;
+        last = c;
         if (tentativa < attempts) await sleep(2 ** (tentativa - 1) * 200);
       }
     }
-    throw new SkillsApiError(ultimo ?? { kind: 'permanent', retryable: false, message: 'falhou' });
+    throw new SkillsApiError(last ?? { kind: 'permanent', retryable: false, message: 'request failed' });
   }
 
   return {

@@ -12,7 +12,7 @@ export interface Channel {
 /** Erro tipado: a revisão está fixada por um canal — o handler traduz em `409`. */
 export class RevisionPinnedError extends Error {
   constructor(revisionId: string, channels: readonly string[]) {
-    super(`revisão ${revisionId} está referenciada pelos canais: ${channels.join(', ')}`);
+    super(`revision ${revisionId} is referenced by the channels: ${channels.join(', ')}`);
     this.name = 'RevisionPinnedError';
   }
 }

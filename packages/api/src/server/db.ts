@@ -62,7 +62,7 @@ export function createPool(uri: string, logger: Logger): Pool {
         total_no_pool: pool.totalCount,
         ociosos: pool.idleCount,
       },
-      'cliente ocioso do pool emitiu erro — pool segue vivo e reabre a conexão na próxima query',
+      'idle pool client emitted an error — the pool stays alive and reopens the connection on the next query',
     );
   });
   return pool;

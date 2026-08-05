@@ -164,7 +164,7 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
   // host público, e o ouvinte ANUNCIA `https` sobre material que não negocia. Encontrado
   // testando a imagem, não a suíte.
   if (options.tls !== undefined && (options.tls.cert.trim() === '' || options.tls.key.trim() === '')) {
-    throw new Error('connectStreamableHttp: empty TLS material — cert and key precisam ter conteúdo, não só existir.');
+    throw new Error('connectStreamableHttp: empty TLS material — cert and key must both have content, not merely exist.');
   }
   assertNonLocalhostHasTls(options.host, options.tls !== undefined);
 

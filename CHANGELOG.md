@@ -16,6 +16,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Every user- and agent-facing string is English: CLI output (`erro:` → `error:`, which also means a single `grep '^error:'` now covers the whole binary), SDK errors, HTTP `details`, and the typed version-rejection messages. Tier B of the language budget went 62 → 0 (#T3.2, #T3.3)
 - MCP tool descriptions are English. They are the MODEL's input when choosing a tool: an agent working in English that received `Busca skills por intenção…` could simply not pick the tool, and the registry would return nothing to someone who should have found a skill (#T3.1)
 - The MCP `error` field now carries a stable CODE, with the readable sentence in `message`. It used to hold both — `not_found` (a code) from get_skill, `query é obrigatória` (a sentence) from validation — so no client could branch on a validation failure. BREAKING for clients reading `error` as prose (#T3.1)
 - Hint duplication is now detectable in all five branches, not just the draft one. Injecting a repeated `hints.push` failed **zero** tests before; it fails three now (#m34)

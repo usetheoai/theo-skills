@@ -21,7 +21,7 @@ interface RevisionMeta {
 }
 
 /**
- * `theoskill update <nome>` — M19 DoD #4.
+ * `theoskill update <name>` — M19 DoD #4.
  *
  * Respeita a PROCEDÊNCIA gravada na instalação (`.theoskill.json`): o registry de origem e a
  * skill instalada saem de lá, não de flags que o usuário teria de lembrar. Atualizar de um
@@ -31,7 +31,7 @@ interface RevisionMeta {
  * instrução executável para um agente: sobrescrever sem que ninguém veja o que mudou é como
  * atualizar código de produção sem revisar o diff. `--apply` é a decisão explícita.
  */
-export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number> {
+export async function runUpdate(name: string, deps: UpdateDeps): Promise<number> {
   const root = resolveSkillsDir({
     ...(deps.global !== undefined ? { global: deps.global } : {}),
     ...(deps.skillsDir !== undefined ? { skillsDir: deps.skillsDir } : {}),
@@ -40,9 +40,9 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
 
   let dir: string;
   try {
-    dir = safeSkillDir(root, nome);
+    dir = safeSkillDir(root, name);
   } catch (err) {
-    deps.out(`erro: ${err instanceof Error ? err.message : String(err)}`);
+    deps.out(`error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 
@@ -50,7 +50,7 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
   try {
     prov = JSON.parse(await readFile(join(dir, PROVENANCE_FILE), 'utf8')) as InstallProvenance;
   } catch {
-    deps.out(`erro: ${nome} não parece instalado (sem ${PROVENANCE_FILE} em ${dir})`);
+    deps.out(`error: ${name} does not look installed (no ${PROVENANCE_FILE} in ${dir})`);
     return 1;
   }
 
@@ -61,13 +61,13 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
 
   const skillRes = await deps.fetch(`${registry}/v1/skills/${prov.skill_id}`, { headers });
   if (!skillRes.ok) {
-    deps.out(`erro: skill ${prov.skill_id} indisponível em ${registry} (HTTP ${String(skillRes.status)})`);
+    deps.out(`error: skill ${prov.skill_id} unavailable at ${registry} (HTTP ${String(skillRes.status)})`);
     return 1;
   }
   const skill = (await skillRes.json()) as SkillResponse;
 
   if (skill.latest_revision_id === prov.revision_id) {
-    deps.out(`${nome} já está atualizada (${prov.revision_id})`);
+    deps.out(`${name} is already up to date (${prov.revision_id})`);
     return 0;
   }
 
@@ -76,18 +76,18 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
   const revRes = await deps.fetch(`${registry}/v1/skills/${prov.skill_id}/revisions/${skill.latest_revision_id}`, {
     headers,
   });
-  const nova = revRes.ok ? ((await revRes.json()) as RevisionMeta) : undefined;
+  const next = revRes.ok ? ((await revRes.json()) as RevisionMeta) : undefined;
 
-  const atualRev = prov.revision_id;
-  const novaRev = skill.latest_revision_id;
-  deps.out(`${nome}: ${atualRev} → ${novaRev}`);
-  if (nova?.version !== undefined) deps.out(`  versão: ${nova.version}`);
+  const currentRev = prov.revision_id;
+  const nextRev = skill.latest_revision_id;
+  deps.out(`${name}: ${currentRev} -> ${nextRev}`);
+  if (next?.version !== undefined) deps.out(`  version: ${next.version}`);
   deps.out(`  registry: ${registry}`);
 
   if (deps.apply !== true) {
     // Não aplicar por padrão é a escolha central deste comando. Uma skill é instrução
     // executável para um agente; sobrescrever sem revisão é atualizar produção às cegas.
-    deps.out('  (nada foi alterado — use --apply para atualizar)');
+    deps.out('  (nothing changed — use --apply to update)');
     return 0;
   }
 
@@ -102,7 +102,7 @@ export async function runUpdate(nome: string, deps: UpdateDeps): Promise<number>
     ...(deps.now !== undefined ? { now: deps.now } : {}),
     // O runtime resolve o diretório nas DUAS pontas. Ele era usado só para LER a procedência;
     // omiti-lo aqui fazia a escrita cair no default (`claude`), então a skill do agente
-    // Theokit ficava congelada na revisão antiga enquanto uma cópia nova aparecia noutro
+    // Theokit ficava congelada na revisão antiga enquanto uma cópia next aparecia noutro
     // lugar — sem erro, e com o comando reportando sucesso.
     ...(deps.runtime !== undefined ? { runtime: deps.runtime } : {}),
     ...(deps.force !== undefined ? { force: deps.force } : {}),

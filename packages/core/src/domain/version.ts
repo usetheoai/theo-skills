@@ -16,7 +16,7 @@ export interface SemVer {
 
 export class InvalidVersionError extends Error {
   constructor(raw: string) {
-    super(`versão inválida: ${raw}`);
+    super(`invalid version: ${raw}`);
     this.name = 'InvalidVersionError';
   }
 }
@@ -101,14 +101,14 @@ export class VersionRejectedError extends Error {
 export function assertPublishable(next: SemVer, existentes: readonly SemVer[]): void {
   for (const v of existentes) {
     if (compareVersions(next, v) === 0) {
-      throw new VersionRejectedError('duplicate', `versão ${formatVersion(next)} já existe`);
+      throw new VersionRejectedError('duplicate', `version ${formatVersion(next)} already exists`);
     }
   }
-  const maior = existentes.reduce<SemVer | null>((acc, v) => (acc === null || compareVersions(v, acc) > 0 ? v : acc), null);
-  if (maior !== null && compareVersions(next, maior) < 0) {
+  const highest = existentes.reduce<SemVer | null>((acc, v) => (acc === null || compareVersions(v, acc) > 0 ? v : acc), null);
+  if (highest !== null && compareVersions(next, highest) < 0) {
     throw new VersionRejectedError(
       'not_greater',
-      `versão ${formatVersion(next)} é anterior à mais recente (${formatVersion(maior)})`,
+      `version ${formatVersion(next)} is older than the most recent one (${formatVersion(highest)})`,
     );
   }
 }
