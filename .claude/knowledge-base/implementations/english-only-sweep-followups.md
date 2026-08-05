@@ -67,3 +67,29 @@ O mapa de rename da T2.1 cobre os cinco primeiros (os do módulo de descobribili
 Rodar contra o binário é deliberado e correto — é o que o DoD do M25 pede. O que falta é o **frescor**: nada relaciona `dist/bin.js` ao `src/bin.ts` que o gerou, então a suíte pode passar (ou falhar) por um build velho, e a mensagem não dá pista de que o problema é esse.
 
 **Ação sugerida:** ou o `pretest` do pacote roda `build`, ou o teste compara o mtime de `dist/bin.js` com o de `src/bin.ts` e falha com "dist stale — run `pnpm build`". A segunda é mais barata e diz o que fazer.
+
+## F-6 — O mini review deriva símbolos de arquivos de DADOS e os atribui à fase
+
+**Descoberto em:** fronteira da fase 1, ao ler o veredito `PHASE_REVIEW_NEEDS_FIX`.
+
+**Fato medido:** o mini review da fase 1 emitiu **9 findings HIGH** `wiring_pillar_a_fail`, sobre `ApiKeyRow`, `BundleItemRow`, `DistributionTokenRow`, `SkillRevisionRow`, `WebhookEndpointRow`, `WorkspaceUserRow`, `assertPublishable` e outros dois.
+
+Nenhum deles foi introduzido pela fase 1:
+
+```
+git grep -l assertPublishable 88d4fa4 -- packages
+  -> packages/core/src/domain/version.ts        (existe ANTES do plano)
+git grep -l ApiKeyRow 88d4fa4 -- packages
+  -> packages/core/src/infrastructure/db/schema.ts
+
+git diff --name-only 4f16a61~1..HEAD | grep packages/.*/src
+  -> packages/core/src/domain/discoverability.test.ts        (um arquivo, e e teste)
+```
+
+**Causa:** T1.3 lista `tests/repo/core-api-surface.json` em `files` — corretamente, porque a tarefa criou o arquivo. Mas o conteúdo dele é uma **lista dos 34 nomes exportados pelo pacote**, e o mini review a leu como símbolos que a fase introduziu. Um arquivo de dados que cita nomes vira, para o revisor, uma fase que os declara.
+
+**Consequência:** o veredito da fase é `NEEDS_FIX` por dívida repo-wide preexistente. Pior, ela é dívida **real** — `assertPublishable` sem chamador é o achado #2 do `/code-review`, e é exatamente o que a T4.1 deste plano existe para corrigir. O revisor está certo sobre o fato e errado sobre o dono.
+
+**Ação sugerida:** `mini_review.py` deve derivar símbolos apenas de arquivos de código (`.ts`/`.py`/`.go` fora de `*.json`/`*.snap`), ou aceitar uma marcação de "arquivo de dados" no checkpoint. Enquanto não houver, um snapshot de superfície listado em `files` reprova qualquer fase que o crie.
+
+**O que NÃO fizemos:** remover o snapshot de `files` para obter verde. A tarefa criou o arquivo; omiti-lo seria falsear o registro para passar num portão — o oposto do que este plano inteiro defende.
