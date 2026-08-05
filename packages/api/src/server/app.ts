@@ -275,10 +275,10 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
       const achadas = await retriever.retrieve({ query: texto, topK, strategy: 'hybrid' });
       return achadas.map((s) => ({
         skillId: s.skill_id,
-        // O `score` do RRF não é similaridade de cosseno — é fusão de rankings. Usá-lo como
+        // O `score` do RRF não é similarity de cosseno — é fusão de rankings. Usá-lo como
         // proxy é a aproximação honesta que temos hoje, e o piso de colisão foi calibrado
         // contra ELE, não contra cosseno. Trocar a fonte exige recalibrar o piso.
-        similaridade: typeof s.score === 'number' ? s.score : 0,
+        similarity: typeof s.score === 'number' ? s.score : 0,
       }));
     },
     // `provider/model`, não um rótulo nosso: é o que fica gravado em `embeddings`, e é por

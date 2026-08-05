@@ -84,26 +84,43 @@ const asTopK = (v: unknown): number => {
  * isolamento é uma propriedade do objeto construído, não uma regra que cada chamada precisa
  * lembrar de respeitar.
  */
+/**
+ * A refusal the caller can BRANCH on, plus a sentence a human can read.
+ *
+ * `error` used to carry both: `not_found` (a code) came back from get_skill/load_skill while
+ * `query é obrigatória` (a sentence) came back from validation. A client writing
+ * `if (r.error === 'not_found')` had no equivalent for the validation path — the two facts
+ * shared one slot and only one of them was machine-readable.
+ */
+function invalidArgument(field: string, hint: string): { error: 'invalid_argument'; message: string } {
+  return { error: 'invalid_argument', message: `\`${field}\` is required: ${hint}.` };
+}
+
+function notFound(): { error: 'not_found' } {
+  return { error: 'not_found' };
+}
+
 export function createSkillTools(registry: RegistryPort): McpTool[] {
   return [
     {
       name: 'search_skills',
-      // A descrição é lida pelo MODELO — ela precisa dizer quando usar, não como funciona.
+      // The description is read by the MODEL — it must say WHEN to use the tool, not how it
+      // works internally.
       description:
-        'Busca skills por intenção em linguagem natural. Use quando precisar descobrir uma capacidade ' +
-        'disponível antes de executá-la. Retorna nome, descrição, relevância e origem (própria ou pública).',
+        'Search skills by intent, in natural language. Use it when you need to discover an available ' +
+        'capability before running it. Returns name, description, relevance and origin (own or public).',
       inputSchema: {
         type: 'object',
         properties: {
-          query: { type: 'string', description: 'O que você quer fazer, em linguagem natural.' },
-          top_k: { type: 'number', description: 'Quantos resultados (padrão 5, máximo 25).' },
-          category: { type: 'string', description: 'Restringe a uma categoria (ex.: Sales, Shop). Opcional.' },
+          query: { type: 'string', description: 'What you want to do, in natural language.' },
+          top_k: { type: 'number', description: 'How many results (default 5, maximum 25).' },
+          category: { type: 'string', description: 'Restrict to one category (e.g. Sales, Shop). Optional.' },
         },
         required: ['query'],
       },
       async invoke(args) {
         const query = asString(args['query']);
-        if (query === '') return { error: 'query é obrigatória' };
+        if (query === '') return invalidArgument('query', 'describe, in natural language, what you want to do');
         const category = asString(args['category']);
         return {
           skills: await registry.retrieve(
@@ -116,57 +133,58 @@ export function createSkillTools(registry: RegistryPort): McpTool[] {
     },
     {
       name: 'get_skill',
-      description: 'Obtém uma skill pelo identificador. Use depois de descobri-la com search_skills.',
+      description: 'Fetch one skill by identifier. Use it after discovering the skill with search_skills.',
       inputSchema: {
         type: 'object',
-        properties: { skill_id: { type: 'string', description: 'Identificador da skill.' } },
+        properties: { skill_id: { type: 'string', description: 'The skill identifier.' } },
         required: ['skill_id'],
       },
       async invoke(args) {
         const id = asString(args['skill_id']);
-        if (id === '') return { error: 'skill_id é obrigatório' };
+        if (id === '') return invalidArgument('skill_id', 'pass the identifier returned by search_skills');
         const skill = await registry.get(id);
-        // `not_found` em vez de erro: uma skill de outro workspace é indistinguível de
-        // inexistente, e o agente não deve receber sinal diferente para os dois casos.
-        return skill ?? { error: 'not_found' };
+        // `not_found` and nothing more specific: a skill in another workspace must be
+        // indistinguishable from one that does not exist, or the difference itself leaks
+        // which identifiers are taken.
+        return skill ?? notFound();
       },
     },
     {
       name: 'load_skill',
-      // A descrição diz ao MODELO quando usar — e o "depois de escolher" não é estilo: é o
-      // que evita o agente carregar N corpos e encher a própria janela de contexto.
+      // The description tells the MODEL when to use it — and "after choosing" is not style:
+      // it is what stops an agent from loading N bodies and filling its own context window.
       description:
-        'Carrega as instruções completas de UMA skill, para segui-las. Use depois de escolher a skill ' +
-        'em search_skills. Skills marcadas `local` não são carregáveis — elas precisam ser instaladas ' +
-        'na máquina do cliente.',
+        'Load the full instructions of ONE skill, so you can follow them. Use it after choosing the skill ' +
+        'with search_skills. Skills marked `local` are not loadable — they must be installed on the ' +
+        "client's machine.",
       inputSchema: {
         type: 'object',
-        properties: { skill_id: { type: 'string', description: 'Identificador da skill escolhida.' } },
+        properties: { skill_id: { type: 'string', description: 'Identifier of the chosen skill.' } },
         required: ['skill_id'],
       },
       async invoke(args) {
         const id = asString(args['skill_id']);
-        if (id === '') return { error: 'skill_id é obrigatório' };
-        const corpo = await registry.instructions(id);
-        return corpo ?? { error: 'not_found' };
+        if (id === '') return invalidArgument('skill_id', 'pass the identifier of the skill you chose');
+        const body = await registry.instructions(id);
+        return body ?? notFound();
       },
     },
     {
       name: 'list_skill_revisions',
-      description: 'Lista as revisões de uma skill, da mais antiga à mais recente, com a versão de cada uma.',
+      description: 'List a skill revisions, oldest to newest, with each revision version.',
       inputSchema: {
         type: 'object',
-        properties: { skill_id: { type: 'string', description: 'Identificador da skill.' } },
+        properties: { skill_id: { type: 'string', description: 'The skill identifier.' } },
         required: ['skill_id'],
       },
       async invoke(args) {
         const id = asString(args['skill_id']);
-        if (id === '') return { error: 'skill_id é obrigatório' };
+        if (id === '') return invalidArgument('skill_id', 'pass the identifier returned by search_skills');
         return { revisions: await registry.revisions(id) };
       },
     },
   ];
 }
 
-/** Nomes das ferramentas — o `.mcp.json.example` e os testes se apoiam nesta lista. */
+/** Tool names — `.mcp.json.example` and the tests both rely on this list. */
 export const TOOL_NAMES = ['search_skills', 'get_skill', 'load_skill', 'list_skill_revisions'] as const;

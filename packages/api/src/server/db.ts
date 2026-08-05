@@ -22,7 +22,7 @@ export function idlePoolErrorCount(): number {
  * fariam cada metade parecer pequena e a soma sumir — e foi justamente um segundo pool
  * invisível que manteve o defeito vivo depois do primeiro conserto.
  */
-export function registrarErroDePoolOcioso(): void {
+export function recordIdlePoolError(): void {
   errosDeClienteOcioso += 1;
 }
 
@@ -62,7 +62,7 @@ export function createPool(uri: string, logger: Logger): Pool {
         total_no_pool: pool.totalCount,
         ociosos: pool.idleCount,
       },
-      'cliente ocioso do pool emitiu erro — pool segue vivo e reabre a conexão na próxima query',
+      'idle pool client emitted an error — the pool stays alive and reopens the connection on the next query',
     );
   });
   return pool;

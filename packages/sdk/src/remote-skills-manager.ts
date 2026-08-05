@@ -63,8 +63,8 @@ const toTheokit = (s: Skill): TheokitSkill => ({
   instructions:
     s.instructions !== undefined && s.instructions !== ''
       ? s.instructions
-      : `(corpo indisponível no registry para "${s.name}" — a busca devolve resumo; ` +
-        `obtenha a revisão para as instruções completas)`,
+      : `(body unavailable in the registry for "${s.name}" — a busca devolve resumo; ` +
+        `fetch the revision for the full instructions)`,
   ...(s.origin !== undefined ? { category: s.origin } : {}),
 });
 

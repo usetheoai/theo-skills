@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  diagnosticarDescobribilidade,
+  diagnoseDiscoverability,
   DISCOVERABILITY_CAUSES,
-  type CandidataVizinha,
+  type NeighbourCandidate,
 } from './discoverability.js';
 
 /**
@@ -17,15 +17,15 @@ import {
  * é a descrição, a falta de vetor, ou uma vizinha que rouba a consulta.
  */
 
-const semVizinhas: CandidataVizinha[] = [];
+const semVizinhas: NeighbourCandidate[] = [];
 
-describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
+describe('diagnoseDiscoverability — a causa, não só o número', () => {
   it('descrição curta demais é nomeada como tal', () => {
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Conversor',
       description: 'converte',
-      revisao: { publicada: true, temVetor: true },
-      vizinhas: semVizinhas,
+      revision: { published: true, hasVector: true },
+      neighbours: semVizinhas,
     });
 
 
@@ -45,22 +45,22 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
   it('descrição específica NÃO é acusada — senão a causa vira ruído', () => {
     // A metade que impede o diagnóstico de virar "reclama sempre". Um detector que acusa toda
     // skill é indistinguível de nenhum detector.
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação de fechamento do dia.',
-      revisao: { publicada: true, temVetor: true },
-      vizinhas: semVizinhas,
+      revision: { published: true, hasVector: true },
+      neighbours: semVizinhas,
     });
 
     expect(d.causes).not.toContain(DISCOVERABILITY_CAUSES.DESCRIPTION_TOO_GENERIC);
   });
 
   it('sem embedding é causa PRÓPRIA — a skill só aparece para quem já sabe o nome', () => {
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação de fechamento do dia.',
-      revisao: { publicada: true, temVetor: false },
-      vizinhas: semVizinhas,
+      revision: { published: true, hasVector: false },
+      neighbours: semVizinhas,
     });
 
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
@@ -74,11 +74,11 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
 
   it('colisão com uma vizinha do acervo é nomeada com QUEM colide', () => {
     // Dizer "colide" sem dizer com quem deixaria o autor procurando a rival no acervo inteiro.
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação do dia.',
-      revisao: { publicada: true, temVetor: true },
-      vizinhas: [{ skillId: 'sk_cambio_v1', similaridade: 0.94 }],
+      revision: { published: true, hasVector: true },
+      neighbours: [{ skillId: 'sk_cambio_v1', similarity: 0.94 }],
     });
 
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
@@ -93,22 +93,22 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
   });
 
   it('uma vizinha DISTANTE não é colisão', () => {
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação do dia.',
-      revisao: { publicada: true, temVetor: true },
-      vizinhas: [{ skillId: 'sk_outra', similaridade: 0.31 }],
+      revision: { published: true, hasVector: true },
+      neighbours: [{ skillId: 'sk_outra', similarity: 0.31 }],
     });
 
     expect(d.causes).not.toContain(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
   });
 
   it('sem causa alguma, o veredito é descobrível', () => {
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação de fechamento do dia.',
-      revisao: { publicada: true, temVetor: true },
-      vizinhas: semVizinhas,
+      revision: { published: true, hasVector: true },
+      neighbours: semVizinhas,
     });
 
     expect(d.causes).toEqual([]);
@@ -116,11 +116,11 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
   });
 
   it('qualquer causa torna o veredito NÃO descobrível', () => {
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'x',
       description: 'converte',
-      revisao: { publicada: true, temVetor: false },
-      vizinhas: semVizinhas,
+      revision: { published: true, hasVector: false },
+      neighbours: semVizinhas,
     });
 
     expect(d.discoverable).toBe(false);
@@ -140,11 +140,11 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
     const entrada = {
       name: 'x',
       description: 'converte',
-      revisao: { publicada: true, temVetor: false },
-      vizinhas: [{ skillId: 'sk_a', similaridade: 0.95 }],
+      revision: { published: true, hasVector: false },
+      neighbours: [{ skillId: 'sk_a', similarity: 0.95 }],
     };
-    expect(diagnosticarDescobribilidade(entrada).causes).toEqual(
-      diagnosticarDescobribilidade(entrada).causes,
+    expect(diagnoseDiscoverability(entrada).causes).toEqual(
+      diagnoseDiscoverability(entrada).causes,
     );
   });
 });
@@ -165,21 +165,21 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
   const rascunho = {
     name: 'Converter moeda',
     description: 'Converte moeda estrangeira para reais usando a cotação do dia, com a taxa oficial.',
-    revisao: { publicada: false } as const,
+    revision: { published: false } as const,
   };
 
   it('rascunho NÃO acusa falta de vetor — ele não tem revisão para ter vetor', () => {
-    const d = diagnosticarDescobribilidade({ ...rascunho, vizinhas: [] });
+    const d = diagnoseDiscoverability({ ...rascunho, neighbours: [] });
     expect(d.causes).not.toContain(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
     expect(d.discoverable).toBe(true);
   });
 
   it('rascunho AINDA acusa o que o autor pode corrigir agora', () => {
     // O ponto inteiro da correção: as causas acionáveis não podem ser encobertas.
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       ...rascunho,
       description: 'Converte moeda.',
-      vizinhas: [{ skillId: 'sk_cambio_v1', similaridade: 0.95 }],
+      neighbours: [{ skillId: 'sk_cambio_v1', similarity: 0.95 }],
     });
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.DESCRIPTION_TOO_GENERIC);
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
@@ -187,23 +187,23 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
   });
 
   it('skill PUBLICADA sem vetor continua acusando — ali o achado é real', () => {
-    // O contraste que prova que a correção não desligou o detector: para uma revisão publicada,
+    // O contraste que prova que a correção não desligou o detector: para uma revisão published,
     // faltar vetor é um defeito de ingestão e o autor PODE agir (republicar, investigar).
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: rascunho.name,
       description: rascunho.description,
-      revisao: { publicada: true, temVetor: false },
-      vizinhas: [],
+      revision: { published: true, hasVector: false },
+      neighbours: [],
     });
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
   });
 
-  it('publicada COM vetor não acusa nada', () => {
-    const d = diagnosticarDescobribilidade({
+  it('published COM vetor não acusa nada', () => {
+    const d = diagnoseDiscoverability({
       name: rascunho.name,
       description: rascunho.description,
-      revisao: { publicada: true, temVetor: true },
-      vizinhas: [],
+      revision: { published: true, hasVector: true },
+      neighbours: [],
     });
     expect(d.causes).toEqual([]);
     expect(d.discoverable).toBe(true);
@@ -216,11 +216,11 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
     //
     // O gate do CHANGELOG foi quem expôs, por um caminho indireto: ele apontou o arquivo tocado
     // sem entrada, e foi lendo o diff do merge que a duplicação apareceu.
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação do dia, com a taxa oficial.',
-      revisao: { publicada: false },
-      vizinhas: [],
+      revision: { published: false },
+      neighbours: [],
     });
     expect(d.hints).toHaveLength(1);
     // E não há duas frases dizendo a mesma coisa em idiomas diferentes.
@@ -230,7 +230,7 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
   it('o hint do rascunho fala de PUBLICAR, não de republicar', () => {
     // Um rascunho com tudo certo ainda não é achável — porque não existe. Dizer "descobrível"
     // sem ressalva afirmaria algo falso sobre o presente.
-    const d = diagnosticarDescobribilidade({ ...rascunho, vizinhas: [] });
+    const d = diagnoseDiscoverability({ ...rascunho, neighbours: [] });
     expect(d.hints.join(' ')).toMatch(/published/i);
     expect(d.hints.join(' ')).not.toMatch(/republish/i);
   });
@@ -241,11 +241,11 @@ describe('cardinalidade — o caso máximo e a exceção do rascunho', () => {
     // EC-10. É o caso onde uma duplicata melhor se esconde: com três hints no relatório, um
     // quarto repetido passa despercebido na leitura. Os testes existentes cobriam uma e duas
     // causas; o máximo ficava descoberto.
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'x',
       description: 'converte',
-      revisao: { publicada: true, temVetor: false },
-      vizinhas: [{ skillId: 'sk_cambio_v1', similaridade: 0.94 }],
+      revision: { published: true, hasVector: false },
+      neighbours: [{ skillId: 'sk_cambio_v1', similarity: 0.94 }],
     });
 
     expect(d.causes).toHaveLength(3);
@@ -257,11 +257,11 @@ describe('cardinalidade — o caso máximo e a exceção do rascunho', () => {
     // EC-11. A regra geral é `hints.length === causes.length`, e ela é FALSA aqui — um rascunho
     // sem causa alguma recebe a ressalva de que ainda não está no acervo. Aplicar a fórmula
     // mecanicamente a este ramo quebraria o teste que 65d877e acabou de escrever.
-    const d = diagnosticarDescobribilidade({
+    const d = diagnoseDiscoverability({
       name: 'Converter moeda',
       description: 'Converte moeda estrangeira para reais usando a cotação de fechamento do dia.',
-      revisao: { publicada: false },
-      vizinhas: [],
+      revision: { published: false },
+      neighbours: [],
     });
 
     expect(d.causes).toHaveLength(0);

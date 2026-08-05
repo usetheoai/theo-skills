@@ -11,7 +11,7 @@
  *
  * **Nada aqui executa a skill.** Não invoca script, não abre sandbox, não carrega runtime — a
  * fronteira "execução é responsabilidade do Theokit" permanece intacta, e este módulo é puro:
- * recebe metadados e vizinhas já medidas, devolve diagnóstico.
+ * recebe metadados e neighbours já medidas, devolve diagnóstico.
  */
 
 /** Vocabulário FECHADO de causas. Um rótulo novo é decisão de produto, não detalhe de código. */
@@ -28,16 +28,16 @@ export type DiscoverabilityCause =
   (typeof DISCOVERABILITY_CAUSES)[keyof typeof DISCOVERABILITY_CAUSES];
 
 /** Uma skill do acervo e o quanto ela se parece com a candidata. */
-export interface CandidataVizinha {
+export interface NeighbourCandidate {
   readonly skillId: string;
   /** 0..1 — quanto maior, mais as duas disputam a mesma consulta. */
-  readonly similaridade: number;
+  readonly similarity: number;
 }
 
 /**
- * O estado de publicação da candidata — e, só quando publicada, se a revisão tem vetor.
+ * O estado de publicação da candidata — e, só quando published, se a revisão tem vetor.
  *
- * União discriminada em vez de um `hasEmbedding: boolean` porque **"não publicada e com vetor"
+ * União discriminada em vez de um `hasEmbedding: boolean` porque **"não published e com vetor"
  * não existe**: vetor é propriedade de uma revisão, e um rascunho não tem revisão. Com o booleano
  * plano esse estado era representável, e a consequência apareceu em produção — a tela de autoria
  * mandava `false` para um rascunho e o diagnóstico o acusava de não ter vetor (theo-skills#144).
@@ -47,20 +47,20 @@ export interface CandidataVizinha {
  * | | Pergunta do autor | `no_embedding` significa |
  * |---|---|---|
  * | rascunho | "minha descrição está boa?" | nada — ele não tem revisão |
- * | publicada | "por que não me acham?" | achado real: a ingestão falhou ou não rodou |
+ * | published | "por que não me acham?" | achado real: a ingestão falhou ou não rodou |
  */
-export type EstadoDaRevisao =
-  | { readonly publicada: false }
-  | { readonly publicada: true; readonly temVetor: boolean };
+export type RevisionState =
+  | { readonly published: false }
+  | { readonly published: true; readonly hasVector: boolean };
 
-export interface EntradaDiagnostico {
+export interface DiscoverabilityInput {
   readonly name: string;
   readonly description: string;
-  readonly revisao: EstadoDaRevisao;
-  readonly vizinhas: readonly CandidataVizinha[];
+  readonly revision: RevisionState;
+  readonly neighbours: readonly NeighbourCandidate[];
 }
 
-export interface Diagnostico {
+export interface DiscoverabilityReport {
   readonly discoverable: boolean;
   readonly causes: DiscoverabilityCause[];
   /** O que FAZER, por causa. Sem isto o autor lê o rótulo e continua sem o próximo passo. */
@@ -84,7 +84,7 @@ const PISO_DESCRICAO = 60;
 /**
  * Acima disto, duas skills disputam a mesma consulta.
  *
- * HEURÍSTICO. `0.90` é alto de propósito: abaixo dele, similaridade semântica é o normal num
+ * HEURÍSTICO. `0.90` é alto de propósito: abaixo dele, similarity semântica é o normal num
  * acervo coeso — skills do mesmo domínio SE PARECEM, e acusar isso transformaria coesão em
  * defeito.
  */
@@ -97,7 +97,7 @@ const PISO_COLISAO = 0.9;
  * descobrir a seguinte — um ciclo de publicação por defeito. A ordem é fixa para que o relatório
  * não dance entre execuções.
  */
-export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagnostico {
+export function diagnoseDiscoverability(entrada: DiscoverabilityInput): DiscoverabilityReport {
   const causes: DiscoverabilityCause[] = [];
   const hints: string[] = [];
 
@@ -109,10 +109,10 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
     );
   }
 
-  // Falta de vetor só é ACHADO quando há revisão publicada para tê-lo. Num rascunho, acusá-la
+  // Falta de vetor só é ACHADO quando há revisão published para tê-lo. Num rascunho, acusá-la
   // seria reportar como defeito uma consequência de ainda não ter publicado — e, pior, essa
   // causa dispararia SEMPRE, encobrindo as duas que o autor pode corrigir agora.
-  if (entrada.revisao.publicada && !entrada.revisao.temVetor) {
+  if (entrada.revision.published && !entrada.revision.hasVector) {
     causes.push(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
     hints.push(
       'The current revision has no vector: the skill only shows up for whoever already knows its name. Republish to generate the vector, or check whether ingestion failed.',
@@ -121,14 +121,14 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
 
   // A vizinha mais próxima é a que de fato rouba a consulta — reportar todas acima do piso
   // encheria o diagnóstico sem acrescentar decisão.
-  const rival = [...entrada.vizinhas]
-    .filter((v) => v.similaridade >= PISO_COLISAO)
-    .sort((a, b) => b.similaridade - a.similaridade)[0];
+  const rival = [...entrada.neighbours]
+    .filter((v) => v.similarity >= PISO_COLISAO)
+    .sort((a, b) => b.similarity - a.similarity)[0];
 
   if (rival !== undefined) {
     causes.push(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
     hints.push(
-      `Occupies almost the same semantic space as \`${rival.skillId}\` (${rival.similaridade.toFixed(2)}): both compete for the same queries, and search will favour one of them unpredictably. Differentiate the descriptions, or deprecate the one that fell out of use.`,
+      `Occupies almost the same semantic space as \`${rival.skillId}\` (${rival.similarity.toFixed(2)}): both compete for the same queries, and search will favour one of them unpredictably. Differentiate the descriptions, or deprecate the one that fell out of use.`,
     );
   }
 
@@ -136,7 +136,7 @@ export function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagn
   // veredito limpo e calar sobre isso deixaria o autor com a impressão de que já está resolvido.
   // A ressalva vai no hint, não numa causa: causa é problema a corrigir, e não haver publicado
   // ainda é o estado normal de quem está escrevendo.
-  if (!entrada.revisao.publicada && causes.length === 0) {
+  if (!entrada.revision.published && causes.length === 0) {
     hints.push(
       'Nothing to fix in the description. The skill is not in the registry yet — once published, ingestion generates the vector and it becomes findable by intent.',
     );

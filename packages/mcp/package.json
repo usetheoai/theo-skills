@@ -1,7 +1,7 @@
 {
   "name": "@usetheo/skills-mcp",
   "version": "0.3.0",
-  "description": "Servidor MCP do theo-skills — descoberta e carga de skills por agentes (stdio e streamable-HTTP).",
+  "description": "MCP server for theo-skills \u2014 skill discovery and loading for agents (stdio and streamable-HTTP).",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

@@ -171,7 +171,10 @@ describe('createRemoteSkillsManager — consumidor real do SDK', () => {
     // comportamento algum, sem ter como saber por quê.
     const m = createRemoteSkillsManager({ client: client() });
     const [s] = await m.resolve('q');
-    expect(s?.instructions).toContain('corpo indisponível');
+    // O que o teste protege e que a AUSENCIA do corpo vira explicacao, nunca string vazia —
+    // o nome da skill dentro da mensagem prova isso e sobrevive a traducao.
+    expect(s?.instructions).not.toBe('');
+    expect(s?.instructions).toContain('unavailable');
   });
 
   it('usa o corpo do registry quando ele vem', async () => {

@@ -52,14 +52,14 @@ async function main(): Promise<void> {
 
   if (transporte === 'streamable-http') {
     if (baseUrl === '') {
-      process.stderr.write('theo-skills mcp: THEOSKILL_REGISTRY é obrigatório — sem ele o registry aponta para lugar nenhum.\n');
+      process.stderr.write('theo-skills mcp: THEOSKILL_REGISTRY is required — without it the registry points nowhere.\n');
       process.exit(2);
       return;
     }
     const host = readFlag(argv, '--host') ?? DEFAULT_HTTP_HOST;
     const port = Number(readFlag(argv, '--port') ?? DEFAULT_HTTP_PORT);
     if (!Number.isInteger(port) || port < 0 || port > 65535) {
-      process.stderr.write(`theo-skills mcp: --port inválido: '${String(readFlag(argv, '--port'))}'\n`);
+      process.stderr.write(`theo-skills mcp: invalid --port: '${String(readFlag(argv, '--port'))}'\n`);
       process.exit(2);
       return;
     }
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     // Os dois juntos ou nenhum: só o certificado não sobe TLS, e aceitar a metade daria um
     // ouvinte em texto claro com aparência de configurado.
     if ((certPath === undefined) !== (keyPath === undefined)) {
-      process.stderr.write('theo-skills mcp: --tls-cert e --tls-key vêm juntos ou nenhum dos dois.\n');
+      process.stderr.write('theo-skills mcp: --tls-cert and --tls-key come together or not at all.\n');
       process.exit(2);
       return;
     }
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
 
     const handle = await connectStreamableHttp({ host, port, baseUrl, ...(tls !== undefined ? { tls } : {}) });
     process.stderr.write(
-      `theo-skills mcp: ouvindo em ${tls !== undefined ? 'https' : 'http'}://${host}:${String(handle.port)} → ${baseUrl}\n`,
+      `theo-skills mcp: listening on ${tls !== undefined ? 'https' : 'http'}://${host}:${String(handle.port)} -> ${baseUrl}\n`,
     );
     return;
   }
@@ -87,12 +87,13 @@ async function main(): Promise<void> {
   const auth = (process.env['THEOSKILL_AUTH'] ?? '').trim();
 
   if (baseUrl === '' || auth === '') {
-    const faltando = [baseUrl === '' ? 'THEOSKILL_REGISTRY' : '', auth === '' ? 'THEOSKILL_AUTH' : '']
+    const missing = [baseUrl === '' ? 'THEOSKILL_REGISTRY' : '', auth === '' ? 'THEOSKILL_AUTH' : '']
       .filter((v) => v !== '')
-      .join(' e ');
+      .join(' and ');
     process.stderr.write(
-      `theo-skills mcp: ${faltando} é obrigatório — o servidor não sobe sem saber contra qual registry ` +
-        `falar e com qual credencial. A credencial vem do AMBIENTE, nunca de argumento de linha de comando.\n`,
+      `theo-skills mcp: ${missing} is required — the server will not start without knowing which registry ` +
+        `to talk to and with which credential. The credential comes from the ENVIRONMENT, never from a ` +
+        `command-line argument.\n`,
     );
     process.exit(2);
     return;

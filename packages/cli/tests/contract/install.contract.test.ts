@@ -103,7 +103,9 @@ describe('runInstall', () => {
       extract: extractStub,
     });
     expect(code).toBe(1);
-    expect(lines.join(' ')).toContain('integridade falhou');
+    // O que o teste protege é que o hash esperado e o obtido aparecem, para o operador poder
+    // comparar — não a frase que os apresenta.
+    expect(lines.join(' ')).toContain('hash-que-nao-bate');
     expect(await readdir(root)).toEqual([]);
   });
 
@@ -120,14 +122,14 @@ describe('runInstall', () => {
       extract: extractStub,
     });
     expect(code).toBe(1);
-    expect(lines.join(' ')).toContain('escaparia');
+    expect(lines.join(' ')).toContain('would escape');
     expect(await readdir(root)).toEqual([]);
   });
 
   it('safeSkillDir recusa travessia e caminho absoluto, e aceita nome comum', () => {
     const root = '/tmp/skills';
-    expect(() => safeSkillDir(root, '../fora')).toThrow(/escaparia/);
-    expect(() => safeSkillDir(root, 'a/../../fora')).toThrow(/escaparia/);
+    expect(() => safeSkillDir(root, '../fora')).toThrow(/would escape/);
+    expect(() => safeSkillDir(root, 'a/../../fora')).toThrow(/would escape/);
     expect(() => safeSkillDir(root, '/etc/passwd')).toThrow();
     expect(safeSkillDir(root, 'minha-skill')).toBe('/tmp/skills/minha-skill');
   });

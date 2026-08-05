@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: actionlint (workflows + shellcheck dos blocos run:)
+      - name: actionlint (workflows + shellcheck of run blocks)
         # Imagem fixada por DIGEST — o repo pina actions por SHA; um `:latest` num gate de
         # qualidade/segurança é a mesma classe de risco de supply chain.
         run: |

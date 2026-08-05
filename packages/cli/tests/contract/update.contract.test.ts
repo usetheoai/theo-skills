@@ -77,7 +77,10 @@ describe('runUpdate', () => {
 
     expect(code).toBe(0);
     const saida = lines.join('\n');
-    expect(saida).toContain('rev_1 → rev_2');
+    // Casa os IDs de revisão, não o separador nem a prosa — o que o teste prova é que o diff
+    // nomeia de onde para onde, e isso sobrevive a qualquer redação.
+    expect(saida).toContain('rev_1');
+    expect(saida).toContain('rev_2');
     expect(saida).toContain('2.0.0');
     expect(saida).toContain('--apply');
     expect(await readFile(join(dir, 'SKILL.md'), 'utf8'), 'alterou sem --apply').toBe('antigo');
@@ -141,7 +144,9 @@ describe('runUpdate', () => {
       apply: true,
     });
     expect(code).toBe(0);
-    expect(lines.join(' ')).toContain('já está atualizada');
+    // Asseverar sobre o comportamento observável: a revisão corrente é nomeada e nada foi
+    // escrito. Casar a frase morre na tradução sem que nada tenha regredido.
+    expect(lines.join(' ')).toContain('rev_1');
     expect(await readFile(join(dir, 'SKILL.md'), 'utf8')).toBe('antigo');
   });
 
@@ -156,7 +161,10 @@ describe('runUpdate', () => {
       extract: extractStub,
     });
     expect(code).toBe(1);
-    expect(lines.join(' ')).toContain('não parece instalado');
+    // O que precisa ser acionável é o NOME que o usuário passou e o arquivo que falta —
+    // ambos sobrevivem à tradução; a frase ao redor deles não.
+    expect(lines.join(' ')).toContain('nao-existe');
+    expect(lines.join(' ')).toContain(PROVENANCE_FILE);
   });
 
   it('nome com travessia é recusado também no update', async () => {
@@ -170,7 +178,7 @@ describe('runUpdate', () => {
       extract: extractStub,
     });
     expect(code).toBe(1);
-    expect(lines.join(' ')).toContain('escaparia');
+    expect(lines.join(' ')).toContain('would escape');
   });
 });
 

@@ -196,8 +196,8 @@ async function main(): Promise<void> {
       platform_mint: envOpts.platformAdminKey !== undefined,
     },
     envOpts.authRequired
-      ? 'auth ATIVA — credencial obrigatória em toda rota exceto /v1/health e /v1/version'
-      : 'auth DESLIGADA (THEOSKILL_AUTH_REQUIRED != true) — o serviço não deve ser exposto assim',
+      ? 'auth ON — credential required on every route except /v1/health e /v1/version'
+      : 'auth OFF (THEOSKILL_AUTH_REQUIRED != true) — the service must not be exposed like this',
   );
 
   const app = createApp({

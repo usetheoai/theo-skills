@@ -122,5 +122,5 @@ jobs:
       - name: Aplicar migrations versionadas
         run: pnpm run db:migrate
 
-      - name: Testes de integração
+      - name: Integration tests
         run: pnpm run test:integration

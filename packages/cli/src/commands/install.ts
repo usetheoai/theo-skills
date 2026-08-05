@@ -97,9 +97,9 @@ export function safeSkillDir(root: string, name: string): string {
   const candidate = resolve(root, normalize(name));
   const rootResolved = resolve(root);
   if (candidate !== rootResolved && !candidate.startsWith(rootResolved + sep)) {
-    throw new Error(`nome de skill inválido (escaparia do diretório de instalação): ${name}`);
+    throw new Error(`invalid skill name (would escape the install directory): ${name}`);
   }
-  if (isAbsolute(name)) throw new Error(`nome de skill inválido (caminho absoluto): ${name}`);
+  if (isAbsolute(name)) throw new Error(`invalid skill name (absolute path): ${name}`);
   return candidate;
 }
 
@@ -127,7 +127,7 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
 
   const skillRes = await deps.fetch(`${deps.registry}/v1/skills/${skillId}`, { headers });
   if (!skillRes.ok) {
-    deps.out(`erro: skill ${skillId} não encontrada (HTTP ${String(skillRes.status)})`);
+    deps.out(`error: skill ${skillId} not found (HTTP ${String(skillRes.status)})`);
     return 1;
   }
   const skill = (await skillRes.json()) as SkillResponse;
@@ -143,9 +143,9 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
   // publicação — um pacote com script não consegue se declarar remoto.
   if (skill.execution === 'remote' && deps.force !== true) {
     deps.out(
-      `erro: "${skill.name}" é uma skill \`remote\` — ela é CARREGADA do registry pelo agente, ` +
-        `não instalada em disco. Use a descoberta (\`load_skill\` no MCP, ou ` +
-        `GET /v1/skills/${skillId}/instructions). Para inspecionar o conteúdo mesmo assim: --force.`,
+      `error: "${skill.name}" is a \`remote\` skill — the agent LOADS it from the registry, ` +
+        `not installed on disk. Use discovery (\`load_skill\` over MCP, ou ` +
+        `GET /v1/skills/${skillId}/instructions). To inspect the content anyway: --force.`,
     );
     return 1;
   }
@@ -154,7 +154,7 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
     headers,
   });
   if (!revRes.ok) {
-    deps.out(`erro: revisão ${skill.latest_revision_id} indisponível (HTTP ${String(revRes.status)})`);
+    deps.out(`error: revision ${skill.latest_revision_id} unavailable (HTTP ${String(revRes.status)})`);
     return 1;
   }
   const revision = (await revRes.json()) as RevisionResponse;
@@ -170,7 +170,7 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
     { headers },
   );
   if (!payloadRes.ok) {
-    deps.out(`erro: payload da revisão ${skill.latest_revision_id} indisponível (HTTP ${String(payloadRes.status)})`);
+    deps.out(`error: payload of revision ${skill.latest_revision_id} unavailable (HTTP ${String(payloadRes.status)})`);
     return 1;
   }
   const zip = Buffer.from(await payloadRes.arrayBuffer());
@@ -182,7 +182,7 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
   // notar. Aqui, hash divergente aborta sem escrever nada.
   const actual = createHash('sha256').update(zip).digest('hex');
   if (actual !== revision.content_hash) {
-    deps.out(`erro: integridade falhou — esperado ${revision.content_hash}, obtido ${actual}. Nada foi escrito.`);
+    deps.out(`error: integrity check failed — expected ${revision.content_hash}, got ${actual}. Nothing was written.`);
     return 1;
   }
 
@@ -195,7 +195,7 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
   try {
     dest = safeSkillDir(root, skill.name);
   } catch (err) {
-    deps.out(`erro: ${err instanceof Error ? err.message : String(err)}`);
+    deps.out(`error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 
@@ -215,6 +215,6 @@ export async function runInstall(skillId: string, deps: InstallDeps): Promise<nu
   };
   await writeFile(join(dest, PROVENANCE_FILE), `${JSON.stringify(provenance, null, 2)}\n`, 'utf8');
 
-  deps.out(`instalado ${skill.name} (${revision.revision_id}) em ${dest}`);
+  deps.out(`installed ${skill.name} (${revision.revision_id}) at ${dest}`);
   return 0;
 }

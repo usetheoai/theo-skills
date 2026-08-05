@@ -1,6 +1,6 @@
 import PgBoss from 'pg-boss';
 
-import { registrarErroDePoolOcioso } from '../db.js';
+import { recordIdlePoolError } from '../db.js';
 import { type Logger } from '../logger.js';
 
 import { toPgBossRetry, WEBHOOK_DELIVERY_BACKOFF } from '../resilience/backoff.js';
@@ -55,10 +55,10 @@ export const WEBHOOK_DELIVERY_SINGLETON_SECONDS = 120;
 export function createQueue(uri: string, logger: Logger): PgBoss {
   const boss = new PgBoss({ connectionString: uri, application_name: '@usetheo/skills-api' });
   boss.on('error', (err: Error) => {
-    registrarErroDePoolOcioso();
+    recordIdlePoolError();
     logger.error(
-      { erro: err.message, codigo: (err as { code?: unknown }).code ?? null, pool: 'pg-boss' },
-      'erro no pool interno do pg-boss — a fila segue viva e reabre a conexão',
+      { error: err.message, code: (err as { code?: unknown }).code ?? null, pool: 'pg-boss' },
+      'error in the pg-boss internal pool — the queue stays alive and reopens the connection',
     );
   });
   return boss;

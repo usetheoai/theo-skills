@@ -45,7 +45,7 @@ export async function extractZipTo(zip: Buffer, destDir: string): Promise<void> 
   await new Promise<void>((resolvePromise, reject) => {
     yauzl.fromBuffer(zip, { lazyEntries: true }, (err, zipfile) => {
       if (err !== null || zipfile === undefined) {
-        reject(err ?? new Error('zip ilegível'));
+        reject(err ?? new Error('unreadable zip'));
         return;
       }
 

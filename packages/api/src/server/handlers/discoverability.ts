@@ -1,4 +1,4 @@
-import { diagnosticarDescobribilidade, type CandidataVizinha } from '@usetheo/skills';
+import { diagnoseDiscoverability, type NeighbourCandidate } from '@usetheo/skills';
 import { type Hono } from 'hono';
 
 import { requireScope } from '../auth/middleware.js';
@@ -13,7 +13,7 @@ import { type AppEnv } from '../principal-context.js';
  *  1. As perguntas são diferentes. `:validate` responde "é válida?" — sintaxe e frontmatter.
  *     Esta responde "é achável?" — e uma skill válida e inachável é, para quem procura,
  *     indistinguível de uma que não existe.
- *  2. Esta precisa do **acervo** (compara a candidata com as vizinhas); aquela não toca o banco.
+ *  2. Esta precisa do **acervo** (compara a candidata com as neighbours); aquela não toca o banco.
  *     Fundir faria toda validação de sintaxe pagar o custo de uma busca vetorial.
  *
  * **Nada aqui executa a skill.** Não invoca script, não abre sandbox, não carrega runtime — a
@@ -34,12 +34,12 @@ export interface DiscoverabilityRoutesDeps {
     workspaceId: string,
     texto: string,
     topK: number,
-  ) => Promise<readonly CandidataVizinha[]>;
+  ) => Promise<readonly NeighbourCandidate[]>;
   /** Qual embedder produziu os vetores — vai no relatório. Ver § risco #1 do milestone. */
   readonly embedderName: () => string;
 }
 
-/** Quantas vizinhas consultar. Cinco é o bastante para achar a rival mais próxima sem custo. */
+/** Quantas neighbours consultar. Cinco é o bastante para achar a rival mais próxima sem custo. */
 const TOP_K_VIZINHAS = 5;
 
 export function registerDiscoverabilityRoutes(app: Hono<AppEnv>, deps: DiscoverabilityRoutesDeps): void {
@@ -71,20 +71,20 @@ export function registerDiscoverabilityRoutes(app: Hono<AppEnv>, deps: Discovera
     //
     // A distinção que o protocolo já carregava:
     //   campo AUSENTE  → rascunho: não há revisão, logo `no_embedding` não se aplica
-    //   `false`        → publicada e sem vetor: achado real, a ingestão falhou ou não rodou
-    //   `true`         → publicada e com vetor
-    const revisao =
+    //   `false`        → published e sem vetor: achado real, a ingestão falhou ou não rodou
+    //   `true`         → published e com vetor
+    const revision =
       body?.has_embedding === undefined
-        ? ({ publicada: false } as const)
-        : ({ publicada: true, temVetor: body.has_embedding === true } as const);
+        ? ({ published: false } as const)
+        : ({ published: true, hasVector: body.has_embedding === true } as const);
     const skillId = typeof body?.skill_id === 'string' ? body.skill_id : '';
 
     const encontradas = await deps.vizinhasDe(principal.workspaceId, `${name} ${description}`, TOP_K_VIZINHAS);
-    // A PRÓPRIA skill não é vizinha de si mesma: numa re-análise ela apareceria com similaridade
+    // A PRÓPRIA skill não é vizinha de si mesma: numa re-análise ela apareceria com similarity
     // ~1.0 e o diagnóstico acusaria colisão consigo, que é conselho impossível de seguir.
-    const vizinhas = skillId === '' ? encontradas : encontradas.filter((v) => v.skillId !== skillId);
+    const neighbours = skillId === '' ? encontradas : encontradas.filter((v) => v.skillId !== skillId);
 
-    const diagnostico = diagnosticarDescobribilidade({ name, description, revisao, vizinhas });
+    const diagnostico = diagnoseDiscoverability({ name, description, revision, neighbours });
 
     return c.json(
       {

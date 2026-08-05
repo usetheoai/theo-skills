@@ -16,10 +16,6 @@
     "kind": "value"
   },
   {
-    "name": "CandidataVizinha",
-    "kind": "type"
-  },
-  {
     "name": "compareVersions",
     "kind": "value"
   },
@@ -32,12 +28,8 @@
     "kind": "value"
   },
   {
-    "name": "diagnosticarDescobribilidade",
+    "name": "diagnoseDiscoverability",
     "kind": "value"
-  },
-  {
-    "name": "Diagnostico",
-    "kind": "type"
   },
   {
     "name": "DISCOVERABILITY_CAUSES",
@@ -48,11 +40,11 @@
     "kind": "type"
   },
   {
-    "name": "EntradaDiagnostico",
+    "name": "DiscoverabilityInput",
     "kind": "type"
   },
   {
-    "name": "EstadoDaRevisao",
+    "name": "DiscoverabilityReport",
     "kind": "type"
   },
   {
@@ -80,6 +72,10 @@
     "kind": "type"
   },
   {
+    "name": "NeighbourCandidate",
+    "kind": "type"
+  },
+  {
     "name": "NonRetriableOperationError",
     "kind": "value"
   },
@@ -98,6 +94,10 @@
   {
     "name": "resolveRange",
     "kind": "value"
+  },
+  {
+    "name": "RevisionState",
+    "kind": "type"
   },
   {
     "name": "roleSatisfies",

@@ -136,13 +136,13 @@ export function registerPublishingRoutes(app: Hono<AppEnv>, deps: PublishingRout
     }
     const body = (await c.req.json().catch(() => null)) as { items?: unknown } | null;
     const brutos = Array.isArray(body?.items) ? body.items : null;
-    if (brutos === null) return c.json({ error: 'invalid_request', details: 'items deve ser uma lista' }, 400);
+    if (brutos === null) return c.json({ error: 'invalid_request', details: 'items must be a list' }, 400);
 
     const items: { skillId: string; channel: string }[] = [];
     for (const it of brutos) {
       const o = it as { skill_id?: unknown; channel?: unknown };
       if (typeof o.skill_id !== 'string' || o.skill_id === '' || typeof o.channel !== 'string' || o.channel === '') {
-        return c.json({ error: 'invalid_request', details: 'cada item precisa de skill_id e channel' }, 400);
+        return c.json({ error: 'invalid_request', details: 'each item needs skill_id and channel' }, 400);
       }
       items.push({ skillId: o.skill_id, channel: o.channel });
     }
