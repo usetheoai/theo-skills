@@ -33,6 +33,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `SECURITY.md` claimed there was **no** authentication, **no** multi-tenant isolation and **no** rate limiting, and told readers not to expose the API publicly. All three had shipped — M11, M12 and M13 are `[x]`. A security policy that understates its own protections tells a researcher those surfaces are not worth testing, which is exactly where you want them looking (#T6.1)
 - Two different revisions could occupy the same semantic version. `assertPublishable` existed, had tests, and had **never run in production** — no caller. Migration `0015` adds a partial unique index on `(workspace_id, skill_id, version)`; the guard gives a readable cause, the index survives concurrent publishes (#code-review-2)
 - Three `/implement` gates measured the wrong thing and failed correct work: task ids collided across plans, symbols were harvested from generated data files, and the 500-line budget applied to an append-only CHANGELOG (F-6, F-7, F-8)
 - Draft skills were told to "republish to generate the vector" — impossible for something never published, and it buried the two causes the author could act on (#144)

@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Resolver registry (dono do repo, minúsculo)
+      - name: Resolve registry (repo owner, lowercased)
         id: reg
         env:
           INPUT_REGISTRY: ${{ inputs.registry }}
@@ -81,7 +81,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       # Build LOCAL para o scan. Sem push e sem login: usa base pública e cache do GHA.
-      - name: Build para o scan (load local)
+      - name: Build for the scan (local load)
         if: ${{ inputs.trivy }}
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
@@ -124,7 +124,7 @@ jobs:
       # carregou, o grafo resolveu e o código chegou a rodar. Exigir Postgres para provar isso
       # acoplaria um construtor de imagem genérico ao banco de UM produto, por cobertura que
       # este passo já entrega.
-      - name: Smoke — a imagem levanta (falha de empacotamento)
+      - name: Smoke — the image starts (packaging failure)
         if: ${{ inputs.trivy }}
         run: |
           set -o pipefail
@@ -183,7 +183,7 @@ jobs:
             --certificate-identity-regexp '^https://github\.com/usetheo(dev|ai)/theo-skills/\.github/workflows/build-publish\.yml@refs/(heads|tags)/.+$' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-      - name: Exportar a referência imutável
+      - name: Export the immutable reference
         id: ref
         env:
           IMAGE_REF: ${{ steps.reg.outputs.registry }}/${{ inputs.image }}@${{ steps.build.outputs.digest }}

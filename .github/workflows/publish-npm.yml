@@ -58,7 +58,7 @@ jobs:
       # Falha ANTES de qualquer publish quando não há credencial. Sem este passo a ausência
       # do secret chega ao registry como `E404 Not Found`, que se lê como "o pacote não
       # existe" — foi o disfarce que sustentou oito falhas seguidas (#116).
-      - name: exige credencial de publicação
+      - name: require a publish credential
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -79,7 +79,7 @@ jobs:
       # entrega. Substitui os dois `test -f` anteriores, que checavam só a presença do JS de
       # dois pacotes — e por isso deixaram passar `sdk` e `mcp` com `types` apontando para um
       # `.d.ts` que o build nunca emitiu (#115).
-      - name: portão de artefato — manifesto vs tarball
+      - name: artifact gate — manifest vs tarball
         run: node scripts/check-publish-artifacts.mjs
 
       # Recusa publicar uma SUPERFÍCIE que ninguém aprovou. O portão acima olha quais ARQUIVOS

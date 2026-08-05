@@ -147,7 +147,7 @@ jobs:
       # import de produção cujo pacote está em `devDependencies` passa build, lint, typecheck e
       # a suíte inteira — tudo com a árvore de desenvolvimento, onde ele existe — e só morre na
       # imagem, no boot. Foi assim que o serviço ficou 27h fora do ar com a esteira verde.
-      - name: Dependências de produção declaradas
+      - name: Production dependencies are declared
         run: node scripts/check-declared-deps.mjs
 
       - name: Lint
@@ -160,5 +160,5 @@ jobs:
         run: pnpm run test
 
       # Auto-verificação: a suíte que trava os invariantes destes próprios workflows.
-      - name: Test — invariantes dos workflows
+      - name: Test — workflow invariants
         run: pnpm run test:workflows

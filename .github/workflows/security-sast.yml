@@ -79,12 +79,12 @@ jobs:
       # Bloquear o pipeline por CVE de linter treina o time a ignorar o gate — e um gate
       # ignorado não protege nada. O que chega ao usuário é a árvore de produção, e É ELA
       # que reprova o build aqui.
-      - name: Audit de dependências de produção (bloqueante)
+      - name: Audit production dependencies (blocking)
         run: pnpm audit --prod --audit-level=high
 
       # A árvore completa fica visível sem derrubar o build: quem for atualizar o toolchain
       # vê o débito no log em vez de descobrir por acaso.
-      - name: Audit da árvore completa (informativo)
+      - name: Audit the full tree (informational)
         continue-on-error: true
         run: pnpm audit --audit-level=high
 

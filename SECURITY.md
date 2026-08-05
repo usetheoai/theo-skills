@@ -1,42 +1,61 @@
-# Política de segurança
+# Security policy
 
-## Reportar uma vulnerabilidade
+## Reporting a vulnerability
 
-**Não abra issue pública para vulnerabilidade.** Use o canal privado:
+**Do not open a public issue for a vulnerability.** Use the private channel:
 
-- **GitHub Security Advisories** — aba *Security* → *Report a vulnerability* neste repositório.
-- Ou e-mail para **security@usetheo.dev** com `[theo-skills]` no assunto.
+- **GitHub Security Advisories** — *Security* tab → *Report a vulnerability* on this repository.
+- Or email **security@usetheo.dev** with `[theo-skills]` in the subject.
 
-Inclua, no que se aplicar: versão ou commit afetado, passos de reprodução, impacto observado
-e qualquer evidência (log, request, payload). **Nunca inclua credenciais reais no relato** —
-descreva o formato, não o valor.
+Include, where applicable: the affected version or commit, reproduction steps, observed impact,
+and any evidence (log, request, payload). **Never include real credentials in the report** —
+describe the shape, not the value.
 
-Resposta inicial em até **72 horas úteis**. Coordenamos a divulgação com quem reportou; o
-crédito é dado salvo pedido em contrário.
+Initial response within **72 business hours**. We coordinate disclosure with the reporter;
+credit is given unless you ask otherwise.
 
-## Escopo
+## Scope
 
-Este repositório é um **registry de skills de agentes**. As superfícies com maior consequência:
+This repository is a **registry of agent skills**. The surfaces with the largest consequence:
 
-| Superfície | Por que importa |
+| Surface | Why it matters |
 |---|---|
-| Validação de payload (`packages/core/src/domain/payload-validator.ts`) | O pacote é um zip de terceiro: path traversal, symlink, zip bomb e profundidade são barrados aqui |
-| Varredura de segredos no upload | Uma skill publicada com credencial embutida vaza para quem a baixar |
-| Conteúdo executável | Skills carregam `scripts/`. Quem consome o registry **executa** esse conteúdo |
-| Webhooks | A URL é fornecida pelo usuário — SSRF é risco de projeto, não hipótese |
+| Payload validation (`packages/core/src/domain/payload-validator.ts`) | The package is a third party's zip: path traversal, symlinks, zip bombs and depth are stopped here |
+| Secret scanning on upload | A skill published with an embedded credential leaks to everyone who downloads it |
+| Executable content | Skills carry `scripts/`. Whoever consumes the registry **executes** that content |
+| Webhooks | The URL is user-supplied — SSRF is a design risk, not a hypothesis |
+| Version uniqueness | One semantic version resolves to exactly one revision. Without it, `^1.2.0` could return different bytes on different days |
 
-## Limitações conhecidas nesta fase
+## What is implemented today
 
-Honestidade sobre o estado real, para você não reportar como falha o que ainda não foi construído:
+Stated so you do not spend time reporting as missing what already exists — and test it instead.
 
-- **Não há autenticação.** Quem alcança a API publica, lê e deleta qualquer skill. Autenticação
-  é o milestone **M12**; controle de acesso por workspace é **M11**; papéis são **M13**.
-- **Não há isolamento multi-tenant.** Todas as skills vivem num espaço único.
-- **Não há limite de taxa.** Rate limiting é **M17**.
+- **Authentication.** API keys and OIDC, with scopes (`skills:publish` and the rest). Milestone
+  M12 is closed; `THEOSKILL_AUTH_REQUIRED` governs enforcement, and the server logs loudly when
+  it is off.
+- **Per-workspace isolation.** `workspace_id` is part of the primary key of `skills` and
+  `workspace_users`, and it leads every index. A cross-tenant read answers 404, not an empty
+  list — the difference between the two would itself leak which identifiers are taken. M11 is
+  closed.
+- **RBAC and workspace members.** M13 is closed.
+- **Rate limiting.** Present at the server boundary.
 
-Enquanto isso for verdade, **não exponha esta API à internet pública** — rode atrás de uma
-fronteira que autentique.
+> This section replaced one that claimed there was **no** authentication, **no** multi-tenant
+> isolation and **no** rate limiting, and told the reader not to expose the API publicly. All
+> three had shipped (M11, M12, M13 are `[x]` in `ROADMAP.md`). A security policy that understates
+> its own protections is not cautious — it tells a researcher those surfaces are not worth
+> testing, which is exactly where you want them looking.
 
-## Versões suportadas
+## Known limitations at this phase
 
-Pré-1.0: apenas a última versão publicada recebe correção de segurança.
+Honest about the real state, so you do not report as a flaw what is a recorded decision.
+
+- **Pre-1.0.** The public API surface may change between minor versions; see the CHANGELOG.
+- **Dev-only transitive CVEs are tracked, not fixed** — issue #151: five HIGH advisories in
+  development dependencies that never reach a published artifact.
+- **Two skills carry a dangling `latest_revision_id`** (`sk_dog1`, `sk_dog2` — dogfood fixtures
+  with zero revisions each). Harmless, and recorded rather than hidden.
+
+## Supported versions
+
+Pre-1.0: only the latest published version receives security fixes.
