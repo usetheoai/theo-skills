@@ -93,3 +93,35 @@ git diff --name-only 4f16a61~1..HEAD | grep packages/.*/src
 **Ação sugerida:** `mini_review.py` deve derivar símbolos apenas de arquivos de código (`.ts`/`.py`/`.go` fora de `*.json`/`*.snap`), ou aceitar uma marcação de "arquivo de dados" no checkpoint. Enquanto não houver, um snapshot de superfície listado em `files` reprova qualquer fase que o crie.
 
 **O que NÃO fizemos:** remover o snapshot de `files` para obter verde. A tarefa criou o arquivo; omiti-lo seria falsear o registro para passar num portão — o oposto do que este plano inteiro defende.
+
+## F-7 — `check_checkpoint_consistency` varre TODO o histórico, e os IDs de tarefa colidem entre planos
+
+**Descoberto em:** Step 5, no `run_validation.py`.
+
+**Fato medido:** 8 findings HIGH `task_committed_in_git_not_in_progress` para T2.1, T2.2, T3.1, T3.2, T3.3, T4.1, T4.2 e T5.1 — tarefas que esta invocação **nunca tentou**. A origem é o histórico de outros planos:
+
+```
+d6392a0 feat(lifecycle): colunas e constraints do ciclo de vida (T2.1)      <- plano M32
+b5507a4 feat(lifecycle): a descoberta esconde ... (T3.1, T3.2, T4.1)        <- plano M32
+f24ff10 feat(lifecycle): a operacao de deprecar ... (T5.1)                  <- plano M32
+f16094c feat(m9): T4.1+T4.2 — test marker taxonomy ...                      <- plano M9
+```
+
+A convenção `T{N}.{M}` é **a mesma em todos os planos do repositório**, e o checker não delimita a busca aos commits deste plano. Qualquer plano com mais de uma fase vai colidir com o histórico de qualquer plano anterior.
+
+**Consequência:** o gate reporta como "tarefa concluída sem atualizar o checkpoint" o que é, na verdade, trabalho de outra entrega, feito meses antes. Quanto mais o repositório amadurece, mais falsos positivos — e um gate que sempre reprova é um gate que se aprende a ignorar.
+
+**Ação sugerida:** delimitar a varredura ao intervalo do plano — `git log <base>..HEAD`, onde `<base>` é o commit anterior ao primeiro do plano (registrável no `.progress` no início da execução) — ou exigir que a mensagem cite o slug além do ID (`T2.1 [english-only-sweep]`).
+
+## F-8 — O critério de ≤ 500 linhas é aplicado a arquivos que não são código
+
+**Descoberto em:** Step 5, no `check_acceptance_criteria`.
+
+**Fato medido:** dois HIGH `file_size_exceeded`:
+
+- `CHANGELOG.md` — 503 linhas. É **append-only por contrato** (Regra Inquebrável 6): cresce a cada entrega, para sempre. Um teto de 500 linhas nele significa que a próxima entrada de qualquer pessoa reprova o gate.
+- `tests/repo/core-api-surface.dts.snap` — 3395 linhas. É **dado gerado** (o snapshot da superfície de tipos), não código escrito. Seu tamanho é o tamanho da API do pacote.
+
+O critério do plano diz "todo arquivo alterado ≤ 500 linhas" sem qualificar. O orçamento existe para conter **complexidade de código**; aplicá-lo a um log append-only e a um snapshot mede a coisa errada.
+
+**Ação sugerida:** qualificar o critério no plano — o teto vale para arquivos de código-fonte, e o gate deve pular `CHANGELOG.md`, `*.snap`, `*.json` de fixture e `*-lock.*`.
