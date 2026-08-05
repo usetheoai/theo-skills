@@ -28,6 +28,14 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
       vizinhas: semVizinhas,
     });
 
+
+    // CARDINALIDADE, não só presença. `toContain` é indiferente a duplicata — foi por isso que
+    // o merge de 65d877e reintroduziu um bloco inteiro de hint e a suíte seguiu verde com o
+    // mesmo aviso aparecendo DUAS vezes, uma em cada idioma. A fase 5 deste plano mexe em todos
+    // os blocos de comentário deste arquivo, que é exatamente onde a façanha se repete.
+    expect(d.hints).toHaveLength(d.causes.length);
+    expect(new Set(d.hints).size).toBe(d.hints.length);
+
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.DESCRIPTION_TOO_GENERIC);
     // A causa vem com O QUE FAZER. Sem isto o autor lê o rótulo e continua sem saber o próximo
     // passo — que é o defeito de um recall sem diagnóstico.
@@ -56,6 +64,12 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
     });
 
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.NO_EMBEDDING);
+    // CARDINALIDADE, não só presença. `toContain` é indiferente a duplicata — foi por isso que
+    // o merge de 65d877e reintroduziu um bloco inteiro de hint e a suíte seguiu verde com o
+    // mesmo aviso aparecendo DUAS vezes, uma em cada idioma. A fase 5 deste plano mexe em todos
+    // os blocos de comentário deste arquivo, que é exatamente onde a façanha se repete.
+    expect(d.hints).toHaveLength(d.causes.length);
+    expect(new Set(d.hints).size).toBe(d.hints.length);
   });
 
   it('colisão com uma vizinha do acervo é nomeada com QUEM colide', () => {
@@ -69,6 +83,13 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
 
     expect(d.causes).toContain(DISCOVERABILITY_CAUSES.COLLIDES_WITH_SIBLING);
     expect(d.hints.join(' ')).toContain('sk_cambio_v1');
+    // CARDINALIDADE, não só presença. `toContain` é indiferente a duplicata — foi por isso que
+    // o merge de 65d877e reintroduziu um bloco inteiro de hint e a suíte seguiu verde com o
+    // mesmo aviso aparecendo DUAS vezes, uma em cada idioma. A fase 5 deste plano mexe em todos
+    // os blocos de comentário deste arquivo, que é exatamente onde a façanha se repete.
+    expect(d.hints).toHaveLength(d.causes.length);
+    expect(new Set(d.hints).size).toBe(d.hints.length);
+
   });
 
   it('uma vizinha DISTANTE não é colisão', () => {
@@ -106,6 +127,13 @@ describe('diagnosticarDescobribilidade — a causa, não só o número', () => {
     // As causas se ACUMULAM: reportar só a primeira faria o autor corrigir uma, republicar, e
     // descobrir a seguinte — um ciclo por defeito.
     expect(d.causes.length).toBeGreaterThan(1);
+    // CARDINALIDADE, não só presença. `toContain` é indiferente a duplicata — foi por isso que
+    // o merge de 65d877e reintroduziu um bloco inteiro de hint e a suíte seguiu verde com o
+    // mesmo aviso aparecendo DUAS vezes, uma em cada idioma. A fase 5 deste plano mexe em todos
+    // os blocos de comentário deste arquivo, que é exatamente onde a façanha se repete.
+    expect(d.hints).toHaveLength(d.causes.length);
+    expect(new Set(d.hints).size).toBe(d.hints.length);
+
   });
 
   it('a ordem das causas é estável — o relatório não pode dançar entre execuções', () => {
@@ -205,5 +233,38 @@ describe('rascunho ainda não publicado — theo-skills#144', () => {
     const d = diagnosticarDescobribilidade({ ...rascunho, vizinhas: [] });
     expect(d.hints.join(' ')).toMatch(/published/i);
     expect(d.hints.join(' ')).not.toMatch(/republish/i);
+  });
+});
+
+describe('cardinalidade — o caso máximo e a exceção do rascunho', () => {
+  it('as TRÊS causas juntas produzem exatamente três hints únicos', () => {
+    // EC-10. É o caso onde uma duplicata melhor se esconde: com três hints no relatório, um
+    // quarto repetido passa despercebido na leitura. Os testes existentes cobriam uma e duas
+    // causas; o máximo ficava descoberto.
+    const d = diagnosticarDescobribilidade({
+      name: 'x',
+      description: 'converte',
+      revisao: { publicada: true, temVetor: false },
+      vizinhas: [{ skillId: 'sk_cambio_v1', similaridade: 0.94 }],
+    });
+
+    expect(d.causes).toHaveLength(3);
+    expect(d.hints).toHaveLength(3);
+    expect(new Set(d.hints).size).toBe(3);
+  });
+
+  it('o rascunho sem causa é a EXCEÇÃO à fórmula: 0 causas, 1 hint', () => {
+    // EC-11. A regra geral é `hints.length === causes.length`, e ela é FALSA aqui — um rascunho
+    // sem causa alguma recebe a ressalva de que ainda não está no acervo. Aplicar a fórmula
+    // mecanicamente a este ramo quebraria o teste que 65d877e acabou de escrever.
+    const d = diagnosticarDescobribilidade({
+      name: 'Converter moeda',
+      description: 'Converte moeda estrangeira para reais usando a cotação de fechamento do dia.',
+      revisao: { publicada: false },
+      vizinhas: [],
+    });
+
+    expect(d.causes).toHaveLength(0);
+    expect(d.hints).toHaveLength(1);
   });
 });

@@ -17,6 +17,8 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **A duplicação de hint deixa de ser detectável só no ramo do rascunho.** O fix de `65d877e` travou a cardinalidade onde o defeito apareceu — e os outros quatro ramos seguiram protegidos apenas por asserções de presença, que são indiferentes a duplicata. Medido: injetar um `hints.push` repetido no ramo `no_embedding` reprovava **zero** testes antes; agora reprova três. A fase 5 deste plano reescreve todos os blocos de comentário desse arquivo, que é exatamente onde um merge repete a façanha (#m34)
+
 - **A guarda do boot do MCP deixa de depender de uma frase em português.** O teste afirmava `not.toContain('THEOSKILL_REGISTRY é obrigatório')` — uma asserção NEGATIVA sobre um literal traduzível. Traduzir o produtor, que é o que a fase 3 fará, a tornaria vacuamente verdadeira: nada mais poderia conter a frase em PT, o teste seguiria verde e pararia de proteger em silêncio o comportamento de "nomear só a variável que falta". Agora a asserção cita o **nome da variável de ambiente**, que não se traduz, e olha a linha de erro isolada em vez do stderr inteiro (#m34)
 
 - **O texto que o usuário lê passa a ser inglês.** O produto é monolíngue em inglês — `api-keys` e `billing` sempre estiveram assim — e as superfícies de skills respondiam em português, deixando o dashboard bilíngue conforme a tela. Traduzidos os `hints` do diagnóstico de descobribilidade (o texto de backend mais visível ao usuário, exibido na tela de autoria) e as mensagens de erro tipadas dos handlers. Comentários de código e identificadores internos permanecem como estão: são para quem mantém, não para quem usa.
