@@ -7,15 +7,15 @@ import { type Db } from '../db.js';
 import { isUniqueViolation, SkillAlreadyExistsError } from '../persistence/pg-errors.js';
 
 /**
- * As versões já publicadas desta skill, ignorando o que não parseia.
+ * The versions already published for this skill, skipping whatever does not parse.
  *
- * `skill_revisions.version` é texto livre, sem CHECK, e `assertPublishable` nunca rodou até
- * agora — então linhas antigas podem conter `'v1.2'`, `'latest'` ou `''`. Deixar `parseVersion`
- * lançar sobre elas faria o publish de uma versão NOVA E VÁLIDA explodir por causa de um dado
- * velho, e a skill ficaria impossível de publicar para sempre. Uma versão ilegível é dado a
- * investigar, não motivo para bloquear quem está publicando certo.
+ * `skill_revisions.version` is free text with no CHECK, and `assertPublishable` had never run
+ * until now — so older rows may hold `'v1.2'`, `'latest'` or `''`. Letting `parseVersion` throw
+ * on those would blow up the publish of a NEW AND VALID version because of stale data, leaving
+ * the skill impossible to publish forever. An unreadable version is data to investigate, not a
+ * reason to block someone publishing correctly.
  */
-async function versoesExistentes(
+async function existingVersions(
   tx: { select: Db['select'] },
   workspaceId: string,
   skillId: string,
@@ -35,8 +35,8 @@ async function versoesExistentes(
     try {
       parsed.push(parseVersion(r.version));
     } catch {
-      // Descartada e registrada: o publish segue, o dado ruim fica visível.
-      console.warn(`skills-store: versão armazenada ilegível ignorada`, { skillId, version: r.version });
+      // Dropped and logged: the publish proceeds, and the bad row stays visible.
+      console.warn(`skills-store: unreadable stored version ignored`, { skillId, version: r.version });
     }
   }
   return parsed;
@@ -348,13 +348,13 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
     async addRevision(skillId, rev) {
       const revisionId = `rev_${createId()}`;
       await db.transaction(async (tx) => {
-        // Uma versão semântica, uma revisão. A leitura acontece DENTRO da transação; ainda
-        // assim dois publishes simultâneos passam ambos por ela, e é o índice único da
-        // migração 0015 que fecha essa janela — daí o `catch` logo abaixo.
+        // One semantic version, one revision. The read happens INSIDE the transaction; even
+        // so, two simultaneous publishes both pass it, and it is migration 0015's unique index
+        // that closes the window — hence the `catch` just below.
         if (rev.version !== undefined) {
           assertPublishable(
             parseVersion(rev.version),
-            await versoesExistentes(tx, workspaceId, skillId),
+            await existingVersions(tx, workspaceId, skillId),
           );
         }
         try {
@@ -369,8 +369,8 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
             skillMd: rev.skillMd,
           });
         } catch (err) {
-          // Sem isto, a corrida que o índice pega devolveria 500 — erro de constraint cru —
-          // em vez do 409 que diz ao publisher o que aconteceu.
+          // Without this, the race the index catches would surface as a 500 — a raw
+          // constraint error — instead of naming what happened to the publisher.
           if (isUniqueViolation(err) && rev.version !== undefined) {
             throw new VersionRejectedError('duplicate', `version ${rev.version} already exists`);
           }

@@ -176,11 +176,12 @@ export const skillRevisions = pgTable(
     // Índice LIDERADO pelo inquilino: listar revisões é sempre "as revisões desta skill
     // DESTE workspace".
     index('skill_revisions_ws_skill_create_idx').on(t.workspaceId, t.skillId, desc(t.createTime)),
-    // Uma versão semântica, uma revisão. PARCIAL de propósito: revisão sem versão é legítima
-    // (tudo anterior ao M19 tem `version NULL`), e um índice único simples colapsaria todas
-    // elas numa linha por skill. A guarda `assertPublishable` e este índice cobrem falhas
-    // DIFERENTES — ela devolve 409 tipado, ele é o que sobrevive a dois publishes concorrentes,
-    // porque ler-antes-de-escrever fora de uma restrição do banco é TOCTOU. Migração 0015.
+    // One semantic version, one revision. PARTIAL on purpose: a revision without a version is
+    // legitimate (everything before M19 has `version NULL`), and a plain unique index would
+    // collapse all of those into one row per skill. The `assertPublishable` guard and this index
+    // cover DIFFERENT failures — the guard returns a typed rejection, the index is what survives
+    // two concurrent publishes, because read-then-write outside a database constraint is TOCTOU.
+    // Migration 0015.
     uniqueIndex('skill_revisions_ws_skill_version_uq')
       .on(t.workspaceId, t.skillId, t.version)
       .where(sql`${t.version} IS NOT NULL`),

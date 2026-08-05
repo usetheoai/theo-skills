@@ -65,9 +65,10 @@ export function composeTerminalHooks(...hooks: OnOperationTerminal[]): OnOperati
 }
 
 function isBusinessRule(err: unknown): boolean {
-  // `VersionRejectedError` é regra de negócio, não falha transitória: republicar `1.2.0` vai
-  // ser recusado na décima tentativa exatamente como na primeira. Sem isto o job entraria em
-  // retry com backoff até esgotar, e o publisher veria "falhou" muito depois, sem a causa.
+  // `VersionRejectedError` is a business rule, not a transient failure: republishing `1.2.0`
+  // will be refused on the tenth attempt exactly as on the first. Without this the job would
+  // retry with backoff until exhausted, and the publisher would see "failed" much later,
+  // without the cause.
   return err instanceof SkillAlreadyExistsError
     || err instanceof NonRetriableOperationError
     || err instanceof VersionRejectedError;
