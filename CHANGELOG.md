@@ -33,6 +33,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Migration `0015` was invisible to the migrator: hand-written instead of generated, it never entered `meta/_journal.json`, and the boot logged `schema aplicado` having skipped it. The droplet was only correct because the migration had been applied by hand — any fresh database would lack the unique index while reporting a healthy boot. Journal entry added, and `tests/repo/migrations.test.ts` now fails when the journal and the `.sql` files disagree
+- `docs/RUNBOOK.md` told on-call that a `schema aplicado` line proves the schema is current. It does not, and the section now carries the command that actually answers the question
 - `SECURITY.md` claimed there was **no** authentication, **no** multi-tenant isolation and **no** rate limiting, and told readers not to expose the API publicly. All three had shipped — M11, M12 and M13 are `[x]`. A security policy that understates its own protections tells a researcher those surfaces are not worth testing, which is exactly where you want them looking (#T6.1)
 - Two different revisions could occupy the same semantic version. `assertPublishable` existed, had tests, and had **never run in production** — no caller. Migration `0015` adds a partial unique index on `(workspace_id, skill_id, version)`; the guard gives a readable cause, the index survives concurrent publishes (#code-review-2)
 - Three `/implement` gates measured the wrong thing and failed correct work: task ids collided across plans, symbols were harvested from generated data files, and the 500-line budget applied to an append-only CHANGELOG (F-6, F-7, F-8)
