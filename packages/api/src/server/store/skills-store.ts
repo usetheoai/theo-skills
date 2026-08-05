@@ -1,9 +1,46 @@
 import { createId } from '@paralleldrive/cuid2';
+import { assertPublishable, parseVersion, VersionRejectedError } from '@usetheo/skills';
 import { embeddings, skillRevisions, skills } from '@usetheo/skills/db';
 import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 import { isUniqueViolation, SkillAlreadyExistsError } from '../persistence/pg-errors.js';
+
+/**
+ * As versões já publicadas desta skill, ignorando o que não parseia.
+ *
+ * `skill_revisions.version` é texto livre, sem CHECK, e `assertPublishable` nunca rodou até
+ * agora — então linhas antigas podem conter `'v1.2'`, `'latest'` ou `''`. Deixar `parseVersion`
+ * lançar sobre elas faria o publish de uma versão NOVA E VÁLIDA explodir por causa de um dado
+ * velho, e a skill ficaria impossível de publicar para sempre. Uma versão ilegível é dado a
+ * investigar, não motivo para bloquear quem está publicando certo.
+ */
+async function versoesExistentes(
+  tx: { select: Db['select'] },
+  workspaceId: string,
+  skillId: string,
+): Promise<ReturnType<typeof parseVersion>[]> {
+  const rows = await tx
+    .select({ version: skillRevisions.version })
+    .from(skillRevisions)
+    .where(and(
+      eq(skillRevisions.workspaceId, workspaceId),
+      eq(skillRevisions.skillId, skillId),
+      isNotNull(skillRevisions.version),
+    ));
+
+  const parsed: ReturnType<typeof parseVersion>[] = [];
+  for (const r of rows) {
+    if (r.version === null) continue;
+    try {
+      parsed.push(parseVersion(r.version));
+    } catch {
+      // Descartada e registrada: o publish segue, o dado ruim fica visível.
+      console.warn(`skills-store: versão armazenada ilegível ignorada`, { skillId, version: r.version });
+    }
+  }
+  return parsed;
+}
 
 /** Public skill view (excludes soft-deleted skills). */
 export interface SkillView {
@@ -311,16 +348,34 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
     async addRevision(skillId, rev) {
       const revisionId = `rev_${createId()}`;
       await db.transaction(async (tx) => {
-        await tx.insert(skillRevisions).values({
-          revisionId,
-          workspaceId,
-          skillId,
-          ...(rev.version !== undefined ? { version: rev.version } : {}),
-          payload: rev.payload,
-          contentHash: rev.contentHash,
-          frontmatter: rev.frontmatter,
-          skillMd: rev.skillMd,
-        });
+        // Uma versão semântica, uma revisão. A leitura acontece DENTRO da transação; ainda
+        // assim dois publishes simultâneos passam ambos por ela, e é o índice único da
+        // migração 0015 que fecha essa janela — daí o `catch` logo abaixo.
+        if (rev.version !== undefined) {
+          assertPublishable(
+            parseVersion(rev.version),
+            await versoesExistentes(tx, workspaceId, skillId),
+          );
+        }
+        try {
+          await tx.insert(skillRevisions).values({
+            revisionId,
+            workspaceId,
+            skillId,
+            ...(rev.version !== undefined ? { version: rev.version } : {}),
+            payload: rev.payload,
+            contentHash: rev.contentHash,
+            frontmatter: rev.frontmatter,
+            skillMd: rev.skillMd,
+          });
+        } catch (err) {
+          // Sem isto, a corrida que o índice pega devolveria 500 — erro de constraint cru —
+          // em vez do 409 que diz ao publisher o que aconteceu.
+          if (isUniqueViolation(err) && rev.version !== undefined) {
+            throw new VersionRejectedError('duplicate', `version ${rev.version} already exists`);
+          }
+          throw err;
+        }
         await tx
           .update(skills)
           .set({

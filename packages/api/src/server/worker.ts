@@ -1,4 +1,4 @@
-import { NonRetriableOperationError, type WebhookEventType, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
+import { NonRetriableOperationError, VersionRejectedError, type WebhookEventType, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from './logger.js';
@@ -65,7 +65,12 @@ export function composeTerminalHooks(...hooks: OnOperationTerminal[]): OnOperati
 }
 
 function isBusinessRule(err: unknown): boolean {
-  return err instanceof SkillAlreadyExistsError || err instanceof NonRetriableOperationError;
+  // `VersionRejectedError` é regra de negócio, não falha transitória: republicar `1.2.0` vai
+  // ser recusado na décima tentativa exatamente como na primeira. Sem isto o job entraria em
+  // retry com backoff até esgotar, e o publisher veria "falhou" muito depois, sem a causa.
+  return err instanceof SkillAlreadyExistsError
+    || err instanceof NonRetriableOperationError
+    || err instanceof VersionRejectedError;
 }
 
 /**
