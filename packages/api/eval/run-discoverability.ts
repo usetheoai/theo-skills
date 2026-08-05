@@ -1,14 +1,14 @@
 /**
  * M34 — o gate de descobribilidade.
  *
- * Roda o dataset versionado contra o ACERVO REAL e **reprova quando uma skill que era achada
+ * Roda o dataset versionado contra o ACERVO REAL e **reprova quando uma skill que era found
  * deixa de ser**. É o critério que distingue este eval de um relatório: sem o gate, uma regressão
  * de descoberta passa despercebida até um usuário reclamar que "sumiu".
  *
  * Uso:
  *   THEOSKILL_PG_URI=… npx tsx eval/run-discoverability.ts [--baseline eval/.discoverability-baseline.json]
  *
- * Saída: exit 0 quando nenhum caso regrediu; exit 1 quando algum regrediu.
+ * Saída: exit 0 quando nenhum testCase regrediu; exit 1 quando algum regrediu.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
@@ -38,14 +38,14 @@ async function buscar(query: string): Promise<string[]> {
   });
   if (!res.ok) throw new Error(`retrieve ${res.status} para "${query}"`);
   // A leitura mora em `src/eval/` e é TESTADA. Aqui dentro ela lia `body.skills` — chave que o
-  // handler não devolve (é `results`) — e por isso achava zero em toda consulta, gravava uma
+  // handler não devolve (é `results`) — e por isso achava zero em toda query, gravava uma
   // baseline de zeros e deixava o gate INERTE: não há regressão possível a partir de "nunca
-  // achada". Nada em `eval/` é alcançado por teste, que é como o defeito sobreviveu.
+  // found". Nada em `eval/` é alcançado por teste, que é como o defeito sobreviveu.
   return idsDaResposta(await res.json());
 }
 
-/** A skill esperada ainda está no acervo? 404 é resposta, não erro. */
-async function existeNoAcervo(skillId: string): Promise<boolean> {
+/** A skill expected ainda está no acervo? 404 é resposta, não erro. */
+async function existsInRegistry(skillId: string): Promise<boolean> {
   const res = await fetch(`${BASE}/v1/skills/${encodeURIComponent(skillId)}`, {
     headers: TOKEN === '' ? {} : { authorization: `Bearer ${TOKEN}` },
   });
@@ -62,36 +62,36 @@ async function main(): Promise<void> {
 
   const dataset = JSON.parse(readFileSync('eval/discoverability-dataset.json', 'utf8')) as Dataset;
 
-  const resultados: Resultado[] = [];
-  for (const caso of dataset.cases) {
-    const ids = await buscar(caso.query);
-    const i = ids.indexOf(caso.expect_skill_id);
-    resultados.push({
-      query: caso.query,
-      esperada: caso.expect_skill_id,
-      achada: i !== -1,
-      posicao: i === -1 ? null : i + 1,
+  const results: Resultado[] = [];
+  for (const testCase of dataset.cases) {
+    const ids = await buscar(testCase.query);
+    const i = ids.indexOf(testCase.expect_skill_id);
+    results.push({
+      query: testCase.query,
+      expected: testCase.expect_skill_id,
+      found: i !== -1,
+      position: i === -1 ? null : i + 1,
       // Rodando contra o acervo REAL, uma skill do dataset pode ter sido apagada. Sem esta
-      // consulta, "sumiu do acervo" e "existe e não foi achada" chegariam ao gate como o mesmo
+      // query, "sumiu do acervo" e "exists e não foi found" chegariam ao gate como o mesmo
       // fato — e ele acusaria a busca por uma decisão de curadoria.
-      existe: await existeNoAcervo(caso.expect_skill_id),
+      exists: await existsInRegistry(testCase.expect_skill_id),
     });
   }
 
-  const presentes = resultados.filter((r) => r.existe !== false);
-  const ausentes = resultados.filter((r) => r.existe === false);
-  const achados = presentes.filter((r) => r.achada).length;
+  const present = results.filter((r) => r.exists !== false);
+  const absent = results.filter((r) => r.exists === false);
+  const foundCount = present.filter((r) => r.found).length;
 
-  console.log(`dataset v${dataset.version} (${dataset.dated}) — ${achados}/${presentes.length} achadas`);
-  for (const r of resultados) {
-    const marca = r.existe === false ? 'fora' : r.achada ? `#${r.posicao}` : '  —';
-    console.log(`  ${marca}  ${r.esperada}  ←  "${r.query}"`);
+  console.log(`dataset v${dataset.version} (${dataset.dated}) — ${foundCount}/${present.length} found`);
+  for (const r of results) {
+    const mark = r.exists === false ? 'fora' : r.found ? `#${r.position}` : '  —';
+    console.log(`  ${mark}  ${r.expected}  ←  "${r.query}"`);
   }
-  if (ausentes.length > 0) {
+  if (absent.length > 0) {
     // Visível, e deliberadamente NÃO fatal: um dataset envelhecendo é informação para quem o
     // mantém, não motivo para derrubar o gate de quem mexeu na busca.
     console.log(
-      `\n${ausentes.length} caso(s) apontam para skill fora do acervo — o dataset envelheceu ` +
+      `\n${absent.length} testCase(s) apontam para skill fora do acervo — o dataset envelheceu ` +
         `em relação a ele. Não contam como regressão.`,
     );
   }
@@ -99,23 +99,23 @@ async function main(): Promise<void> {
   // ---- O GATE: regressão REPROVA -----------------------------------------------------------
   //
   // Comparar contra um piso absoluto (ex.: "recall ≥ 0.8") mediria o embedder, não a mudança.
-  // O que interessa ao autor é: **o que era achado continua sendo?**
+  // What matters to the author is: **does what used to be found still get found?**
   if (!existsSync(baselinePath)) {
-    writeFileSync(baselinePath, JSON.stringify(resultados, null, 2));
+    writeFileSync(baselinePath, JSON.stringify(results, null, 2));
     console.log(`\nbaseline criada em ${baselinePath} — a próxima execução compara contra ela.`);
     return;
   }
 
   const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')) as Resultado[];
-  const regressoes = detectarRegressoes(resultados, baseline);
+  const regressions = detectarRegressoes(results, baseline);
 
-  if (regressoes.length > 0) {
-    console.error(`\nREGRESSÃO: ${regressoes.length} skill(s) deixaram de ser achadas:`);
-    for (const r of regressoes) console.error(`  ${r.esperada}  ←  "${r.query}"`);
+  if (regressions.length > 0) {
+    console.error(`\nREGRESSION: ${regressions.length} skill(s) stopped being found:`);
+    for (const r of regressions) console.error(`  ${r.expected}  ←  "${r.query}"`);
     process.exit(1);
   }
 
-  console.log('\nnenhuma regressão — o que era achado continua sendo.');
+  console.log('\nno regression — what used to be found still is.');
 }
 
 void main().catch((err: unknown) => {
