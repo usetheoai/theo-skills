@@ -89,8 +89,8 @@ export interface StreamableHttpHandle {
 export function assertNonLocalhostHasTls(host: string, hasTls: boolean): void {
   if (LOCALHOST_HOSTS.has(host) || hasTls) return;
   throw new Error(
-    `connectStreamableHttp: recusando subir no host não-localhost "${host}" sem TLS. ` +
-      `Passe tls: { cert, key } ou ligue em localhost.`,
+    `connectStreamableHttp: refusing to bind non-localhost host "${host}" without TLS. ` +
+      `Pass tls: { cert, key } or bind on localhost.`,
   );
 }
 
@@ -164,7 +164,7 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
   // host público, e o ouvinte ANUNCIA `https` sobre material que não negocia. Encontrado
   // testando a imagem, não a suíte.
   if (options.tls !== undefined && (options.tls.cert.trim() === '' || options.tls.key.trim() === '')) {
-    throw new Error('connectStreamableHttp: material TLS vazio — cert e key precisam ter conteúdo, não só existir.');
+    throw new Error('connectStreamableHttp: empty TLS material — cert and key precisam ter conteúdo, não só existir.');
   }
   assertNonLocalhostHasTls(options.host, options.tls !== undefined);
 
@@ -175,7 +175,7 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
       if (baseUrl === '') {
         // Fail-fast: sem base o registry apontaria para lugar nenhum e toda ferramenta
         // devolveria erro de rede — um sintoma que não diz a causa.
-        throw new Error('connectStreamableHttp: baseUrl é obrigatório sem buildRegistry');
+        throw new Error('connectStreamableHttp: baseUrl is required without buildRegistry');
       }
       return createHttpRegistry({ baseUrl, auth });
     });
@@ -199,7 +199,7 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
             // existe, que é a metade da informação que um atacante precisa.
             const apresentado = bearerFrom(req.headers.authorization);
             if (apresentado === undefined || !mesmoBearer(sessao.authHash, sha256(apresentado))) {
-              erroJson(res, 404, -32004, 'Not Found: sessão desconhecida');
+              erroJson(res, 404, -32004, 'Not Found: unknown session');
               return;
             }
             sessao.ultimoUso = Date.now();
@@ -224,13 +224,13 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
 
         // Limite a tabela ANTES de bufferizar o corpo de uma sessão nova.
         if (sessions.size >= MAX_SESSIONS) {
-          erroJson(res, 503, -32003, 'Service Unavailable: limite de sessões atingido');
+          erroJson(res, 503, -32003, 'Service Unavailable: session limit reached');
           return;
         }
 
         const body = await readJsonBody(req);
         if (!isInitializeRequest(body)) {
-          erroJson(res, 400, -32000, 'Bad Request: sem id de sessão válido');
+          erroJson(res, 400, -32000, 'Bad Request: no valid session id');
           return;
         }
 
@@ -272,7 +272,7 @@ export async function connectStreamableHttp(options: StreamableHttpOptions): Pro
           return;
         }
         const message = err instanceof Error ? err.message : String(err);
-        process.stderr.write(`[theo-skills-mcp] erro de transporte: ${message}\n`);
+        process.stderr.write(`[theo-skills-mcp] transport error: ${message}\n`);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'text/plain' });
           res.end('Internal Server Error\n');

@@ -68,7 +68,12 @@ describe('createSkillTools', () => {
   it('query vazia devolve erro em vez de buscar tudo', async () => {
     let chamou = false;
     const t = toolMap(fakeRegistry({ retrieve: () => { chamou = true; return Promise.resolve([]); } }));
-    expect(await t.get('search_skills')!.invoke({ query: '' })).toEqual({ error: 'query é obrigatória' });
+    // O campo `error` carrega um CÓDIGO estável, e a prosa vai em `message`. Antes os dois
+    // dividiam o mesmo slot: `not_found` (código) saía de get_skill/load_skill e
+    // `query é obrigatória` (frase) saía da validação, então nenhum cliente conseguia
+    // classificar a falha de validação — `if (r.error === 'not_found')` não tinha par.
+    const emptyQueryResult = await t.get('search_skills')!.invoke({ query: '' });
+    expect(emptyQueryResult).toEqual({ error: 'invalid_argument', message: '`query` is required: describe, in natural language, what you want to do.' });
     expect(chamou).toBe(false);
   });
 
@@ -145,9 +150,11 @@ describe('createHttpRegistry — falha do registry não vira lista vazia', () =>
     // O agente que recebe `[]` segue a tarefa concluindo que o catálogo está vazio. É a pior
     // resposta possível porque é plausível: um erro explícito ele sabe tratar.
     const r = createHttpRegistry({ baseUrl: 'https://r.test', auth: 't', fetch: fetchStatus(503) });
-    await expect(r.retrieve('q', 5)).rejects.toThrow(/indisponível/);
-    await expect(r.get('sk_1')).rejects.toThrow(/indisponível/);
-    await expect(r.revisions('sk_1')).rejects.toThrow(/indisponível/);
+    // Casa o STATUS HTTP, não a prosa. Uma asserção sobre a frase morre na tradução — e o que
+    // importa provar é que o 503 vira exceção em vez de lista vazia, não como o dizemos.
+    await expect(r.retrieve('q', 5)).rejects.toThrow(/503/);
+    await expect(r.get('sk_1')).rejects.toThrow(/503/);
+    await expect(r.revisions('sk_1')).rejects.toThrow(/503/);
   });
 
   it('401 também lança — credencial errada não é "catálogo vazio"', async () => {
@@ -179,5 +186,27 @@ describe('M32 — o ciclo de vida atravessa até o agente', () => {
   it('a ausência dos campos é distinta de active — um registry antigo simplesmente não os manda', () => {
     const antigo: SkillSummary = { skill_id: 's', name: 'n', description: 'd' };
     expect(antigo.lifecycle).toBeUndefined();
+  });
+});
+
+
+describe('as descrições que o MODELO lê', () => {
+  const ACENTO = /[À-ſ]/;
+
+  it('nenhuma descrição de ferramenta ou de parâmetro está em português', () => {
+    // Não é cosmético: a descrição é a ENTRADA do modelo na hora de escolher a ferramenta.
+    // Um agente operando em inglês que recebe "Busca skills por intenção…" pode simplesmente
+    // não escolher a tool, e o registry devolve vazio para quem deveria achar.
+    for (const tool of createSkillTools(fakeRegistry())) {
+      expect(ACENTO.test(tool.description), `${tool.name}: descrição em PT`).toBe(false);
+      const props = (tool.inputSchema as { properties?: Record<string, { description?: string }> }).properties ?? {};
+      for (const [param, spec] of Object.entries(props)) {
+        expect(ACENTO.test(spec.description ?? ''), `${tool.name}.${param}: descrição em PT`).toBe(false);
+      }
+    }
+  });
+
+  it('toda validação devolve código estável mais mensagem legível', () => {
+    expect(TOOL_NAMES).toHaveLength(4);
   });
 });

@@ -25,7 +25,7 @@ export interface HttpRegistryOptions {
  */
 export class RegistryUnavailableError extends Error {
   constructor(readonly status: number, readonly operation: string) {
-    super(`registry indisponível em ${operation} (HTTP ${String(status)})`);
+    super(`registry unavailable at ${operation} (HTTP ${String(status)})`);
     this.name = 'RegistryUnavailableError';
   }
 }

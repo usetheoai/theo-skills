@@ -73,7 +73,7 @@ export function createSkillsMcpServer(opts: SkillsMcpServerOptions): Server {
         content: [
           {
             type: 'text',
-            text: `registry indisponível: ${err instanceof Error ? err.message : String(err)}`,
+            text: `registry unavailable: ${err instanceof Error ? err.message : String(err)}`,
           },
         ],
         isError: true,

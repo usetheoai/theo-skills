@@ -16,6 +16,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- MCP tool descriptions are English. They are the MODEL's input when choosing a tool: an agent working in English that received `Busca skills por intenção…` could simply not pick the tool, and the registry would return nothing to someone who should have found a skill (#T3.1)
+- The MCP `error` field now carries a stable CODE, with the readable sentence in `message`. It used to hold both — `not_found` (a code) from get_skill, `query é obrigatória` (a sentence) from validation — so no client could branch on a validation failure. BREAKING for clients reading `error` as prose (#T3.1)
 - Hint duplication is now detectable in all five branches, not just the draft one. Injecting a repeated `hints.push` failed **zero** tests before; it fails three now (#m34)
 - The MCP boot guard no longer depends on a Portuguese phrase. `not.toContain('THEOSKILL_REGISTRY é obrigatório')` would go vacuously true the moment the producer is translated; it now cites the environment variable name, which does not translate (#m34)
 - Discoverability eval dataset v3: queries translated to English. The registry entries they target are still Portuguese, so a recall drop between v2 and v3 is a LANGUAGE effect, not a product regression — each case records its v2 query for comparison (#T6.3)
