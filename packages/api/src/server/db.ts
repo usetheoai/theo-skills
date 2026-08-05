@@ -22,7 +22,7 @@ export function idlePoolErrorCount(): number {
  * fariam cada metade parecer pequena e a soma sumir — e foi justamente um segundo pool
  * invisível que manteve o defeito vivo depois do primeiro conserto.
  */
-export function registrarErroDePoolOcioso(): void {
+export function recordIdlePoolError(): void {
   errosDeClienteOcioso += 1;
 }
 

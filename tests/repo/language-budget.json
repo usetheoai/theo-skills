@@ -1,6 +1,6 @@
 {
   "_note": "Language-gate ratchet — every count may SHRINK, never grow. Regenerate with: npx tsx tests/repo/regenerate-budget.mts",
-  "tierA": 6,
+  "tierA": 0,
   "tierB": 35,
   "tierC": 1767,
   "tierD": 32,

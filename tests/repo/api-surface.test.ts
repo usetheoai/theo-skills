@@ -56,13 +56,16 @@ describe('public API surface — exported names', () => {
     expect(publicSurface(ROOT, SDK_BARREL)).toEqual(readSnapshot(SDK_SNAPSHOT));
   });
 
-  it('carries the Portuguese names that phase 2 will rename', () => {
-    // Anchors the snapshot to the PRE-rename state. When phase 2 lands, this test fails and
-    // the failure IS the review prompt: five names out, five names in.
+  it('no longer publishes a Portuguese name', () => {
+    // This test used to anchor the PRE-rename state, asserting the Portuguese names were
+    // present. Phase 2 landed and BOTH snapshot levels failed first — that failure was the
+    // review prompt, name by name and field by field. The assertion now guards the direction
+    // of travel: those names must never come back.
     const names = publicSurface(ROOT, CORE_BARREL).map((s) => s.name);
 
-    expect(names).toContain('diagnosticarDescobribilidade');
-    expect(names).toContain('CandidataVizinha');
+    expect(names).not.toContain('diagnosticarDescobribilidade');
+    expect(names).not.toContain('CandidataVizinha');
+    expect(names).toContain('diagnoseDiscoverability');
   });
 
   it('resolver refuses to guess beyond depth 2 instead of returning a partial list', () => {
@@ -91,13 +94,14 @@ describe('public API surface — emitted .d.ts', () => {
     expect(emittedDts).toEqual(dtsSnapshot);
   });
 
-  it('carries the Portuguese FIELDS that phase 2 will rename', () => {
-    // The evidence that the two levels are not redundant: these field names appear here and
-    // are absent from the name list, because they are members, not exports.
+  it('no longer declares a Portuguese FIELD', () => {
+    // The proof that the two levels are not redundant, kept as a regression: `revisao` and
+    // `temVetor` are MEMBERS, so they never appeared in the name list — only the `.d.ts`
+    // level could ever see them change.
     const emittedDts = declaredTypes(ROOT, CORE_DIST);
 
-    expect(emittedDts).toContain('revisao');
-    expect(emittedDts).toContain('temVetor');
-    expect(publicSurface(ROOT, CORE_BARREL).map((s) => s.name)).not.toContain('revisao');
+    expect(emittedDts).not.toContain('revisao');
+    expect(emittedDts).not.toContain('temVetor');
+    expect(emittedDts).toContain('hasVector');
   });
 });

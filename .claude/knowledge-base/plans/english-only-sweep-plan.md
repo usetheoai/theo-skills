@@ -207,47 +207,15 @@ O denominador medido hoje (comandos em `## Baseline Context`): **48** ocorrênci
 - **Alternativas consideradas:**
   - *Traduzir as queries agora* — **rejeitada:** transforma o gate de descobribilidade num gerador de falso alarme, e o time aprende a ignorá-lo — o mesmo modo de falha que `discoverability.ts:78-80` descreve para detectores ruidosos.
   - *Desligar o eval até o acervo migrar* — **rejeitada:** perde a proteção contra regressão real de descoberta durante todo o período.
-- **Consequências:** o repositório não fica literalmente 100% sem português no dia da entrega — há **3 strings de query** de dado de teste, declaradas, datadas e com issue. Isto está registrado em `## Unresolved Questions` Q1 para decisão explícita do usuário.
+- **Consequências:** o repositório não fica literalmente 100% sem português no dia da entrega — há **3 strings de query** de dado de teste, declaradas, datadas e com issue. Isto está registrado em `## Unresolved Questions
 
-### D6 — Unicidade de versão: guarda no domínio **e** índice único no banco
+**(none — as cinco foram respondidas em 2026-08-05; registro abaixo.)**
 
-- **Decisão:** chamar `assertPublishable` no caminho de publicação (`skills-store.ts`) **e** criar índice único em `(workspace_id, skill_id, version)` com `version IS NOT NULL`.
-- **Rationale:** os dois cobrem falhas diferentes. A guarda de domínio produz erro **tipado** (`VersionRejectedError` com `reason: 'duplicate' | 'not_greater'`) que o handler mapeia para 409 com causa legível — `rules/error-handling.md` § 2. O índice cobre a corrida entre dois publishes concorrentes, que a guarda sozinha não vê: ler-depois-escrever fora de uma restrição do banco é TOCTOU. Índice parcial porque revisões pré-M19 têm `version NULL` legítimo (`schema.ts:167-168`).
-- **Alternativas consideradas:**
-  - *Só o índice* — **rejeitada:** devolve violação de constraint crua; o publisher recebe 500 sem saber que republicou uma versão existente.
-  - *Só a guarda* — **rejeitada:** dois `POST` simultâneos passam ambos pela leitura antes de qualquer escrita.
-  - *Constraint `CHECK`* — **rejeitada:** `CHECK` não enxerga outras linhas.
-- **Consequências:** a migração pode **falhar** se já existirem duplicatas em produção; exige consulta de detecção antes de aplicar (T4.2, e `## Failure scenarios`).
-
-### D7 — O rename dos jobs de CI e a re-configuração da branch protection são um passo único e coordenado
-
-- **Decisão:** renomear todos os `name:` de job/step em `.github/workflows/*.yml` num único commit, e re-apontar os *required status checks* na mesma janela, com verificação por comando antes e depois.
-- **Rationale:** o contexto do required check é o `name:` do job quando presente. Renomear sem re-apontar deixa a proteção exigindo um contexto que nunca mais será reportado — todo PR aberto trava sem saída, que é o modo de falha já registrado na memória do projeto (`required-check-vs-paths-ignore`).
-- **Alternativas consideradas:**
-  - *Renomear os jobs e ajustar a proteção depois* — **rejeitada:** a janela entre os dois é exatamente o travamento.
-  - *Remover o `name:` e deixar a chave do job virar o contexto* — **rejeitada:** troca um contexto por outro do mesmo jeito, e ainda piora a legibilidade da lista de checks.
-- **Consequências:** a tarefa depende de permissão de admin no remoto, fora do repositório — declarada como pré-condição da T6.2 e como risco.
-
-## Drawbacks & Risks
-
-| Drawback / Risk | Severity | Mitigation | Owner |
-|---|---|---|---|
-| Renomear a superfície de `@usetheo/skills` quebra consumidores no `^x.y`; npm não permite unpublish após 72h | **Alta** | Snapshot de API (T1.3) torna a quebra visível no PR; bump major explícito; nota de migração no CHANGELOG antes do publish; T2.1 lista os consumidores conhecidos e o usuário confirma antes do merge | Owner do pacote |
-| Renomear jobs de CI trava todo PR aberto se a branch protection não for re-apontada na mesma janela | **Alta** | D7 — passo único; T6.2 verifica os contextos por `gh api` antes e depois, **e propaga `develop` para cada PR aberto** (passo 7 do procedimento), porque PRs que ramificaram antes do rename reportam os contextos antigos e ficariam bloqueados sem saída | Admin do repo |
-| A catraca do portão fica **sem efeito** quando a base não é resolvível (fork sem `origin/develop`, execução local em branch órfã) | **Média** | O portão emite aviso explícito e a ausência do aviso reprova o teste (`ratchet_skips_loudly_when_base_unresolvable`); a comparação nunca é declarada feita quando não foi | Portão (T0.1) |
-| Índice único em `(workspace_id, skill_id, version)` pode falhar ao aplicar se já houver duplicata em produção | **Alta** | T4.2 roda a consulta de detecção **antes** de gerar a migração e reporta as linhas; a migração só entra depois de a contagem ser 0 ou de haver decisão explícita sobre as duplicatas existentes | DBA / Owner |
-| Traduzir 1554 linhas de comentário é um diff enorme, difícil de revisar e propenso a perder o *porquê* que esses comentários carregam | **Média** | Fase 5 é por pacote, um commit por pacote, e **só** comentários (nenhuma linha de código no mesmo commit) — o `--stat` fica auditável; a regra é traduzir preservando o raciocínio, nunca resumir | Implementador |
-| A catraca (`language-budget.json`) pode ser afrouxada por engano, tornando o portão decorativo | **Média** | O próprio teste falha se um valor do orçamento **subir** em relação ao commit anterior (comparado com `git show HEAD:tests/repo/language-budget.json`) | Portão (T1.1) |
-| O portão é heurístico: PT sem acento e sem palavra-função escapa | **Baixa** | Declarado na saída do portão e nesta tabela; falso negativo custa uma linha esquecida, não um defeito de produção — preferimos isso a falso positivo, que faz o time desligar o portão | Portão (T1.1) |
-| O carve-out do eval (D5) deixa 3 strings PT no repositório na data da entrega | **Baixa** | Sunset 2026-11-05 + issue; declarado no tier D e em `## Unresolved Questions` Q1 | Owner |
-
-## Unresolved Questions
-
-- Q1 — O carve-out de D5 (3 `query` em português no dataset de eval, porque medem um acervo real em português) é aceitável, ou o usuário prefere migrar o acervo do app-dev primeiro e só então traduzir as queries? **Bloqueia a T6.3.**
-- Q2 — Quais consumidores externos de `@usetheo/skills` existem hoje? `grep` cross-repo não é possível daqui; o rename de D3 precisa dessa lista para a nota de migração. Se a resposta for "nenhum fora do workspace", o bump pode ser minor em vez de major. **Bloqueia a T2.1.**
-- Q3 — Existe duplicata de `(workspace_id, skill_id, version)` no banco de produção hoje? Medível só com acesso ao banco; a T4.2 roda a consulta, mas a decisão sobre o que fazer com as linhas encontradas é do owner. **Bloqueia a T4.2.**
-- Q4 — `gh api repos/.../branches/*/protection` não resolve deste checkout (o remoto usa o host alias `github-usetheo` e o `gh` não o reconhece). Quem tem admin confirma os contextos exigidos hoje antes da T6.2?
-- Q5 — O CHANGELOG deste repositório está inteiramente em português. Ele entra no tier D (traduzir o arquivo inteiro) ou fica de fora, por ser registro histórico que a Regra 6 proíbe reescrever? **Bloqueia a T6.1.**
+- Q1 — **respondida: traduzir.** Supersede o ADR D5. As queries do eval foram para o inglês; o motivo do carve-out vira aviso dentro do dado (`_language`, `query_v2_pt` por caso), porque o acervo ainda é português e uma queda de recall é efeito de idioma, não regressão. Entregue em T6.3.
+- Q2 — **respondida: não há consumidor externo.** Os três pacotes estão publicados (0.3.0, ~550-650 downloads/mês, tráfego de CI próprio). Em 0.x semver permite quebra em minor, então o bump é `0.4.0`, não major. Desbloqueou T2.1.
+- Q3 — **respondida: apagar as duplicatas e criar o índice**, sob a regra "só a não-referenciada" — a migração aborta quando duas ou mais revisões do grupo são referenciadas. Entregue em T4.1/T4.2. **Ainda não rodou contra banco.**
+- Q4 — **metade respondida por medição.** Os contextos exigidos são idênticos em `develop` e `main`: `build + lint + typecheck + test (sem banco)`, `integração contra pgvector real`, `semgrep (TypeScript / OWASP) + gitleaks`. Dois dos três mudam. Achado não previsto: são **duas** branches protegidas, e a T6.2 planejava uma. Escrever a mudança exige admin.
+- Q5 — **respondida: compactar e traduzir**, sobrepondo a Regra 6 deliberadamente. `[Unreleased]` entregue; as 24 versões released seguem em português.
 
 ## Dependency Graph
 

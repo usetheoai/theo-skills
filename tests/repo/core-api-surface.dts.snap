@@ -301,7 +301,7 @@ export interface AuthVerifier {
  *
  * **Nada aqui executa a skill.** Não invoca script, não abre sandbox, não carrega runtime — a
  * fronteira "execução é responsabilidade do Theokit" permanece intacta, e este módulo é puro:
- * recebe metadados e vizinhas já medidas, devolve diagnóstico.
+ * recebe metadados e neighbours já medidas, devolve diagnóstico.
  */
 /** Vocabulário FECHADO de causas. Um rótulo novo é decisão de produto, não detalhe de código. */
 export declare const DISCOVERABILITY_CAUSES: {
@@ -314,15 +314,15 @@ export declare const DISCOVERABILITY_CAUSES: {
 };
 export type DiscoverabilityCause = (typeof DISCOVERABILITY_CAUSES)[keyof typeof DISCOVERABILITY_CAUSES];
 /** Uma skill do acervo e o quanto ela se parece com a candidata. */
-export interface CandidataVizinha {
+export interface NeighbourCandidate {
     readonly skillId: string;
     /** 0..1 — quanto maior, mais as duas disputam a mesma consulta. */
-    readonly similaridade: number;
+    readonly similarity: number;
 }
 /**
- * O estado de publicação da candidata — e, só quando publicada, se a revisão tem vetor.
+ * O estado de publicação da candidata — e, só quando published, se a revisão tem vetor.
  *
- * União discriminada em vez de um `hasEmbedding: boolean` porque **"não publicada e com vetor"
+ * União discriminada em vez de um `hasEmbedding: boolean` porque **"não published e com vetor"
  * não existe**: vetor é propriedade de uma revisão, e um rascunho não tem revisão. Com o booleano
  * plano esse estado era representável, e a consequência apareceu em produção — a tela de autoria
  * mandava `false` para um rascunho e o diagnóstico o acusava de não ter vetor (theo-skills#144).
@@ -332,21 +332,21 @@ export interface CandidataVizinha {
  * | | Pergunta do autor | `no_embedding` significa |
  * |---|---|---|
  * | rascunho | "minha descrição está boa?" | nada — ele não tem revisão |
- * | publicada | "por que não me acham?" | achado real: a ingestão falhou ou não rodou |
+ * | published | "por que não me acham?" | achado real: a ingestão falhou ou não rodou |
  */
-export type EstadoDaRevisao = {
-    readonly publicada: false;
+export type RevisionState = {
+    readonly published: false;
 } | {
-    readonly publicada: true;
-    readonly temVetor: boolean;
+    readonly published: true;
+    readonly hasVector: boolean;
 };
-export interface EntradaDiagnostico {
+export interface DiscoverabilityInput {
     readonly name: string;
     readonly description: string;
-    readonly revisao: EstadoDaRevisao;
-    readonly vizinhas: readonly CandidataVizinha[];
+    readonly revision: RevisionState;
+    readonly neighbours: readonly NeighbourCandidate[];
 }
-export interface Diagnostico {
+export interface DiscoverabilityReport {
     readonly discoverable: boolean;
     readonly causes: DiscoverabilityCause[];
     /** O que FAZER, por causa. Sem isto o autor lê o rótulo e continua sem o próximo passo. */
@@ -359,7 +359,7 @@ export interface Diagnostico {
  * descobrir a seguinte — um ciclo de publicação por defeito. A ordem é fixa para que o relatório
  * não dance entre execuções.
  */
-export declare function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagnostico;
+export declare function diagnoseDiscoverability(entrada: DiscoverabilityInput): DiscoverabilityReport;
 
 // ==== domain/embedders/index.d.ts ====
 /** Public barrel for the embedders domain (port + adapters + guard). */
