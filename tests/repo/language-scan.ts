@@ -234,7 +234,9 @@ export function scanRepository(opts: ScanOptions): ScanResult {
   const violations: Violation[] = [];
   const skipped: string[] = [];
 
-  for (const path of opts.files) {
+  // De-duplicated here too, not only in `gitLsFiles`: any caller can hand over a list with
+  // repeats, and a violation counted twice is debt that never existed.
+  for (const path of new Set(opts.files)) {
     if (IGNORED_ROOTS.some((r) => path.startsWith(r))) continue;
 
     if (isPortugueseFilename(path)) {
@@ -355,9 +357,14 @@ export function gitMergeBase(cwd: string): string | null {
  * with no consumer outside this file is the orphan export the code-quality gate flags.
  */
 function gitLsFiles(cwd: string): string[] {
-  return execFileSync('git', ['ls-files'], { cwd, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  const lines = execFileSync('git', ['ls-files'], { cwd, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
     .split('\n')
     .filter((l) => l !== '');
+  // De-duplicated: during an unresolved merge `git ls-files` emits a conflicted path ONCE PER
+  // STAGE (base, ours, theirs), so the same file would be counted three times and the budget
+  // would report growth that does not exist. Measured while merging develop: CHANGELOG.md
+  // appeared 3x and tier D read 34 instead of 32.
+  return [...new Set(lines)];
 }
 
 /** Scan the real tree. The only function here that touches disk. */

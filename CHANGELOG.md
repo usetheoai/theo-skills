@@ -35,6 +35,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Draft skills were told to "republish to generate the vector" — impossible for something never published, and it buried the two causes the author could act on (#144)
 - A draft received the same warning twice, in two languages: a merge reintroduced a whole hint block and presence assertions are indifferent to duplication (#m34)
 - The M34 dataset pointed at a skill that only exists in the test fixture, while claiming to run against the real registry (#m34)
+- The M34 discoverability gate could never fail: the runner read `body.skills` while search returns `results`, so every query came back empty and the first run recorded a baseline of zeros. A gate that cannot fail is worse than no gate — it occupies the place of one (#m34)
 
 ## [0.15.0] - 2026-08-04
 

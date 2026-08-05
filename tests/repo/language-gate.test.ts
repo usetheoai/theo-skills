@@ -113,6 +113,19 @@ describe('scanRepository', () => {
     expect(result.violations.length).toBeGreaterThan(0);
   });
 
+  it('counts a path once even when git lists it several times', () => {
+    // During an unresolved merge `git ls-files` emits a conflicted path ONCE PER STAGE
+    // (base, ours, theirs). Counting each occurrence made the budget report growth that did
+    // not exist — measured while merging develop: CHANGELOG.md appeared 3x and tier D read
+    // 34 instead of 32, which the ratchet would have refused as new debt.
+    const result = scanRepository({
+      files: ['docs/integracao-theokit-mcp.md', 'docs/integracao-theokit-mcp.md'],
+      readFile: () => '',
+    });
+
+    expect(result.violations.filter((v) => v.kind === 'filename')).toHaveLength(1);
+  });
+
   it('declares its own heuristic nature in the report', () => {
     expect(scanOf({}).heuristic).toBe(true);
   });
