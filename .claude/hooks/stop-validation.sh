@@ -132,55 +132,24 @@ if [ -n "$SRC_CHANGED" ]; then
 fi
 
 # ----------------------------------------------------------------------------
-# 2. CHANGELOG discipline (HARD GATE — Inquebrável Rule 6 + cycle-review BLOCKER)
+# 2. CHANGELOG discipline — GATE REMOVIDO NESTE REPOSITORIO (theo-workspace#26)
 # ----------------------------------------------------------------------------
-if [ -f "CHANGELOG.md" ]; then
-  CODE_CHANGED=$(echo "$ALL_FILES" \
-    | grep -E '\.(go|py|ts|tsx|js|jsx|rs|java|kt|rb|cs)$' \
-    | grep -vE '(_test|\.test|\.spec)\.[a-z]+$' \
-    | grep -vE '(^|/)(node_modules|vendor|dist|build|target|\.venv|__pycache__)/' \
-    || true)
-  # A repository may keep more than one CHANGELOG (this one has the product's at
-  # the root and the kit's under .claude/). The governing CHANGELOG for a changed
-  # file is the nearest one at or above its directory — so walk up from each file
-  # and accept the first touched CHANGELOG found. Anchoring on the root alone
-  # reported "not updated" at the very commit that updated the right one.
-  # This does not loosen the gate: a sibling CHANGELOG is never an ancestor, so
-  # .claude/CHANGELOG.md still cannot cover a change under packages/.
-  UNCOVERED=""
-  if [ -n "$CODE_CHANGED" ]; then
-    CHANGELOGS_TOUCHED=$(echo "$ALL_FILES" | grep -E '(^|/)CHANGELOG\.md$' || true)
-    while IFS= read -r src_file; do
-      [ -z "$src_file" ] && continue
-      dir=$(dirname "$src_file")
-      covered=0
-      while :; do
-        if [ "$dir" = "." ]; then cand="CHANGELOG.md"; else cand="$dir/CHANGELOG.md"; fi
-        if echo "$CHANGELOGS_TOUCHED" | grep -qxF "$cand"; then
-          covered=1
-          break
-        fi
-        [ "$dir" = "." ] && break
-        dir=$(dirname "$dir")
-      done
-      [ "$covered" -eq 0 ] && UNCOVERED+="${src_file}"$'\n'
-    done <<< "$CODE_CHANGED"
-  fi
-
-  if [ -n "$UNCOVERED" ]; then
-    msg="CHANGELOG.md not updated despite production source changes (Inquebrável Rule 6; cycle-review BLOCKER). Add an entry to [Unreleased] before stopping. Override with STOP_VALIDATION_WARN_ONLY=1 only when the change is a bulk reorg with the rationale documented separately."
-    msg+="\n  Files with no touched CHANGELOG at or above their directory:"
-    while IFS= read -r f; do
-      [ -z "$f" ] && continue
-      msg+="\n    - $f"
-    done <<< "$UNCOVERED"
-    if [ "$WARN_ONLY" = "1" ]; then
-      WARNINGS+=("$msg")
-    else
-      BLOCKERS+=("$msg")
-    fi
-  fi
-fi
+# O CHANGELOG deste ecossistema e UNICO e vive no UMBRELLA, com atribuicao por
+# projeto (`- **{projeto}:** …`), conforme `rules/umbrella-scope.md` § 5 e
+# `.claude/coordination/PROTOCOL.md` § 5. NUNCA no CHANGELOG do repo do produto.
+#
+# Este gate exigia `^CHANGELOG\.md$` no diff DESTE repo. Como o hook roda com o
+# cwd aqui e nao tem como enxergar o CHANGELOG do umbrella, SEGUIR O CONTRATO
+# GARANTIA O BLOQUEIO: toda entrega feita conforme o protocolo parava a sessao, e
+# o unico caminho era bypass — que ensina a ignorar o gate inteiro, inclusive o
+# de segredos logo abaixo.
+#
+# O gate nao foi enfraquecido, foi MOVIDO para onde ele consegue medir: o
+# `stop-validation.sh` do umbrella passou a varrer o codigo dos projetos IRMAOS e
+# a exigir a entrada ATRIBUIDA sob `[Unreleased]`. Ver o commit 031ce02 la.
+#
+# Os demais gates deste arquivo (TDD, segredos, honestidade de release) seguem
+# valendo — eles medem o que esta ao alcance deste repositorio.
 
 # ----------------------------------------------------------------------------
 # 2b. Secret leak (HARD GATE — cycle-review BLOCKER)
