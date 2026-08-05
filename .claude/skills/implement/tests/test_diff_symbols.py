@@ -80,3 +80,44 @@ def test_shas_from_progress_filters_phase_and_missing(tmp_path: Path) -> None:
     assert shas_from_progress(progress) == ["aaa", "bbb"]
     assert shas_from_progress(progress, phase="1") == ["aaa"]
     assert shas_from_progress(progress, phase="2") == ["bbb"]
+
+
+# ---------- F-6: symbols come from CODE, not from data ----------------
+
+
+def test_symbols_are_not_harvested_from_generated_snapshots(tmp_path: Path) -> None:
+    """A snapshot that RECORDS declarations is not a file that INTRODUCES them.
+
+    `tests/repo/core-api-surface.dts.snap` is a concatenation of the package's emitted
+    `.d.ts`, so every line reads `export declare function ...`. Measured on
+    english-only-sweep: committing it made the phase-1 mini review emit 9 HIGH
+    `wiring_pillar_a_fail` findings for symbols (`assertPublishable`, `ApiKeyRow`, …)
+    that predate the plan — present in 88d4fa4, the commit before it started.
+    """
+    repo = _init_repo(tmp_path)
+    sha = _commit_file(
+        repo,
+        "tests/repo/core-api-surface.dts.snap",
+        "export declare function assertPublishable(v: string): void;\n"
+        "export interface ApiKeyRow { id: string }\n",
+        "feat: snapshot the surface",
+    )
+
+    assert added_symbols_from_shas(repo, [sha]) == set()
+
+
+def test_symbols_are_not_harvested_from_json_fixtures(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    sha = _commit_file(repo, "tests/repo/core-api-surface.json",
+                  '[{"name": "diagnosticarDescobribilidade", "kind": "value"}]\n',
+                  "feat: name snapshot")
+
+    assert added_symbols_from_shas(repo, [sha]) == set()
+
+
+def test_symbols_from_real_source_are_still_harvested(tmp_path: Path) -> None:
+    """The exemption must not blind the derivation where it matters."""
+    repo = _init_repo(tmp_path)
+    sha = _commit_file(repo, "src/thing.ts", "export function doThing(): void {}\n", "feat: thing")
+
+    assert "doThing" in added_symbols_from_shas(repo, [sha])

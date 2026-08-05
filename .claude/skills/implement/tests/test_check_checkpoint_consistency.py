@@ -125,3 +125,61 @@ def test_empty_progress_no_commits_is_pass(tmp_path: Path) -> None:
     _commit(repo, "README.md", "# hi\n", "docs: init")  # unrelated, no task id
     report = check_checkpoint_consistency({"tasks": []}, repo, ["T1.1"])
     assert report.status == "PASS"
+
+
+# ---------- F-7: the scan must be bounded to THIS plan's commits --------
+
+
+def test_task_id_from_an_older_plan_is_not_attributed_to_this_one(tmp_path: Path) -> None:
+    """A `T{N}.{M}` in a commit that predates this plan belongs to another plan.
+
+    Every plan in the repository numbers its tasks `T{N}.{M}`, so an unbounded scan of
+    git history makes any mature repository collide with its own past. Measured on
+    english-only-sweep: 8 HIGH findings for T2.1..T5.1, all sourced from the M32 and M9
+    plans' commits, none of them attempted by the run being validated.
+    """
+    repo = _repo(tmp_path)
+    # Another plan, months earlier — same numbering scheme.
+    _commit(repo, "src/old.py", "x = 1\n", "feat(lifecycle): columns (T2.1)")
+    # This plan starts here.
+    first = _commit(repo, "src/new.py", "y = 1\n", "feat: T1.1 the first task of THIS plan")
+
+    progress = {"tasks": [
+        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
+        {"id": "T2.1", "phase": "2", "status": "pending"},
+    ]}
+
+    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
+
+    codes = [f.code for f in report.findings]
+    assert "task_committed_in_git_not_in_progress" not in codes, (
+        "T2.1 comes from an older plan's commit and must not be attributed to this run"
+    )
+
+
+def test_a_real_unrecorded_task_inside_the_range_is_still_caught(tmp_path: Path) -> None:
+    """Bounding the scan must not blind the check to the defect it exists for."""
+    repo = _repo(tmp_path)
+    first = _commit(repo, "src/a.py", "x = 1\n", "feat: T1.1 first")
+    _commit(repo, "src/b.py", "y = 1\n", "feat: T1.2 committed but never recorded")
+
+    progress = {"tasks": [
+        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
+        {"id": "T1.2", "phase": "1", "status": "pending"},
+    ]}
+
+    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T1.2"])
+
+    assert "task_committed_in_git_not_in_progress" in [f.code for f in report.findings]
+
+
+def test_backward_check_is_skipped_loudly_when_no_range_can_be_derived(tmp_path: Path) -> None:
+    """With nothing committed yet there is no anchor — say so, do not scan everything."""
+    repo = _repo(tmp_path)
+    _commit(repo, "src/old.py", "x = 1\n", "feat(lifecycle): columns (T2.1)")
+
+    progress = {"tasks": [{"id": "T1.1", "phase": "1", "status": "pending"}]}
+
+    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
+
+    assert "task_committed_in_git_not_in_progress" not in [f.code for f in report.findings]

@@ -47,6 +47,31 @@ _FILE_SIZE_LIMIT_RE = re.compile(r"(\d{2,5})\s*lines", re.IGNORECASE)
 
 _DEFAULT_FILE_SIZE_LIMIT = 500
 
+# Files whose size is NOT a complexity signal, and which the line budget therefore skips.
+#
+# The budget exists to contain how much CODE one file carries. Applied to an append-only
+# log or to generated data it measures the wrong thing entirely:
+#
+#   CHANGELOG.md  — append-only by contract (Unbreakable Rule 6). It grows with every
+#                   delivery, forever; a ceiling means the next entry anybody writes
+#                   fails the gate. Measured on english-only-sweep: 503 lines, HIGH.
+#   *.snap / lock — generated. Their size is the size of what they record (the API
+#                   surface, the dependency graph), not complexity someone authored.
+#                   Measured: core-api-surface.dts.snap at 3395 lines, HIGH.
+#
+# Fixture JSON is deliberately NOT exempt by extension alone: a hand-written config is
+# still something a human maintains. Only the generated-snapshot suffixes are listed.
+_SIZE_EXEMPT_NAMES = frozenset({"CHANGELOG.md", "pnpm-lock.yaml", "package-lock.json", "yarn.lock", "Cargo.lock", "uv.lock", "poetry.lock"})
+_SIZE_EXEMPT_SUFFIXES = (".snap", ".lock")
+
+
+def _size_budget_applies(rel: str) -> bool:
+    """Whether the per-file line budget is a meaningful measure for this path."""
+    name = Path(rel).name
+    if name in _SIZE_EXEMPT_NAMES:
+        return False
+    return not name.endswith(_SIZE_EXEMPT_SUFFIXES)
+
 # Categories run_validation / CQ / wiring already enforce — tagged, not re-checked.
 _COVERED_ELSEWHERE = {
     "coverage": "run_validation",
@@ -180,6 +205,8 @@ def check_acceptance_criteria(
     if by_category.get("file_size") and repo_root is not None and changed:
         limit = _file_size_limit(criteria)
         for rel in changed:
+            if not _size_budget_applies(rel):
+                continue
             path = repo_root / rel
             if not path.is_file():
                 continue

@@ -58,6 +58,26 @@ def shas_from_progress(progress: dict, phase: str | None = None) -> list[str]:
     return shas
 
 
+# Paths whose added lines RECORD declarations rather than INTRODUCE them.
+#
+# A generated snapshot of a package's `.d.ts` is a concatenation of `export declare ...`
+# lines. Harvesting symbols from it attributes the package's whole existing surface to
+# whichever commit created the snapshot. Measured on english-only-sweep: committing
+# `tests/repo/core-api-surface.dts.snap` produced 9 HIGH `wiring_pillar_a_fail` findings
+# for symbols present in 88d4fa4 — the commit BEFORE the plan started.
+#
+# Pillar (a) asks "does this new public symbol have a production caller?". A file that
+# merely lists names introduces no symbol, so it answers no question.
+_NON_SOURCE_SUFFIXES = (".snap", ".json", ".md", ".lock", ".yaml", ".yml", ".txt", ".d.ts")
+
+
+def _is_source(path: str) -> bool:
+    """Whether added lines in this path can be said to DEFINE a symbol."""
+    if not path or path == "/dev/null":
+        return False
+    return not path.endswith(_NON_SOURCE_SUFFIXES)
+
+
 def added_symbols_from_shas(repo_root: Path, shas: list[str]) -> set[str]:
     """Public symbols defined on lines ADDED by the given commits.
 
@@ -77,9 +97,16 @@ def added_symbols_from_shas(repo_root: Path, shas: list[str]) -> set[str]:
         return set()
 
     symbols: set[str] = set()
+    current_file = ""
     for line in result.stdout.splitlines():
-        # Added content lines start with a single '+'; diff headers start with '+++'.
-        if not line.startswith("+") or line.startswith("+++"):
+        # `+++ b/<path>` opens each file's hunk set — track it so data files can be skipped.
+        if line.startswith("+++"):
+            current_file = line[4:].removeprefix("b/").strip()
+            continue
+        # Added content lines start with a single '+'.
+        if not line.startswith("+"):
+            continue
+        if not _is_source(current_file):
             continue
         added = line[1:]
         for pattern in _COMPILED:
