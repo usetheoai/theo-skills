@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "noEmit": true, "types": ["node"] },
+  // Escopo em `tests/repo/**` de proposito. `tests/workflows/**` tambem esta fora de qualquer
+  // projeto TS hoje — e um defeito preexistente (7 erros de tipo, 8 de lint em gates.test.ts),
+  // nao introduzido aqui. Amplia-lo neste commit misturaria a divida antiga com o portao novo
+  // e deixaria o diff irrevisavel. Registrado em english-only-sweep-followups.md.
+  "include": ["tests/repo/**/*.ts", "tests/repo/**/*.mts"]
+}

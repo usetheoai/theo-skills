@@ -39,3 +39,8 @@ cross-validation-output/
 # (.claude/.patch-backups/<timestamp>/…). São backup local de recuperação —
 # versioná-las duplicaria no histórico o que o próprio git já guarda.
 .claude/.patch-backups/
+
+# Halt-loop runtime (ralph-loop) — per-invocation, never versioned
+halt-loop-prompts/
+.claude/ralph-loop.local.md
+.claude/knowledge-base/implementations/.progress-*.json
