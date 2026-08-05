@@ -387,6 +387,7 @@ RED:     carve_out_without_issue_is_rejected() — [EC-4] entrada sem `issue` la
 RED:     gate_fails_clearly_when_budget_is_malformed() — [EC-12] JSON inválido produz mensagem com o caminho do arquivo e a instrução de regeneração, não SyntaxError cru
 RED:     gate_skips_missing_file_without_aborting() — [EC-18] caminho rastreado e ausente do disco é pulado e listado na saída; a varredura continua
 GREEN:   Implementar scanner + normalização + catraca até os onze passarem
+ASSERT:   expect(tierDFilenameCount).toBe(2)                            // antes da varredura; 0 depois
 REFACTOR: Extrair os matchers por tier para funções nomeadas; nenhum arquivo acima de 500 LoC
 VERIFY:  pnpm run test:repo
 ```
@@ -452,7 +453,7 @@ packages/mcp/tests/contract/bin.contract.test.ts — asserções independentes d
 
 #### Tasks
 1. Extrair a linha de erro do stderr (`stderr.split('\n').find(l => l.startsWith('theo-skills mcp:'))`) e asseverar sobre ela, não sobre o buffer inteiro (EC-15).
-2. Trocar a asserção da linha 53 por `expect(errLine).not.toContain('THEOSKILL_REGISTRY')`.
+2. Trocar a asserção da linha 53 por `expect(errLineMentionsRegistry).toBe(false)                   // errLine = a linha 'theo-skills mcp:'`.
 3. Adicionar comentário curto explicando por que a asserção não cita a frase.
 4. Confirmar que o teste ainda passa contra o `bin.ts` **em português** (prova de independência de idioma).
 
@@ -462,6 +463,7 @@ RED:     Rodar o teste alterado contra um bin.ts com a mensagem traduzida à mã
 RED:     Rodar o teste alterado contra um bin.ts que (injetado) cita as duas variáveis — deve FALHAR
 RED:     assertion_is_scoped_to_the_error_line() — [EC-15] com uma linha de diagnóstico extra no stderr ecoando `THEOSKILL_REGISTRY=...`, o teste continua PASSANDO; asseverar sobre o buffer inteiro o reprovaria sem regressão de comportamento
 GREEN:   Nenhuma implementação de produção necessária; a mudança é o próprio teste
+ASSERT:   expect(errLineMentionsRegistry).toBe(false)                   // errLine = a linha 'theo-skills mcp:'
 REFACTOR: None expected
 VERIFY:  pnpm --filter @usetheo/skills-mcp test
 ```
@@ -547,6 +549,7 @@ RED:     Injetar um hints.push duplicado em discoverability.ts localmente; os 5 
 RED:     all_three_causes_yield_exactly_three_unique_hints() — [EC-10] descrição curta + publicada sem vetor + vizinha ≥ 0.90: causes.length === 3, hints.length === 3, sem repetição
 RED:     draft_with_no_cause_has_zero_causes_and_one_hint() — [EC-11] trava a exceção à fórmula; aplicar `toHaveLength(causes.length)` aqui quebraria o teste de 65d877e
 GREEN:   Reverter a injeção; os 5 casos passam
+ASSERT:   expect(uniqueHintCount).toEqual(hintCount)
 REFACTOR: Extrair um helper `expectNoDuplicateHints(d, n)` se o padrão se repetir 4x (DRY — regra de 3)
 VERIFY:  pnpm --filter @usetheo/skills test
 ```
@@ -641,6 +644,7 @@ RED:     surface_resolver_throws_beyond_depth_2() — barrel encadeado 3 níveis
 RED:     dts_snapshot_fails_when_an_exported_FIELD_is_renamed() — [EC-5] renomeia `revisao` -> `revision` em EntradaDiagnostico: a lista de NOMES continua idêntica (prova documentada no log) e o teste do .d.ts FALHA. Sem este caso, a garantia de D3 não existe
 RED:     dts_snapshot_fails_loudly_when_dist_is_missing() — sem `pnpm build`, o teste falha pedindo o build; nunca é pulado
 GREEN:   Implementar o resolver, a comparação de nomes e a comparação do .d.ts
+ASSERT:   expect(coreSurface).toEqual(coreSurfaceSnapshot)
 REFACTOR: None expected
 VERIFY:  pnpm build && pnpm run test:repo
 ```
@@ -732,6 +736,7 @@ RED:     dts_snapshot_mismatch_on_field_rename() — [EC-5] o teste do .d.ts FAL
 RED:     discoverability_union_still_discriminated() — `{published:false, hasVector:true}` NÃO compila (teste de tipo via @ts-expect-error)
 RED:     http_response_shape_unchanged() — [EC-17] POST ao endpoint de descobribilidade devolve exatamente as mesmas chaves de antes (`discoverable`, `causes`, `hints`, `embedder`) e continua lendo `has_embedding` do corpo
 GREEN:   Aplicar o rename; regenerar os dois snapshots
+ASSERT:   expect(emittedDts).toEqual(dtsSnapshot)
 REFACTOR: None expected — rename puro, sem mudança de comportamento
 VERIFY:  pnpm --filter @usetheo/skills test && pnpm build && pnpm run test:repo
 ```
@@ -794,6 +799,7 @@ packages/sdk/package.json — description
 ```
 RED:     language_gate_tier_D_counts_package_descriptions() — o portão de T0.1 conta as 3 descrições; após a tradução a contagem cai para 0
 GREEN:   Traduzir; atualizar o orçamento
+ASSERT:   expect(ptPackageDescriptionCount).toBe(0)
 REFACTOR: None expected
 VERIFY:  pnpm run test:repo && node scripts/check-publish-artifacts.mjs
 ```
@@ -883,6 +889,7 @@ RED:     validation_error_carries_stable_code() — invoke com query vazia devol
 RED:     not_found_code_unchanged() — get_skill de id inexistente ainda devolve error === 'not_found'
 RED:     cross_workspace_is_indistinguishable() — skill de outro workspace devolve o MESMO 'not_found'
 GREEN:   Traduzir + separar código/mensagem
+ASSERT:   expect(emptyQueryResult).toEqual({error:'invalid_argument', message: 'query is required'})
 REFACTOR: Extrair um helper `invalidArgument(field, hint)` se o padrão repetir 3x
 VERIFY:  pnpm --filter @usetheo/skills-mcp test
 ```
@@ -955,6 +962,7 @@ RED:     cli_error_prefix_is_uniform() — toda saída de erro dos 4 subcomandos
 RED:     integrity_failure_says_nothing_was_written() — mismatch de hash produz mensagem contendo 'nothing was written' e o diretório permanece vazio
 RED:     install_not_found_message_is_english() — HTTP 404 produz mensagem sem palavra PT
 GREEN:   Traduzir
+ASSERT:   expect(installDirEntries).toEqual([])                         // e expect(errorPrefix).toBe('error:')
 REFACTOR: None expected
 VERIFY:  pnpm --filter @usetheo/skills-cli test
 ```
@@ -1026,6 +1034,7 @@ RED:     bundle_items_400_details_is_english() — PUT com items não-array devo
 RED:     bundle_item_missing_field_400_is_english() — item malformado idem
 RED:     error_code_unchanged() — o campo `error` continua 'invalid_request' em ambos
 GREEN:   Traduzir
+ASSERT:   expect(body.details).toBe('items must be a list')
 REFACTOR: None expected
 VERIFY:  pnpm --filter @usetheo/skills-api test
 ```
@@ -1138,6 +1147,7 @@ RED:     unparseable_stored_version_does_not_block_publish() — [EC-6] linha hi
 RED:     unique_violation_maps_to_409_not_500() — [EC-7] insert forçado a violar o índice devolve 409 reason='duplicate'
 RED:     build_metadata_boundary_is_pinned() — [EC-13] publicar '1.2.0+a' e depois '1.2.0+b' tem resultado FIXO e declarado (409 pela guarda, ou 400 se o parser recusa +build)
 GREEN:   Ligar a guarda dentro da transação + filtrar ilegíveis + mapear os dois caminhos de erro
+ASSERT:   expect(res.status).toBe(409)  &&  expect((await res.json()).details).toBe('duplicate')
 REFACTOR: Extrair a leitura de versões para um helper do store se repetir nos dois pontos
 VERIFY:  pnpm --filter @usetheo/skills-api test && pnpm --filter @usetheo/skills-api test:integration
 ```
@@ -1219,6 +1229,7 @@ packages/api/tests/integration/*.integration.test.ts — teste de concorrência 
 RED:     concurrent_publish_same_version_yields_one_row() — o teste escrito em T4.1, ainda vermelho, agora deve passar
 RED:     null_version_rows_remain_unconstrained() — 3 revisões sem versão na mesma skill continuam aceitas
 GREEN:   Adicionar o índice + migração
+ASSERT:   expect(rowCount).toBe(1)                                      // apos Promise.all de 10 publishes
 REFACTOR: Extrair a seção de revisões de schema.ts se o arquivo passar de 500 LoC
 VERIFY:  pnpm --filter @usetheo/skills-api test:integration
 ```
@@ -1299,6 +1310,7 @@ RED:     language_gate_tier_C_is_zero_for_<pkg>() — o portão de T0.1 reprova 
 RED:     emitted_js_is_unchanged_for_<pkg>() — [EC-14] no commit 1, `dist/**/*.js` é byte-idêntico ao do commit anterior; a comparação NÃO inclui .d.ts
 RED:     exported_names_unchanged_for_<pkg>() — em AMBOS os commits, a lista de nomes de T1.3 é idêntica (um rename que vaze para a superfície é acusado aqui)
 GREEN:   Traduzir (commit 1); renomear (commit 2)
+ASSERT:   expect(emittedJsHash).toEqual(hashBefore)
 REFACTOR: None expected
 VERIFY:  pnpm --filter <pkg> build && pnpm --filter <pkg> test && pnpm run test:repo
 ```
@@ -1378,6 +1390,7 @@ RED:     language_gate_tier_D_docs_is_zero() — o portão reprova enquanto houv
 RED:     all_relative_markdown_links_resolve() — após os renames, nenhum link local quebrado
 RED:     public_copy_lint_clean() — README traduzido não introduz framing proibido
 GREEN:   Traduzir + renomear + corrigir links
+ASSERT:   expect(brokenLinks).toEqual([])
 REFACTOR: None expected
 VERIFY:  pnpm run test:repo && bash .claude/hooks/public-copy-lint.sh
 ```
@@ -1466,6 +1479,7 @@ RED:     workflow_gates_still_green() — gates.test.ts passa antes E depois do 
 RED:     no_required_context_without_producer() — todo contexto exigido pela proteção casa um job name presente nos workflows
 RED:     every_open_pr_reports_the_new_contexts() — [EC-8] após o passo 7, cada PR da lista do passo 2 tem os contextos novos reportados; um PR com check pendente sem produtor reprova a janela
 GREEN:   Traduzir + re-apontar + propagar develop para os PRs abertos
+ASSERT:   expect(requiredContexts).toEqual(workflowJobNames)
 REFACTOR: None expected
 VERIFY:  pnpm run test:repo && gh api .../protection --jq '.required_status_checks' && gh pr list --state open
 ```
@@ -1533,6 +1547,7 @@ RED:     eval_runner_still_reads_query_and_expect_skill_id() — após o rename 
 RED:     missing_skill_is_not_counted_as_regression() — skill ausente do acervo continua reportada sem reprovar
 RED:     carve_out_requires_sunset_and_issue() — o portão rejeita carve-out sem sunset ou sem issue
 GREEN:   Traduzir + registrar o carve-out
+ASSERT:   expect(evalExitCode).toBe(0)                                  // e expect(caseCount).toBe(3)
 REFACTOR: None expected
 VERIFY:  pnpm --filter @usetheo/skills-api exec tsx eval/run-discoverability.ts && pnpm run test:repo
 ```
