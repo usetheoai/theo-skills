@@ -22,6 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 - User-facing text became English: discoverability hints and typed handler error messages
 - Unit tests next to the code now run. `pnpm test` in `packages/api` only included `tests/contract/**`, so 12 tests — among them the M34 regression gate — had never been executed by CI. The 62 integration tests remain out of scope (#132)
 - This CHANGELOG is now written in English, one line per entry
+- Unreadable stored versions are reported as structured JSON on stderr, matching `server.ts`, instead of a bare `console.warn` a log pipeline cannot parse (#T4.1)
 
 ### Removed
 
