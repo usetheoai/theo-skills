@@ -35,8 +35,17 @@ async function existingVersions(
     try {
       parsed.push(parseVersion(r.version));
     } catch {
-      // Dropped and logged: the publish proceeds, and the bad row stays visible.
-      console.warn(`skills-store: unreadable stored version ignored`, { skillId, version: r.version });
+      // Dropped and logged: the publish proceeds, and the bad row stays visible. Structured
+      // JSON on stderr, matching how the server reports at `server.ts:243` — a plain
+      // `console.warn` is invisible to a log pipeline that parses lines as JSON.
+      process.stderr.write(
+        `${JSON.stringify({
+          level: 'warn',
+          msg: 'skills-store: unreadable stored version ignored',
+          skill_id: skillId,
+          version: r.version,
+        })}\n`,
+      );
     }
   }
   return parsed;
