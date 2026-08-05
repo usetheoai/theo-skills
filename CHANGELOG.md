@@ -1,57 +1,39 @@
 # Changelog
 
-Todas as mudanças notáveis deste projeto são documentadas neste arquivo.
+All notable changes to this project are documented in this file.
 
-O formato segue [Keep a Changelog](https://keepachangelog.com/) e o projeto adere
-ao [Semantic Versioning](https://semver.org/).
+The format follows [Keep a Changelog](https://keepachangelog.com/) and the project
+adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Added
 
-- **Renomear um export ou um campo publicado deixa de ser invisível.** `scripts/check-publish-artifacts.mjs` já recusava um manifesto que promete arquivo ausente do tarball (#115); nada comparava os **nomes**. O portão novo trava a superfície em dois níveis, e o segundo existe porque o primeiro não basta: renomear o campo `revisao` dentro de `EntradaDiagnostico` quebra o `tsc` do consumidor e deixa a lista de exports **byte-idêntica**. Medido — com o campo renomeado, o nível de nomes passou verde e só o de `.d.ts` reprovou. Roda em `publish-npm.yml` antes do publish, porque o npm não permite unpublish depois de 72h
-
-- **O portão de idioma existe e a dívida de PT-BR só pode encolher.** `pnpm run test:repo` varre a árvore rastreada, classifica cada ocorrência em quatro tiers (identificador público · string de usuário/agente · comentário · documento/metadado) e compara com `tests/repo/language-budget.json` — que só pode diminuir. A base da comparação é `git merge-base origin/develop HEAD`, **nunca `HEAD`**: em evento `pull_request` o checkout é do merge commit, então ler de `HEAD` compararia o PR consigo mesmo e a catraca seria decorativa exatamente onde importa. Baseline medido: A=6, B=62, C=1772, D=32
-
-- **Cinco CVEs HIGH em dependências de desenvolvimento estavam sem registro (#151).** O `/deps-audit` do sweep de idioma mediu 5 HIGH e 3 MODERATE: três de `brace-expansion` e uma de `js-yaml` entram por `eslint@^9`, uma de `postcss` por `vitest@^4`. Nenhuma alcança artefato publicado — `pnpm audit --prod` não as vê —, mas "dev-only" é razão para priorizar abaixo de produção, não para não rastrear. No mesmo passo, o #126 recebeu a medição que faltava: o `@hono/node-server` **direto** já foi corrigido (`2.0.12`), e o que continua vulnerável é a cópia transitiva `1.19.14` sob `@modelcontextprotocol/sdk` — então "subimos o hono" está satisfeito e não fecha o achado
-- **Plano `english-only-sweep` — v1.1, SHIPPABLE (90.4).** A v1.0 saiu `INVALID`: quatro caps, três deles defeitos reais do próprio plano. Um era uma referência a uma tarefa `T4.3` **que não existe** (Q3 e a tabela de riscos apontavam para ela); os outros dois, um portão de idioma cuja catraca comparava contra `HEAD` — que num evento `pull_request` é o merge commit, então ela comparava o PR consigo mesmo — e uma heurística de acento que não veria `integracao-theokit-mcp.md` nem `m28-execution-nao-confiavel`, os dois arquivos que o próprio plano manda renomear. O `/edge-case-plan` achou mais nove, entre eles um snapshot de API que prometia travar renames de campo e só via nomes
-- **Plano `english-only-sweep`.** O `/code-review` de 2026-08-05 verificou 10 achados; nove são a mesma falha em camadas diferentes — português ainda embarca em descrição de ferramenta MCP (que o modelo do agente lê para escolher a tool), em corpo de erro HTTP, na saída da CLI, nos identificadores exportados de um pacote publicado no npm e nos nomes de job que servem de *required status check*. O décimo é independente: `assertPublishable` não tem chamador de produção e não há índice único, então duas revisões diferentes podem ocupar a mesma versão semântica. O plano em `.claude/knowledge-base/plans/english-only-sweep-plan.md` fecha os dez com um portão de catraca que impede a regressão
+- API surface gate: renaming a published export or a type FIELD now fails a test before publish. Two levels, because the name list alone is byte-identical under a field rename — measured (#T1.3)
+- Language gate with a ratchet: four tiers of PT-BR are counted against `tests/repo/language-budget.json`, which may only shrink. The base is `git merge-base`, never `HEAD` — on a `pull_request` the checkout is the merge commit, so `HEAD` compares the PR with itself. Baseline: A=6 B=62 C=1772 D=32 (#T0.1)
+- Five HIGH CVEs in dev-only transitive dependencies were untracked (#151). `@hono/node-server` direct is already fixed at `2.0.12`; the transitive `1.19.14` under `@modelcontextprotocol/sdk` remains — "we bumped hono" is satisfied and does not close #126
+- Plan `english-only-sweep` v1.2, SHIPPABLE (90.4). v1.0 was INVALID over four caps, three of them real defects in the plan itself — including a reference to a task `T4.3` that never existed
 
 ### Changed
 
-- **A duplicação de hint deixa de ser detectável só no ramo do rascunho.** O fix de `65d877e` travou a cardinalidade onde o defeito apareceu — e os outros quatro ramos seguiram protegidos apenas por asserções de presença, que são indiferentes a duplicata. Medido: injetar um `hints.push` repetido no ramo `no_embedding` reprovava **zero** testes antes; agora reprova três. A fase 5 deste plano reescreve todos os blocos de comentário desse arquivo, que é exatamente onde um merge repete a façanha (#m34)
-
-- **A guarda do boot do MCP deixa de depender de uma frase em português.** O teste afirmava `not.toContain('THEOSKILL_REGISTRY é obrigatório')` — uma asserção NEGATIVA sobre um literal traduzível. Traduzir o produtor, que é o que a fase 3 fará, a tornaria vacuamente verdadeira: nada mais poderia conter a frase em PT, o teste seguiria verde e pararia de proteger em silêncio o comportamento de "nomear só a variável que falta". Agora a asserção cita o **nome da variável de ambiente**, que não se traduz, e olha a linha de erro isolada em vez do stderr inteiro (#m34)
-
-- **O texto que o usuário lê passa a ser inglês.** O produto é monolíngue em inglês — `api-keys` e `billing` sempre estiveram assim — e as superfícies de skills respondiam em português, deixando o dashboard bilíngue conforme a tela. Traduzidos os `hints` do diagnóstico de descobribilidade (o texto de backend mais visível ao usuário, exibido na tela de autoria) e as mensagens de erro tipadas dos handlers. Comentários de código e identificadores internos permanecem como estão: são para quem mantém, não para quem usa.
-
-- **Os testes unitários ao lado do código passam a rodar.** `pnpm test` do `packages/api` incluía apenas `tests/contract/**`, então tudo em `src/**/*.test.ts` ficava fora do gate. Eram dois arquivos e 12 testes — entre eles o do **gate de regressão do M34**, reportado como "6 passed" numa implementação sem que o CI o tivesse executado uma única vez. Um teste que não roda não protege nada, por mais verde que pareça rodando à mão. Os 62 de `tests/integration/` seguem fora de propósito (exigem Postgres, config própria) — essa metade continua sendo o #132.
-
-### Deprecated
+- Hint duplication is now detectable in all five branches, not just the draft one. Injecting a repeated `hints.push` failed **zero** tests before; it fails three now (#m34)
+- The MCP boot guard no longer depends on a Portuguese phrase. `not.toContain('THEOSKILL_REGISTRY é obrigatório')` would go vacuously true the moment the producer is translated; it now cites the environment variable name, which does not translate (#m34)
+- Discoverability eval dataset v3: queries translated to English. The registry entries they target are still Portuguese, so a recall drop between v2 and v3 is a LANGUAGE effect, not a product regression — each case records its v2 query for comparison (#T6.3)
+- User-facing text became English: discoverability hints and typed handler error messages
+- Unit tests next to the code now run. `pnpm test` in `packages/api` only included `tests/contract/**`, so 12 tests — among them the M34 regression gate — had never been executed by CI. The 62 integration tests remain out of scope (#132)
+- This CHANGELOG is now written in English, one line per entry
 
 ### Removed
 
-- **O `prototype/` saiu do repositório.** Era estudo de interface — 17 arquivos, entre eles um `pnpm-lock.yaml` de 2773 linhas e um segundo `pnpm-workspace.yaml` — e nada dali vira produto: a interface desta capacidade nasce no `theo-cloud/dashboard`, como manda o `CLAUDE.md`. Mantido no repo, o diretório oferecia um segundo workspace pnpm e um segundo alvo de build que ninguém publica, e aparecia em toda varredura de código como se fosse superfície viva (#88d4fa4)
+- `prototype/` left the repository: interface study, 17 files, and a second pnpm workspace nobody publishes. This capability's UI is built in `theo-cloud/dashboard` (#88d4fa4)
 
 ### Fixed
 
-- **Duas revisões diferentes podiam ocupar a mesma versão semântica.** `assertPublishable` existia, tinha teste, e **nunca rodou em produção** — nenhum chamador (achado #2 do `/code-review`). E `skill_revisions.version` é texto livre, sem restrição no banco. O consumidor em `^1.2.0` recebia bytes diferentes em dias diferentes, sem erro e sem como saber qual instalou. Agora a guarda roda dentro da transação de publicação, e a migração `0015` cria índice único parcial em `(workspace_id, skill_id, version)` — os dois cobrem falhas diferentes: a guarda dá causa legível, o índice é o que sobrevive a dois publishes concorrentes. A recusa é não-retentável: republicar `1.2.0` seria recusado na décima tentativa como na primeira
-
-- **Três portões do `/implement` mediam a coisa errada e reprovavam trabalho correto (F-6, F-7, F-8).** `check_checkpoint_consistency` varria os últimos 500 commits atrás de `T{N}.{M}` — e como *todo* plano do repositório usa essa numeração, ele acusava como "tarefa não registrada" trabalho de outras entregas: 8 achados HIGH vindos dos planos M32 e M9. A varredura passa a parar no commit mais antigo que o checkpoint registra; sem nenhum registrado, a direção reversa é **pulada**, não estimada. `diff_symbols` colhia símbolos de toda linha adicionada, inclusive de um snapshot gerado de `.d.ts` — o que atribuía a superfície inteira do pacote a quem criou o arquivo (9 achados HIGH sobre símbolos presentes em `88d4fa4`, anterior ao plano); agora só extrai de arquivo de código. E o teto de 500 linhas deixa de valer para `CHANGELOG.md`, que é append-only por contrato, e para snapshots e lockfiles, cujo tamanho é o do que registram, não complexidade que alguém escreveu
-
-- **Na autoria, o diagnóstico sempre acusava falta de vetor — e encobria o que o autor podia corrigir.** Um rascunho não tem revisão, logo não tem vetor: acusá-lo disso reporta como defeito uma consequência de ainda não ter publicado, e o conselho *"Republique para gerar o vetor"* é impossível de seguir para algo nunca publicado. Pior: por disparar sempre, `no_embedding` **dominava o veredito** e soterrava as duas causas acionáveis — descrição genérica e colisão com uma vizinha. O autor perguntava "minha descrição está boa?" e a tela respondia sobre outra coisa (#144)
-
-  A distinção já existia no protocolo e o código não a honrava: `has_embedding` **ausente** significa rascunho; `false` significa publicada e sem vetor — um achado real, com ação possível. O domínio passa a modelar isso como união discriminada (`{publicada: false} | {publicada: true, temVetor}`), porque "não publicada e com vetor" não é um estado que deva ser representável. Um rascunho sem causa alguma recebe a ressalva de que ainda não está no acervo — calar sobre isso o deixaria achando que já está resolvido.
-
-- **Um rascunho recebia o mesmo aviso duas vezes, em dois idiomas.** Um `git merge` reintroduziu o bloco inteiro do hint de rascunho numa segunda cópia, e a função passou a empurrar **dois** hints para o mesmo caso — o traduzido e o original. Nenhum teste pegou: todos assertavam **presença** (`toContain`, `toMatch`), e presença é indiferente à duplicata. O gate de CHANGELOG foi quem expôs, por um caminho indireto — apontou o arquivo tocado sem entrada, e a duplicação apareceu ao ler o diff do merge. O teste novo trava a cardinalidade, não só o conteúdo (#m34)
-
-- **O dataset do M34 apontava para uma skill que só existe na fixture do teste.** `sk_cambio_v1` é criada pelo `seed()` de `tests/integration/m34-discoverability.integration.test.ts` — e o campo `_honestidade` do próprio dataset afirmava *"roda contra o ACERVO REAL do workspace, não contra fixture"*. Um dataset que semeia a skill que vai procurar mede o semeador, não a descoberta. Agora os identificadores são do acervo real, e o runner consulta se cada skill ainda existe: uma que saiu do acervo é reportada e **não** conta como regressão, porque *"a descoberta piorou"* e *"não há o que descobrir"* são fatos diferentes, com donos diferentes (#m34)
-
-- **O gate de descobribilidade do M34 era inerte: nunca podia reprovar.** O runner lia `body.skills` e a busca devolve **`results`** (`handlers/retrieve.ts:125-127`), então a lista vinha vazia em toda consulta, nenhum caso era achado e a primeira execução gravava uma baseline de zeros. A partir dali não existia regressão detectável — não há como regredir de "nunca foi achada". O critério *"uma skill que era achada e deixa de ser reprova o gate"* estava mecanicamente satisfeito e semanticamente vazio, e um gate que não pode reprovar é pior que gate nenhum: ocupa o lugar de um (#m34)
-
-  A leitura saiu do script para `src/eval/retrieve-response.ts`, testada: nada em `eval/` fica fora do `tsconfig` por acaso, e nada em `eval/` era alcançado por teste — que é exatamente como o defeito sobreviveu a ser escrito.
-
-### Security
+- Two different revisions could occupy the same semantic version. `assertPublishable` existed, had tests, and had **never run in production** — no caller. Migration `0015` adds a partial unique index on `(workspace_id, skill_id, version)`; the guard gives a readable cause, the index survives concurrent publishes (#code-review-2)
+- Three `/implement` gates measured the wrong thing and failed correct work: task ids collided across plans, symbols were harvested from generated data files, and the 500-line budget applied to an append-only CHANGELOG (F-6, F-7, F-8)
+- Draft skills were told to "republish to generate the vector" — impossible for something never published, and it buried the two causes the author could act on (#144)
+- A draft received the same warning twice, in two languages: a merge reintroduced a whole hint block and presence assertions are indifferent to duplication (#m34)
+- The M34 dataset pointed at a skill that only exists in the test fixture, while claiming to run against the real registry (#m34)
 
 ## [0.15.0] - 2026-08-04
 
