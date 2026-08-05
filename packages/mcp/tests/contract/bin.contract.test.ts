@@ -18,6 +18,17 @@ const BIN = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'dist', 'b
  * aparece pela primeira vez, em produção.
  */
 
+/**
+ * A linha de erro do binário, isolada do resto do stderr.
+ *
+ * As asserções de "quem foi nomeado" olham SÓ esta linha. Asseverar sobre o buffer inteiro
+ * reprovaria por uma linha de diagnóstico vizinha que mencione a variável por outro motivo
+ * (`using THEOSKILL_REGISTRY=...`) — uma falha sem regressão de comportamento.
+ */
+function linhaDeErro(stderr: string): string {
+  return stderr.split('\n').find((l) => l.startsWith('theo-skills mcp:')) ?? '';
+}
+
 /** Roda o binário e devolve código + stderr, sem lançar em código não-zero. */
 async function rodar(
   args: readonly string[],
@@ -47,10 +58,33 @@ describe('bin — fail-closed no boot', () => {
   });
 
   it('com registry e SEM credencial no stdio: sai 2 nomeando só a que falta', async () => {
+    // A asserção negativa cita o NOME DA VARIÁVEL, nunca a frase ao redor dele.
+    //
+    // Ela dizia `not.toContain('THEOSKILL_REGISTRY é obrigatório')`. Traduzir `bin.ts` — que é
+    // o que a fase 3 deste plano faz — tornaria a asserção VACUAMENTE verdadeira: nada mais
+    // poderia conter a frase em português, o teste seguiria verde, e o comportamento que ele
+    // protege ("nomear só a variável que falta") deixaria de ser protegido em silêncio.
+    //
+    // O nome da variável de ambiente não se traduz. É por isso que a asserção passa a ser sobre
+    // ele, e sobre a linha de erro isolada em vez do stderr inteiro.
     const { code, stderr } = await rodar([], { THEOSKILL_REGISTRY: 'http://reg.local' });
+    const erro = linhaDeErro(stderr);
+
     expect(code).toBe(2);
-    expect(stderr).toContain('THEOSKILL_AUTH');
-    expect(stderr).not.toContain('THEOSKILL_REGISTRY é obrigatório');
+    expect(erro).toContain('THEOSKILL_AUTH');
+    expect(erro).not.toContain('THEOSKILL_REGISTRY');
+  });
+
+  it('a asserção olha a linha de erro, não o stderr inteiro', () => {
+    // Sem este escopo, uma linha de diagnóstico vizinha citando a variável reprovaria o teste
+    // acima sem que nada tivesse regredido.
+    const stderr = [
+      'debug: using THEOSKILL_REGISTRY=http://reg.local',
+      'theo-skills mcp: THEOSKILL_AUTH é obrigatório — o servidor não sobe sem credencial.',
+    ].join('\n');
+
+    expect(linhaDeErro(stderr)).not.toContain('THEOSKILL_REGISTRY');
+    expect(linhaDeErro(stderr)).toContain('THEOSKILL_AUTH');
   });
 
   it('transporte desconhecido: sai 2 e ecoa o valor recebido', async () => {

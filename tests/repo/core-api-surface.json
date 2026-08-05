@@ -1,0 +1,138 @@
+[
+  {
+    "name": "ALL_SCOPES",
+    "kind": "value"
+  },
+  {
+    "name": "assertPublishable",
+    "kind": "value"
+  },
+  {
+    "name": "AuthVerifier",
+    "kind": "type"
+  },
+  {
+    "name": "buildLifecycleFilter",
+    "kind": "value"
+  },
+  {
+    "name": "CandidataVizinha",
+    "kind": "type"
+  },
+  {
+    "name": "compareVersions",
+    "kind": "value"
+  },
+  {
+    "name": "DEFAULT_PRINCIPAL",
+    "kind": "value"
+  },
+  {
+    "name": "DEFAULT_WORKSPACE_ID",
+    "kind": "value"
+  },
+  {
+    "name": "diagnosticarDescobribilidade",
+    "kind": "value"
+  },
+  {
+    "name": "Diagnostico",
+    "kind": "type"
+  },
+  {
+    "name": "DISCOVERABILITY_CAUSES",
+    "kind": "value"
+  },
+  {
+    "name": "DiscoverabilityCause",
+    "kind": "type"
+  },
+  {
+    "name": "EntradaDiagnostico",
+    "kind": "type"
+  },
+  {
+    "name": "EstadoDaRevisao",
+    "kind": "type"
+  },
+  {
+    "name": "formatVersion",
+    "kind": "value"
+  },
+  {
+    "name": "InvalidLifecycleError",
+    "kind": "value"
+  },
+  {
+    "name": "InvalidVersionError",
+    "kind": "value"
+  },
+  {
+    "name": "isValidLifecycle",
+    "kind": "value"
+  },
+  {
+    "name": "LifecycleVisibility",
+    "kind": "type"
+  },
+  {
+    "name": "LifecycleVisibilityOptions",
+    "kind": "type"
+  },
+  {
+    "name": "NonRetriableOperationError",
+    "kind": "value"
+  },
+  {
+    "name": "parseLifecycle",
+    "kind": "value"
+  },
+  {
+    "name": "parseVersion",
+    "kind": "value"
+  },
+  {
+    "name": "Principal",
+    "kind": "type"
+  },
+  {
+    "name": "resolveRange",
+    "kind": "value"
+  },
+  {
+    "name": "roleSatisfies",
+    "kind": "value"
+  },
+  {
+    "name": "Scope",
+    "kind": "type"
+  },
+  {
+    "name": "scopeSatisfies",
+    "kind": "value"
+  },
+  {
+    "name": "SemVer",
+    "kind": "type"
+  },
+  {
+    "name": "SKILL_LIFECYCLES",
+    "kind": "value"
+  },
+  {
+    "name": "SkillLifecycle",
+    "kind": "type"
+  },
+  {
+    "name": "VersionRejectedError",
+    "kind": "value"
+  },
+  {
+    "name": "Workspace",
+    "kind": "type"
+  },
+  {
+    "name": "WorkspaceRole",
+    "kind": "type"
+  }
+]

@@ -1,25 +1,29 @@
 {
-  "_note": "M34 — dataset de DESCOBRIBILIDADE: `consulta → skill que deveria ser achada`. Distinto de `dataset.json` (M4), que mede o retrieval como SISTEMA; este mede se uma skill específica é encontrada pela intenção que deveria encontrá-la, e o gate REPROVA quando uma que era achada deixa de ser.",
-  "_acervo": "Os identificadores são do ACERVO REAL do workspace. A versão 1 apontava para `sk_cambio_v1`, que só existe no `seed()` de `tests/integration/m34-discoverability.integration.test.ts` — e o campo `_honestidade` dela afirmava rodar contra o acervo real. Um dataset que semeia a própria skill que vai procurar mede o semeador, não a descoberta. Rodar num acervo diferente é esperado e não quebra o gate: o runner consulta se cada skill existe e as ausentes são reportadas sem contar como regressão.",
-  "_honestidade": "O número mede o embedder tanto quanto a skill. Todo resultado carrega qual embedder o produziu, e comparação entre embedders diferentes é RECUSADA, não normalizada. Medido em 2026-08-04 no app-dev: o embedder é `openai/text-embedding-3-small`, e duas das três skills antigas do acervo estavam SEM VETOR — para elas só a perna léxica responde, o que o `matched` da resposta torna explícito.",
-  "version": 2,
-  "dated": "2026-08-04",
-  "_envelhecimento": "Consultas escritas para um acervo pequeno não discriminam num grande. A data acima aparece no relatório justamente para que um dataset velho seja visível — um recall alto sobre 10 skills não diz nada sobre 300.",
+  "_note": "M34 — DISCOVERABILITY dataset: `query → the skill that should be found`. Distinct from `dataset.json` (M4), which measures retrieval as a SYSTEM; this one measures whether a specific skill is reached by the intent that ought to reach it, and the gate FAILS when a skill that used to be found stops being found.",
+  "_registry": "The identifiers come from the workspace's REAL registry. Version 1 pointed at `sk_cambio_v1`, which only exists in the `seed()` of `tests/integration/m34-discoverability.integration.test.ts` — while its own `_honesty` field claimed to run against the real registry. A dataset that seeds the very skill it then searches for measures the seeder, not discovery. Running against a different registry is expected and does not break the gate: the runner checks whether each skill still exists, and missing ones are reported without counting as a regression.",
+  "_honesty": "The number measures the embedder as much as the skill. Every result carries which embedder produced it, and comparing results across different embedders is REFUSED, never normalised. Measured 2026-08-04 on app-dev: the embedder is `openai/text-embedding-3-small`, and two of the three older skills in the registry had NO vector — for those, only the lexical leg answers, which the response's `matched` field makes explicit.",
+  "version": 3,
+  "dated": "2026-08-05",
+  "_ageing": "Queries written for a small registry do not discriminate in a large one. The date above appears in the report precisely so a stale dataset is visible — a high recall over 10 skills says nothing about 300.",
+  "_language": "The queries were translated to English in version 3 (decision of 2026-08-05, superseding ADR D5 of the english-only-sweep plan, which had proposed a dated carve-out). READ THIS BEFORE INTERPRETING A DROP: the registry entries these queries target still carry PORTUGUESE names and descriptions, so an English query is now compared against a Portuguese description. A fall in recall between v2 and v3 is a LANGUAGE effect, not a product regression, and must not be treated as one. The v2 baseline is recorded per case below so the two are comparable; the honest fix is to migrate the registry content, after which these queries stop being handicapped.",
   "cases": [
     {
-      "query": "converter dólar para real",
+      "query": "convert dollars to reais",
+      "query_v2_pt": "converter dólar para real",
       "expect_skill_id": "redteam-cambio-1785615135",
-      "_why": "sinônimo de domínio: a consulta não repete as palavras da descrição ('moeda estrangeira'), então mede se a intenção alcança a skill. MEDIDO: hoje ela responde pela perna léxica (`matched: keyword`) porque a revisão vigente está sem vetor — o caso continua válido, e o `matched` diz por qual perna passou."
+      "_why": "Domain synonym: the query does not repeat the description's words ('moeda estrangeira'), so it measures whether intent reaches the skill. MEASURED on v2: it answered through the lexical leg (`matched: keyword`) because the live revision has no vector. TRANSLATION RISK — HIGH: the lexical leg is exactly the one an English query cannot reach against a Portuguese description. Expect this case to fail until the registry is migrated."
     },
     {
-      "query": "quais dependencias tem CVE e precisam de upgrade",
+      "query": "which dependencies have CVEs and need upgrading",
+      "query_v2_pt": "quais dependencias tem CVE e precisam de upgrade",
       "expect_skill_id": "auditar-dependencias-m33",
-      "_why": "skill COM vetor no acervo (marcada DESCOBRÍVEL), então exercita a perna que o caso anterior não alcança. Sem um caso assim o dataset inteiro mediria só FTS, e um embedder quebrado passaria despercebido."
+      "_why": "Skill WITH a vector in the registry (flagged DISCOVERABLE), so it exercises the leg the previous case cannot reach. Without a case like this the whole dataset would measure FTS only, and a broken embedder would go unnoticed. TRANSLATION RISK — MEDIUM: the vector leg carries some cross-language signal, and 'CVE'/'upgrade' survive translation unchanged."
     },
     {
-      "query": "revisar as clausulas de rescisao de um contrato",
+      "query": "review the termination clauses of a contract",
+      "query_v2_pt": "revisar as clausulas de rescisao de um contrato",
       "expect_skill_id": "revisar-contrato",
-      "_why": "fraseado de usuário, não de catálogo. Há sobreposição léxica parcial com a descrição ('destaca as clausulas de rescisao, multa e foro'), então mede a combinação das duas pernas em vez de uma isolada."
+      "_why": "User phrasing, not catalogue phrasing. There was partial lexical overlap with the description ('destaca as clausulas de rescisao, multa e foro'), so it measured the two legs combined rather than one in isolation. TRANSLATION RISK — HIGH: that lexical overlap is precisely what the translation removes."
     }
   ]
 }

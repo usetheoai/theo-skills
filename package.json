@@ -19,6 +19,7 @@
     "start": "pnpm --filter @usetheo/skills-api start",
     "test:fast": "pnpm -r exec vitest run -t '^(?!.*\\[slow\\])(?!.*\\[live\\]).*'",
     "test:workflows": "vitest run --config vitest.workflows.config.ts",
+    "test:repo": "vitest run --config vitest.workflows.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "db:migrate": "pnpm --filter @usetheo/skills db:migrate"
   },

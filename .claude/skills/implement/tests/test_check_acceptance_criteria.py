@@ -119,3 +119,51 @@ def test_no_criteria_returns_skip(tmp_path: Path) -> None:
     report = check_acceptance_criteria(plan, repo_root=None, shas=None)
     assert report.total_criteria == 0
     assert report.status == "SKIP"
+
+
+# ---------- F-8: the line budget measures CODE, not data --------------
+
+
+def test_changelog_is_exempt_from_the_line_budget(tmp_path: Path) -> None:
+    """CHANGELOG.md is append-only by contract (Unbreakable Rule 6) — it grows forever.
+
+    A 500-line ceiling on it means the next entry anybody writes fails the gate. Measured
+    on english-only-sweep: CHANGELOG.md at 503 lines produced a HIGH finding on a commit
+    whose only sin was documenting the change, which Rule 6 requires.
+    """
+    repo = _repo(tmp_path)
+    sha = _commit(repo, "CHANGELOG.md", "- entry\n" * 600)
+    plan = repo / "p.md"
+    plan.write_text(PLAN, encoding="utf-8")
+
+    report = check_acceptance_criteria(plan, repo_root=repo, shas=[sha])
+
+    assert "file_size_exceeded" not in [f.code for f in report.findings]
+
+
+def test_generated_snapshots_are_exempt_from_the_line_budget(tmp_path: Path) -> None:
+    """A snapshot's size is the size of what it records, not complexity someone wrote.
+
+    `tests/repo/core-api-surface.dts.snap` is 3395 lines because the package's type
+    surface is that large. Capping it would force either a smaller API or a disabled gate.
+    """
+    repo = _repo(tmp_path)
+    sha = _commit(repo, "tests/repo/core-api-surface.dts.snap", "declare const x: number;\n" * 900)
+    plan = repo / "p.md"
+    plan.write_text(PLAN, encoding="utf-8")
+
+    report = check_acceptance_criteria(plan, repo_root=repo, shas=[sha])
+
+    assert "file_size_exceeded" not in [f.code for f in report.findings]
+
+
+def test_oversized_source_file_is_still_caught(tmp_path: Path) -> None:
+    """The exemption must not blunt the budget where it means something."""
+    repo = _repo(tmp_path)
+    sha = _commit(repo, "src/big.ts", "const x = 1;\n" * 600)
+    plan = repo / "p.md"
+    plan.write_text(PLAN, encoding="utf-8")
+
+    report = check_acceptance_criteria(plan, repo_root=repo, shas=[sha])
+
+    assert "file_size_exceeded" in [f.code for f in report.findings]

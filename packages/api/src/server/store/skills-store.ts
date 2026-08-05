@@ -1,9 +1,55 @@
 import { createId } from '@paralleldrive/cuid2';
+import { assertPublishable, parseVersion, VersionRejectedError } from '@usetheo/skills';
 import { embeddings, skillRevisions, skills } from '@usetheo/skills/db';
 import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { type Db } from '../db.js';
 import { isUniqueViolation, SkillAlreadyExistsError } from '../persistence/pg-errors.js';
+
+/**
+ * The versions already published for this skill, skipping whatever does not parse.
+ *
+ * `skill_revisions.version` is free text with no CHECK, and `assertPublishable` had never run
+ * until now — so older rows may hold `'v1.2'`, `'latest'` or `''`. Letting `parseVersion` throw
+ * on those would blow up the publish of a NEW AND VALID version because of stale data, leaving
+ * the skill impossible to publish forever. An unreadable version is data to investigate, not a
+ * reason to block someone publishing correctly.
+ */
+async function existingVersions(
+  tx: { select: Db['select'] },
+  workspaceId: string,
+  skillId: string,
+): Promise<ReturnType<typeof parseVersion>[]> {
+  const rows = await tx
+    .select({ version: skillRevisions.version })
+    .from(skillRevisions)
+    .where(and(
+      eq(skillRevisions.workspaceId, workspaceId),
+      eq(skillRevisions.skillId, skillId),
+      isNotNull(skillRevisions.version),
+    ));
+
+  const parsed: ReturnType<typeof parseVersion>[] = [];
+  for (const r of rows) {
+    if (r.version === null) continue;
+    try {
+      parsed.push(parseVersion(r.version));
+    } catch {
+      // Dropped and logged: the publish proceeds, and the bad row stays visible. Structured
+      // JSON on stderr, matching how the server reports at `server.ts:243` — a plain
+      // `console.warn` is invisible to a log pipeline that parses lines as JSON.
+      process.stderr.write(
+        `${JSON.stringify({
+          level: 'warn',
+          msg: 'skills-store: unreadable stored version ignored',
+          skill_id: skillId,
+          version: r.version,
+        })}\n`,
+      );
+    }
+  }
+  return parsed;
+}
 
 /** Public skill view (excludes soft-deleted skills). */
 export interface SkillView {
@@ -311,16 +357,34 @@ export function createSkillsStore(db: Db, workspaceId: string): SkillsStore {
     async addRevision(skillId, rev) {
       const revisionId = `rev_${createId()}`;
       await db.transaction(async (tx) => {
-        await tx.insert(skillRevisions).values({
-          revisionId,
-          workspaceId,
-          skillId,
-          ...(rev.version !== undefined ? { version: rev.version } : {}),
-          payload: rev.payload,
-          contentHash: rev.contentHash,
-          frontmatter: rev.frontmatter,
-          skillMd: rev.skillMd,
-        });
+        // One semantic version, one revision. The read happens INSIDE the transaction; even
+        // so, two simultaneous publishes both pass it, and it is migration 0015's unique index
+        // that closes the window — hence the `catch` just below.
+        if (rev.version !== undefined) {
+          assertPublishable(
+            parseVersion(rev.version),
+            await existingVersions(tx, workspaceId, skillId),
+          );
+        }
+        try {
+          await tx.insert(skillRevisions).values({
+            revisionId,
+            workspaceId,
+            skillId,
+            ...(rev.version !== undefined ? { version: rev.version } : {}),
+            payload: rev.payload,
+            contentHash: rev.contentHash,
+            frontmatter: rev.frontmatter,
+            skillMd: rev.skillMd,
+          });
+        } catch (err) {
+          // Without this, the race the index catches would surface as a 500 — a raw
+          // constraint error — instead of naming what happened to the publisher.
+          if (isUniqueViolation(err) && rev.version !== undefined) {
+            throw new VersionRejectedError('duplicate', `version ${rev.version} already exists`);
+          }
+          throw err;
+        }
         await tx
           .update(skills)
           .set({

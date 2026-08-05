@@ -1,4 +1,4 @@
-import { NonRetriableOperationError, type WebhookEventType, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
+import { NonRetriableOperationError, VersionRejectedError, type WebhookEventType, DEFAULT_WORKSPACE_ID } from '@usetheo/skills';
 import type PgBoss from 'pg-boss';
 
 import { type Logger } from './logger.js';
@@ -65,7 +65,13 @@ export function composeTerminalHooks(...hooks: OnOperationTerminal[]): OnOperati
 }
 
 function isBusinessRule(err: unknown): boolean {
-  return err instanceof SkillAlreadyExistsError || err instanceof NonRetriableOperationError;
+  // `VersionRejectedError` is a business rule, not a transient failure: republishing `1.2.0`
+  // will be refused on the tenth attempt exactly as on the first. Without this the job would
+  // retry with backoff until exhausted, and the publisher would see "failed" much later,
+  // without the cause.
+  return err instanceof SkillAlreadyExistsError
+    || err instanceof NonRetriableOperationError
+    || err instanceof VersionRejectedError;
 }
 
 /**

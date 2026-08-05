@@ -108,6 +108,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          # A catraca do portao de idioma compara contra `git merge-base origin/develop HEAD`.
+          # Com o default `fetch-depth: 1` nao ha historico e o merge-base nao e computavel —
+          # o portao passaria a pular a comparacao em TODO PR, avisando, mas sem proteger.
+          # Ler de HEAD nao serve: em `pull_request` o checkout e do merge commit, que ja
+          # contem as mudancas do PR.
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0

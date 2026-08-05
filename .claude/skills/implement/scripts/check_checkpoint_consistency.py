@@ -19,11 +19,13 @@ fails loudly if a committed task is missing from the checkpoint, so the omission
 cannot survive to handoff.
 
 Honest limits:
-  - The backward check relies on the commit-message convention (`T{N.M}` in the body).
+  - The backward check relies on the commit-message convention (`T{N.M}` in the SUBJECT).
     A task committed WITHOUT its id in the message is invisible to it — so this
     complements, not replaces, the phase-completeness gate.
-  - The git scan is bounded to the most recent commits (default 500) to stay cheap on
-    large repos; a task buried deeper than that is not cross-checked.
+  - The backward walk is bounded to THIS plan's range — it stops at the oldest commit
+    the checkpoint records, because every plan numbers tasks `T{N}.{M}` and an unbounded
+    walk collides with the repository's own past. With nothing committed yet there is no
+    anchor and the backward direction is skipped.
 
 Exit codes (CLI): 0 — PASS/SKIP; 1 — FAIL (inconsistency); 2 — invocation error.
 """
@@ -87,13 +89,24 @@ def _commit_exists(repo_root: Path, sha: str) -> bool:
     return result.returncode == 0
 
 
-def _task_ids_in_git_history(repo_root: Path, candidate_ids: list[str]) -> set[str]:
-    """Of `candidate_ids`, which appear (as whole tokens) in a recent commit body.
+def _task_ids_in_git_history(
+    repo_root: Path, candidate_ids: list[str], recorded_shas: set[str]
+) -> set[str]:
+    """Of `candidate_ids`, which appear (as whole tokens) in a commit OF THIS PLAN.
 
-    One git pass, parsed locally — cheaper and more precise than one `git log --grep`
-    per id. Records are NUL-separated (`-z`); each is `<sha>\\x1f<full message>`.
+    The walk is bounded to this plan's range: it starts at HEAD and stops at the OLDEST
+    commit the checkpoint records. Everything before that belongs to another plan.
+
+    The bound is not an optimisation — it is correctness. Every plan in this repository
+    numbers its tasks `T{N}.{M}`, so an unbounded walk makes a mature repository collide
+    with its own past. Measured on english-only-sweep: 8 HIGH findings for T2.1..T5.1,
+    every one of them sourced from the M32 and M9 plans' commits, none attempted by the
+    run being validated. A gate that always fires is a gate people learn to ignore.
+
+    With no recorded SHA there is no anchor, so the backward direction is SKIPPED — the
+    caller reports that, rather than scanning all of history and inventing findings.
     """
-    if not candidate_ids:
+    if not candidate_ids or not recorded_shas:
         return set()
     try:
         result = subprocess.run(
@@ -106,15 +119,36 @@ def _task_ids_in_git_history(repo_root: Path, candidate_ids: list[str]) -> set[s
     if result.returncode != 0:
         return set()
 
-    patterns = {tid: re.compile(rf"\b{re.escape(tid)}\b") for tid in candidate_ids}
+    # A STRUCTURED reference, not any mention. The id counts when it appears in the subject
+    # (`feat(T1.1): …`) or opens a body line as a trailer (`T1.1: <ref>`, the convention this
+    # module documents). It does NOT count mid-sentence: a commit whose body explains
+    # "T2.1 renames the exports and comes later" is describing future work, not claiming it
+    # shipped. Measured on english-only-sweep: 4 false HIGH findings from the author's own
+    # prose about the phases still ahead.
+    #
+    # Heuristic, and it says so: `T2.1 — comes later` at the start of a line would still be
+    # read as a trailer. The failure mode is a false positive on unusual phrasing, which is
+    # visible and arguable, rather than a silent miss.
+    subject_pats = {tid: re.compile(rf"\b{re.escape(tid)}\b") for tid in candidate_ids}
+    trailer_pats = {
+        tid: re.compile(rf"^\s*{re.escape(tid)}\b\s*[:\u2014-]", re.MULTILINE)
+        for tid in candidate_ids
+    }
     found: set[str] = set()
+    unseen = set(recorded_shas)
     for record in result.stdout.split("\x00"):
         if not record.strip():
             continue
-        _sha, _sep, body = record.partition("\x1f")
-        for tid, pat in patterns.items():
-            if tid not in found and pat.search(body):
+        sha, _sep, body = record.partition("\x1f")
+        unseen.discard(sha)
+        subject, _nl, rest = body.partition("\n")
+        for tid in candidate_ids:
+            if tid in found:
+                continue
+            if subject_pats[tid].search(subject) or trailer_pats[tid].search(rest):
                 found.add(tid)
+        if not unseen:
+            break  # oldest recorded commit reached — earlier history is another plan
     return found
 
 
@@ -142,8 +176,13 @@ def check_checkpoint_consistency(
                 "exists in the repository. The checkpoint points at a fabricated or "
                 "stale SHA."))
 
-    # Backward: every plan task referenced by a real commit must be committed here.
-    referenced = _task_ids_in_git_history(repo_root, plan_task_ids)
+    # Backward: every plan task referenced by a real commit of THIS PLAN must be
+    # committed here. The recorded SHAs bound the walk — see _task_ids_in_git_history.
+    recorded_shas = {
+        str(t["commit_sha"]) for t in tasks
+        if t.get("status") == "committed" and t.get("commit_sha")
+    }
+    referenced = _task_ids_in_git_history(repo_root, plan_task_ids, recorded_shas)
     for tid in plan_task_ids:
         if tid not in referenced:
             continue

@@ -1,39 +1,41 @@
 # Changelog
 
-Todas as mudanças notáveis deste projeto são documentadas neste arquivo.
+All notable changes to this project are documented in this file.
 
-O formato segue [Keep a Changelog](https://keepachangelog.com/) e o projeto adere
-ao [Semantic Versioning](https://semver.org/).
+The format follows [Keep a Changelog](https://keepachangelog.com/) and the project
+adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Added
 
+- API surface gate: renaming a published export or a type FIELD now fails a test before publish. Two levels, because the name list alone is byte-identical under a field rename — measured (#T1.3)
+- Language gate with a ratchet: four tiers of PT-BR are counted against `tests/repo/language-budget.json`, which may only shrink. The base is `git merge-base`, never `HEAD` — on a `pull_request` the checkout is the merge commit, so `HEAD` compares the PR with itself. Baseline: A=6 B=62 C=1772 D=32 (#T0.1)
+- Five HIGH CVEs in dev-only transitive dependencies were untracked (#151). `@hono/node-server` direct is already fixed at `2.0.12`; the transitive `1.19.14` under `@modelcontextprotocol/sdk` remains — "we bumped hono" is satisfied and does not close #126
+- Plan `english-only-sweep` v1.2, SHIPPABLE (90.4). v1.0 was INVALID over four caps, three of them real defects in the plan itself — including a reference to a task `T4.3` that never existed
+
 ### Changed
 
-- **O texto que o usuário lê passa a ser inglês.** O produto é monolíngue em inglês — `api-keys` e `billing` sempre estiveram assim — e as superfícies de skills respondiam em português, deixando o dashboard bilíngue conforme a tela. Traduzidos os `hints` do diagnóstico de descobribilidade (o texto de backend mais visível ao usuário, exibido na tela de autoria) e as mensagens de erro tipadas dos handlers. Comentários de código e identificadores internos permanecem como estão: são para quem mantém, não para quem usa.
-
-- **Os testes unitários ao lado do código passam a rodar.** `pnpm test` do `packages/api` incluía apenas `tests/contract/**`, então tudo em `src/**/*.test.ts` ficava fora do gate. Eram dois arquivos e 12 testes — entre eles o do **gate de regressão do M34**, reportado como "6 passed" numa implementação sem que o CI o tivesse executado uma única vez. Um teste que não roda não protege nada, por mais verde que pareça rodando à mão. Os 62 de `tests/integration/` seguem fora de propósito (exigem Postgres, config própria) — essa metade continua sendo o #132.
-
-### Deprecated
+- Hint duplication is now detectable in all five branches, not just the draft one. Injecting a repeated `hints.push` failed **zero** tests before; it fails three now (#m34)
+- The MCP boot guard no longer depends on a Portuguese phrase. `not.toContain('THEOSKILL_REGISTRY é obrigatório')` would go vacuously true the moment the producer is translated; it now cites the environment variable name, which does not translate (#m34)
+- Discoverability eval dataset v3: queries translated to English. The registry entries they target are still Portuguese, so a recall drop between v2 and v3 is a LANGUAGE effect, not a product regression — each case records its v2 query for comparison (#T6.3)
+- User-facing text became English: discoverability hints and typed handler error messages
+- Unit tests next to the code now run. `pnpm test` in `packages/api` only included `tests/contract/**`, so 12 tests — among them the M34 regression gate — had never been executed by CI. The 62 integration tests remain out of scope (#132)
+- This CHANGELOG is now written in English, one line per entry
+- Unreadable stored versions are reported as structured JSON on stderr, matching `server.ts`, instead of a bare `console.warn` a log pipeline cannot parse (#T4.1)
 
 ### Removed
 
+- `prototype/` left the repository: interface study, 17 files, and a second pnpm workspace nobody publishes. This capability's UI is built in `theo-cloud/dashboard` (#88d4fa4)
+
 ### Fixed
 
-- **Na autoria, o diagnóstico sempre acusava falta de vetor — e encobria o que o autor podia corrigir.** Um rascunho não tem revisão, logo não tem vetor: acusá-lo disso reporta como defeito uma consequência de ainda não ter publicado, e o conselho *"Republique para gerar o vetor"* é impossível de seguir para algo nunca publicado. Pior: por disparar sempre, `no_embedding` **dominava o veredito** e soterrava as duas causas acionáveis — descrição genérica e colisão com uma vizinha. O autor perguntava "minha descrição está boa?" e a tela respondia sobre outra coisa (#144)
-
-  A distinção já existia no protocolo e o código não a honrava: `has_embedding` **ausente** significa rascunho; `false` significa publicada e sem vetor — um achado real, com ação possível. O domínio passa a modelar isso como união discriminada (`{publicada: false} | {publicada: true, temVetor}`), porque "não publicada e com vetor" não é um estado que deva ser representável. Um rascunho sem causa alguma recebe a ressalva de que ainda não está no acervo — calar sobre isso o deixaria achando que já está resolvido.
-
-- **Um rascunho recebia o mesmo aviso duas vezes, em dois idiomas.** Um `git merge` reintroduziu o bloco inteiro do hint de rascunho numa segunda cópia, e a função passou a empurrar **dois** hints para o mesmo caso — o traduzido e o original. Nenhum teste pegou: todos assertavam **presença** (`toContain`, `toMatch`), e presença é indiferente à duplicata. O gate de CHANGELOG foi quem expôs, por um caminho indireto — apontou o arquivo tocado sem entrada, e a duplicação apareceu ao ler o diff do merge. O teste novo trava a cardinalidade, não só o conteúdo (#m34)
-
-- **O dataset do M34 apontava para uma skill que só existe na fixture do teste.** `sk_cambio_v1` é criada pelo `seed()` de `tests/integration/m34-discoverability.integration.test.ts` — e o campo `_honestidade` do próprio dataset afirmava *"roda contra o ACERVO REAL do workspace, não contra fixture"*. Um dataset que semeia a skill que vai procurar mede o semeador, não a descoberta. Agora os identificadores são do acervo real, e o runner consulta se cada skill ainda existe: uma que saiu do acervo é reportada e **não** conta como regressão, porque *"a descoberta piorou"* e *"não há o que descobrir"* são fatos diferentes, com donos diferentes (#m34)
-
-- **O gate de descobribilidade do M34 era inerte: nunca podia reprovar.** O runner lia `body.skills` e a busca devolve **`results`** (`handlers/retrieve.ts:125-127`), então a lista vinha vazia em toda consulta, nenhum caso era achado e a primeira execução gravava uma baseline de zeros. A partir dali não existia regressão detectável — não há como regredir de "nunca foi achada". O critério *"uma skill que era achada e deixa de ser reprova o gate"* estava mecanicamente satisfeito e semanticamente vazio, e um gate que não pode reprovar é pior que gate nenhum: ocupa o lugar de um (#m34)
-
-  A leitura saiu do script para `src/eval/retrieve-response.ts`, testada: nada em `eval/` fica fora do `tsconfig` por acaso, e nada em `eval/` era alcançado por teste — que é exatamente como o defeito sobreviveu a ser escrito.
-
-### Security
+- Two different revisions could occupy the same semantic version. `assertPublishable` existed, had tests, and had **never run in production** — no caller. Migration `0015` adds a partial unique index on `(workspace_id, skill_id, version)`; the guard gives a readable cause, the index survives concurrent publishes (#code-review-2)
+- Three `/implement` gates measured the wrong thing and failed correct work: task ids collided across plans, symbols were harvested from generated data files, and the 500-line budget applied to an append-only CHANGELOG (F-6, F-7, F-8)
+- Draft skills were told to "republish to generate the vector" — impossible for something never published, and it buried the two causes the author could act on (#144)
+- A draft received the same warning twice, in two languages: a merge reintroduced a whole hint block and presence assertions are indifferent to duplication (#m34)
+- The M34 dataset pointed at a skill that only exists in the test fixture, while claiming to run against the real registry (#m34)
+- The M34 discoverability gate could never fail: the runner read `body.skills` while search returns `results`, so every query came back empty and the first run recorded a baseline of zeros. A gate that cannot fail is worse than no gate — it occupies the place of one (#m34)
 
 ## [0.15.0] - 2026-08-04
 

@@ -82,6 +82,13 @@ jobs:
       - name: portão de artefato — manifesto vs tarball
         run: node scripts/check-publish-artifacts.mjs
 
+      # Recusa publicar uma SUPERFÍCIE que ninguém aprovou. O portão acima olha quais ARQUIVOS
+      # chegam ao consumidor; este olha quais NOMES e quais CAMPOS. Sem ele, renomear um export
+      # sobe como patch e quebra o `tsc` de quem está no `^x.y` — e o npm não permite unpublish
+      # depois de 72h. Roda DEPOIS do build porque o nível de campo lê os `.d.ts` emitidos.
+      - name: API surface gate — published names and fields
+        run: pnpm run test:repo
+
       # `--no-git-checks` porque o publish roda a partir da tag, com a árvore limpa que o
       # checkout produziu; o pnpm reclamaria de HEAD destacado sem isso.
       - name: publica @usetheo/skills

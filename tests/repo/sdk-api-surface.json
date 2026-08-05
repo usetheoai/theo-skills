@@ -1,0 +1,50 @@
+[
+  {
+    "name": "ClassifiedError",
+    "kind": "type"
+  },
+  {
+    "name": "classifyError",
+    "kind": "value"
+  },
+  {
+    "name": "classifyHttpStatus",
+    "kind": "value"
+  },
+  {
+    "name": "createRemoteSkillsManager",
+    "kind": "value"
+  },
+  {
+    "name": "ErrorKind",
+    "kind": "type"
+  },
+  {
+    "name": "RemoteSkillsManager",
+    "kind": "type"
+  },
+  {
+    "name": "Skill",
+    "kind": "type"
+  },
+  {
+    "name": "SkillsApiError",
+    "kind": "value"
+  },
+  {
+    "name": "SkillsClientOptions",
+    "kind": "type"
+  },
+  {
+    "name": "TheokitSkill",
+    "kind": "type"
+  },
+  {
+    "name": "withWorkspace",
+    "kind": "value"
+  },
+  {
+    "name": "WorkspaceClient",
+    "kind": "type"
+  }
+]

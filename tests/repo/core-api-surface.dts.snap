@@ -1,0 +1,3395 @@
+// ==== contract/index.d.ts ====
+import { z } from 'zod';
+/**
+ * Operation lifecycle states (M2). In-progress states reflect the job type
+ * (CREATING/UPDATING/DELETING); terminal states are ACTIVE (succeeded) / FAILED.
+ */
+export declare const OperationStateSchema: z.ZodEnum<["CREATING", "UPDATING", "DELETING", "ACTIVE", "FAILED"]>;
+export type OperationState = z.infer<typeof OperationStateSchema>;
+/** Webhook event types emitted on operation completion. */
+export declare const WebhookEventTypeSchema: z.ZodEnum<["skill.created", "skill.updated", "skill.deleted"]>;
+export type WebhookEventType = z.infer<typeof WebhookEventTypeSchema>;
+/** Webhook payload delivered to subscribed endpoints. */
+export declare const WebhookPayloadSchema: z.ZodObject<{
+    event_id: z.ZodString;
+    event_type: z.ZodEnum<["skill.created", "skill.updated", "skill.deleted"]>;
+    data: z.ZodObject<{
+        skill_id: z.ZodString;
+        operation_id: z.ZodString;
+        state: z.ZodEnum<["ACTIVE", "FAILED"]>;
+        occurred_at: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        skill_id: string;
+        operation_id: string;
+        state: "ACTIVE" | "FAILED";
+        occurred_at: string;
+    }, {
+        skill_id: string;
+        operation_id: string;
+        state: "ACTIVE" | "FAILED";
+        occurred_at: string;
+    }>;
+}, "strip", z.ZodTypeAny, {
+    event_id: string;
+    event_type: "skill.created" | "skill.updated" | "skill.deleted";
+    data: {
+        skill_id: string;
+        operation_id: string;
+        state: "ACTIVE" | "FAILED";
+        occurred_at: string;
+    };
+}, {
+    event_id: string;
+    event_type: "skill.created" | "skill.updated" | "skill.deleted";
+    data: {
+        skill_id: string;
+        operation_id: string;
+        state: "ACTIVE" | "FAILED";
+        occurred_at: string;
+    };
+}>;
+export type WebhookPayload = z.infer<typeof WebhookPayloadSchema>;
+/** Input for POST /v1/webhookEndpoints. `event_types` empty/absent = all events. */
+export declare const WebhookEndpointCreateSchema: z.ZodObject<{
+    url: z.ZodString;
+    event_types: z.ZodOptional<z.ZodArray<z.ZodEnum<["skill.created", "skill.updated", "skill.deleted"]>, "many">>;
+}, "strip", z.ZodTypeAny, {
+    url: string;
+    event_types?: ("skill.created" | "skill.updated" | "skill.deleted")[] | undefined;
+}, {
+    url: string;
+    event_types?: ("skill.created" | "skill.updated" | "skill.deleted")[] | undefined;
+}>;
+export type WebhookEndpointCreate = z.infer<typeof WebhookEndpointCreateSchema>;
+/** Public webhook-endpoint representation (secret is NEVER included here). */
+export declare const WebhookEndpointSchema: z.ZodObject<{
+    id: z.ZodString;
+    url: z.ZodString;
+    active: z.ZodBoolean;
+    event_types: z.ZodNullable<z.ZodArray<z.ZodEnum<["skill.created", "skill.updated", "skill.deleted"]>, "many">>;
+    create_time: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    active: boolean;
+    url: string;
+    event_types: ("skill.created" | "skill.updated" | "skill.deleted")[] | null;
+    id: string;
+    create_time: string;
+}, {
+    active: boolean;
+    url: string;
+    event_types: ("skill.created" | "skill.updated" | "skill.deleted")[] | null;
+    id: string;
+    create_time: string;
+}>;
+export type WebhookEndpoint = z.infer<typeof WebhookEndpointSchema>;
+/** Create response — the only time `secret` is ever returned. */
+export declare const WebhookEndpointCreatedSchema: z.ZodObject<{
+    id: z.ZodString;
+    url: z.ZodString;
+    active: z.ZodBoolean;
+    event_types: z.ZodNullable<z.ZodArray<z.ZodEnum<["skill.created", "skill.updated", "skill.deleted"]>, "many">>;
+    create_time: z.ZodString;
+} & {
+    secret: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    active: boolean;
+    url: string;
+    event_types: ("skill.created" | "skill.updated" | "skill.deleted")[] | null;
+    id: string;
+    create_time: string;
+    secret: string;
+}, {
+    active: boolean;
+    url: string;
+    event_types: ("skill.created" | "skill.updated" | "skill.deleted")[] | null;
+    id: string;
+    create_time: string;
+    secret: string;
+}>;
+export type WebhookEndpointCreated = z.infer<typeof WebhookEndpointCreatedSchema>;
+/** Input payload for POST /v1/skills. Minimal in M0 (Theokit-aligned fields). */
+export declare const SkillInputSchema: z.ZodEffects<z.ZodObject<{
+    skill_id: z.ZodString;
+    name: z.ZodString;
+    description: z.ZodDefault<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    description: string;
+    skill_id: string;
+}, {
+    name: string;
+    skill_id: string;
+    description?: string | undefined;
+}>, {
+    name: string;
+    description: string;
+    skill_id: string;
+}, {
+    name: string;
+    skill_id: string;
+    description?: string | undefined;
+}>;
+export type SkillInput = z.infer<typeof SkillInputSchema>;
+/** Public skill representation (GET /v1/skills/{id}). */
+export declare const SkillSchema: z.ZodObject<{
+    skill_id: z.ZodString;
+    name: z.ZodString;
+    description: z.ZodString;
+    state: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    description: string;
+    skill_id: string;
+    state: string;
+}, {
+    name: string;
+    description: string;
+    skill_id: string;
+    state: string;
+}>;
+export type Skill = z.infer<typeof SkillSchema>;
+/** Public operation representation (GET /v1/operations/{id}). */
+export declare const OperationSchema: z.ZodObject<{
+    operation_id: z.ZodString;
+    skill_id: z.ZodString;
+    type: z.ZodString;
+    state: z.ZodEnum<["CREATING", "UPDATING", "DELETING", "ACTIVE", "FAILED"]>;
+    error: z.ZodNullable<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    type: string;
+    skill_id: string;
+    operation_id: string;
+    state: "CREATING" | "UPDATING" | "DELETING" | "ACTIVE" | "FAILED";
+    error: string | null;
+}, {
+    type: string;
+    skill_id: string;
+    operation_id: string;
+    state: "CREATING" | "UPDATING" | "DELETING" | "ACTIVE" | "FAILED";
+    error: string | null;
+}>;
+export type Operation = z.infer<typeof OperationSchema>;
+/** Retrieval strategy (M4). `hybrid` fuses lexical + vector via RRF. */
+export declare const RetrieveStrategySchema: z.ZodEnum<["vector", "keyword", "hybrid"]>;
+export type RetrieveStrategy = z.infer<typeof RetrieveStrategySchema>;
+export declare const RetrieveParamsSchema: z.ZodObject<{
+    query: z.ZodString;
+    top_k: z.ZodDefault<z.ZodNumber>;
+    strategy: z.ZodDefault<z.ZodEnum<["vector", "keyword", "hybrid"]>>;
+    category: z.ZodOptional<z.ZodString>;
+    /**
+     * Opt-in do ciclo de vida (M32). Ausentes = o default seguro: só `active` e só habilitadas.
+     *
+     * Três flags independentes, e não um único `include_hidden`, porque as perguntas são
+     * diferentes: um autor conferindo os próprios rascunhos não quer ver as descontinuadas do
+     * time, e um operador auditando o que saiu de circulação não quer rascunho alheio no meio.
+     *
+     * `z.coerce.boolean()` seria uma armadilha aqui — ele considera QUALQUER string não-vazia
+     * verdadeira, então `include_draft=false` viria como `true`. A comparação explícita com
+     * `'true'`/`'1'` é o que faz a negação chegar como negação.
+     */
+    include_draft: z.ZodEffects<z.ZodOptional<z.ZodEnum<["true", "false", "1", "0"]>>, boolean, "0" | "1" | "true" | "false" | undefined>;
+    include_deprecated: z.ZodEffects<z.ZodOptional<z.ZodEnum<["true", "false", "1", "0"]>>, boolean, "0" | "1" | "true" | "false" | undefined>;
+    include_disabled: z.ZodEffects<z.ZodOptional<z.ZodEnum<["true", "false", "1", "0"]>>, boolean, "0" | "1" | "true" | "false" | undefined>;
+}, "strip", z.ZodTypeAny, {
+    query: string;
+    top_k: number;
+    strategy: "vector" | "keyword" | "hybrid";
+    include_draft: boolean;
+    include_deprecated: boolean;
+    include_disabled: boolean;
+    category?: string | undefined;
+}, {
+    query: string;
+    category?: string | undefined;
+    top_k?: number | undefined;
+    strategy?: "vector" | "keyword" | "hybrid" | undefined;
+    include_draft?: "0" | "1" | "true" | "false" | undefined;
+    include_deprecated?: "0" | "1" | "true" | "false" | undefined;
+    include_disabled?: "0" | "1" | "true" | "false" | undefined;
+}>;
+export type RetrieveParamsInput = z.infer<typeof RetrieveParamsSchema>;
+/** A scored retrieve result. Score semantics are STRATEGY-DEPENDENT (cosine for
+ * vector ~0.7-1.0, ts_rank for keyword, RRF fraction ~1/60 for hybrid) — clients
+ * order by it; they MUST NOT compare scores across strategies. */
+export declare const RetrieveResultSchema: z.ZodObject<{
+    skill_id: z.ZodString;
+    score: z.ZodNumber;
+    name: z.ZodString;
+    description: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    score: number;
+    name: string;
+    description: string;
+    skill_id: string;
+}, {
+    score: number;
+    name: string;
+    description: string;
+    skill_id: string;
+}>;
+export type RetrieveResult = z.infer<typeof RetrieveResultSchema>;
+/** Papéis de workspace (M13). */
+export declare const MemberRoleSchema: z.ZodEnum<["owner", "admin", "member"]>;
+/** Corpo de `PATCH /v1/members/{userId}`. */
+export declare const MemberChangeRoleSchema: z.ZodObject<{
+    role: z.ZodEnum<["owner", "admin", "member"]>;
+}, "strip", z.ZodTypeAny, {
+    role: "owner" | "admin" | "member";
+}, {
+    role: "owner" | "admin" | "member";
+}>;
+/** Corpo de `PUT /v1/members`. */
+export declare const MemberAddSchema: z.ZodObject<{
+    user_id: z.ZodString;
+    role: z.ZodEnum<["owner", "admin", "member"]>;
+}, "strip", z.ZodTypeAny, {
+    role: "owner" | "admin" | "member";
+    user_id: string;
+}, {
+    role: "owner" | "admin" | "member";
+    user_id: string;
+}>;
+
+// ==== domain/dip/auth-verifier.d.ts ====
+import { type Principal } from '../principal.js';
+/**
+ * Port de autenticação (DIP) — o domínio declara o contrato, a infraestrutura implementa.
+ *
+ * A pergunta que ele responde é **"de quem é esta credencial?"**, não "ela é válida?".
+ * Isso é deliberado e é o que torna o multi-tenant seguro: o `workspaceId` do
+ * {@link Principal} devolvido é o que TODA consulta filtra, e ele vem da credencial —
+ * nunca do corpo da requisição, que o cliente controla.
+ *
+ * O theo-memory carrega também um `verify(token): Promise<boolean>` legado, mantido lá por
+ * uma janela de migração com ~12 consumidores. Aqui ele NÃO existe: o theo-skills não tem
+ * esses consumidores, e nascer já com o contrato certo evita a dívida em vez de herdá-la
+ * (`parsimony-ladder` rung 1 — o código que não se escreve não precisa ser removido depois).
+ */
+export interface AuthVerifier {
+    /**
+     * Resolve o {@link Principal} dono da credencial, ou `null` quando ela é inválida,
+     * revogada ou expirada.
+     *
+     * Implementações DEVEM:
+     *  - comparar segredos em **tempo constante** (RFC 6750 + OWASP REST cheatsheet), com
+     *    curto-circuito por comprimento — `crypto.timingSafeEqual` lança `RangeError` em
+     *    buffers de tamanhos diferentes, e deixar esse throw escapar transformaria um
+     *    palpite de tamanho errado num 500 distinguível de um 401, que é o oráculo que a
+     *    comparação em tempo constante existe para fechar;
+     *  - devolver `null` (não lançar) para credencial revogada ou expirada;
+     *  - LANÇAR quando o backend de verificação está indisponível — o middleware traduz
+     *    isso em `503`, e devolver `null` nesse caso confundiria "não sei" com "não é
+     *    válido", negando acesso a quem tem direito e escondendo a indisponibilidade.
+     *
+     * @param token — o token cru extraído de `Authorization: Bearer <token>` (RFC 6750 § 2.1).
+     */
+    resolvePrincipal(token: string): Promise<Principal | null>;
+}
+
+// ==== domain/discoverability.d.ts ====
+/**
+ * M34 — diagnóstico de descobribilidade: a skill é achada pela intenção que deveria encontrá-la?
+ *
+ * O `:validate` do M30 responde se a skill é **válida**. Nada respondia se ela é **achável**, que
+ * é a promessa do produto — e a diferença importa porque uma skill válida e inachável é, para
+ * quem procura, indistinguível de uma que não existe.
+ *
+ * **O resultado nomeia a CAUSA, não só o número.** Um recall sem diagnóstico não diz ao autor o
+ * que corrigir: ele lê `0.3` e não sabe se o problema é a descrição, a falta de vetor, ou uma
+ * vizinha que rouba a consulta. As três exigem correções opostas.
+ *
+ * **Nada aqui executa a skill.** Não invoca script, não abre sandbox, não carrega runtime — a
+ * fronteira "execução é responsabilidade do Theokit" permanece intacta, e este módulo é puro:
+ * recebe metadados e vizinhas já medidas, devolve diagnóstico.
+ */
+/** Vocabulário FECHADO de causas. Um rótulo novo é decisão de produto, não detalhe de código. */
+export declare const DISCOVERABILITY_CAUSES: {
+    /** A descrição não diz QUANDO usar a skill — só o que ela é. */
+    readonly DESCRIPTION_TOO_GENERIC: "description_too_generic";
+    /** Sem vetor: a skill só aparece para quem já sabe o nome. */
+    readonly NO_EMBEDDING: "no_embedding";
+    /** Outra skill do acervo ocupa o mesmo espaço semântico e vai roubar a consulta. */
+    readonly COLLIDES_WITH_SIBLING: "collides_with_sibling";
+};
+export type DiscoverabilityCause = (typeof DISCOVERABILITY_CAUSES)[keyof typeof DISCOVERABILITY_CAUSES];
+/** Uma skill do acervo e o quanto ela se parece com a candidata. */
+export interface CandidataVizinha {
+    readonly skillId: string;
+    /** 0..1 — quanto maior, mais as duas disputam a mesma consulta. */
+    readonly similaridade: number;
+}
+/**
+ * O estado de publicação da candidata — e, só quando publicada, se a revisão tem vetor.
+ *
+ * União discriminada em vez de um `hasEmbedding: boolean` porque **"não publicada e com vetor"
+ * não existe**: vetor é propriedade de uma revisão, e um rascunho não tem revisão. Com o booleano
+ * plano esse estado era representável, e a consequência apareceu em produção — a tela de autoria
+ * mandava `false` para um rascunho e o diagnóstico o acusava de não ter vetor (theo-skills#144).
+ *
+ * A distinção não é formal: ela muda qual pergunta está sendo respondida.
+ *
+ * | | Pergunta do autor | `no_embedding` significa |
+ * |---|---|---|
+ * | rascunho | "minha descrição está boa?" | nada — ele não tem revisão |
+ * | publicada | "por que não me acham?" | achado real: a ingestão falhou ou não rodou |
+ */
+export type EstadoDaRevisao = {
+    readonly publicada: false;
+} | {
+    readonly publicada: true;
+    readonly temVetor: boolean;
+};
+export interface EntradaDiagnostico {
+    readonly name: string;
+    readonly description: string;
+    readonly revisao: EstadoDaRevisao;
+    readonly vizinhas: readonly CandidataVizinha[];
+}
+export interface Diagnostico {
+    readonly discoverable: boolean;
+    readonly causes: DiscoverabilityCause[];
+    /** O que FAZER, por causa. Sem isto o autor lê o rótulo e continua sem o próximo passo. */
+    readonly hints: string[];
+}
+/**
+ * Diagnostica sem executar nada.
+ *
+ * As causas **se acumulam**: reportar só a primeira faria o autor corrigir uma, republicar, e
+ * descobrir a seguinte — um ciclo de publicação por defeito. A ordem é fixa para que o relatório
+ * não dance entre execuções.
+ */
+export declare function diagnosticarDescobribilidade(entrada: EntradaDiagnostico): Diagnostico;
+
+// ==== domain/embedders/index.d.ts ====
+/** Public barrel for the embedders domain (port + adapters + guard). */
+export { type EmbeddingProvider, type EmbedOptions, EmbedderError, EMBEDDING_DIM, assertEmbeddingDim, } from './types.js';
+export { createStubEmbedder, stubEmbed, type StubEmbedderOptions } from './stub-embedder.js';
+export { createOpenAIEmbedder, type OpenAIEmbedderOptions, type OpenAIEmbeddingsClient, } from './openai-embedder.js';
+
+// ==== domain/embedders/openai-embedder.d.ts ====
+/**
+ * OpenAI embedding provider (SDK). Adapted from theo-rag (Rule 9), simplified to
+ * the pinned 1536-dim contract. The `local` adapter in the DoD is THIS adapter
+ * with a configured `baseURL` (openai-compatible server) — one code path (ADR D1).
+ *
+ * The `openai` package is an optionalDependency: it is imported LAZILY so a
+ * deployment without it (CI / stub-only) never fails at module load.
+ */
+import { type EmbeddingProvider } from './types.js';
+/** Minimal structural type of the OpenAI embeddings client we depend on. */
+export interface OpenAIEmbeddingsClient {
+    embeddings: {
+        create(params: {
+            model: string;
+            input: string[];
+            dimensions?: number;
+        }, options?: {
+            signal?: AbortSignal;
+        }): Promise<{
+            data: {
+                embedding: number[];
+            }[];
+        }>;
+    };
+}
+/** Factory for the SDK client (test seam — lets tests assert baseURL wiring). */
+export type OpenAIClientFactory = (config: {
+    apiKey: string;
+    baseURL?: string;
+}) => OpenAIEmbeddingsClient;
+export interface OpenAIEmbedderOptions {
+    /** Resolved model. Default `text-embedding-3-small` (1536-dim). */
+    model?: string;
+    /** Requested dimension (Matryoshka). Default `EMBEDDING_DIM` (1536). */
+    dimensions?: number;
+    /** API key (else `OPENAI_API_KEY`). */
+    apiKey?: string;
+    /** Base URL for an openai-compatible endpoint (the "local" deployment). */
+    baseURL?: string;
+    /** Injected client (test seam / advanced reuse). Skips lazy SDK load. */
+    client?: OpenAIEmbeddingsClient;
+    /** Injected client factory (test seam for the baseURL/lazy-load path). */
+    clientFactory?: OpenAIClientFactory;
+    /** Max retries on transient errors. Default 3. */
+    maxRetries?: number;
+    /** Initial backoff (ms). Default 500. */
+    initialBackoffMs?: number;
+    /**
+     * Max characters per input — a safety truncation so an oversized SKILL.md body
+     * never trips the model's context limit (a 400 the embedder cannot recover
+     * from). ~4 chars/token keeps the default well under the 8191-token ceiling.
+     */
+    maxInputChars?: number;
+}
+/** Build an OpenAI `EmbeddingProvider`. Injected `client` skips the lazy SDK load. */
+export declare function createOpenAIEmbedder(opts?: OpenAIEmbedderOptions): EmbeddingProvider;
+
+// ==== domain/embedders/stub-embedder.d.ts ====
+import { type EmbeddingProvider } from './types.js';
+export interface StubEmbedderOptions {
+    /** Vector length. Default `EMBEDDING_DIM` (1536). Must be a positive integer. */
+    dimensions?: number;
+}
+/** Deterministic 1536-dim helper (used by test factories). */
+export declare function stubEmbed(text: string): number[];
+/** Build a deterministic `EmbeddingProvider` emitting SHA-256-seeded vectors. */
+export declare function createStubEmbedder(opts?: StubEmbedderOptions): EmbeddingProvider;
+
+// ==== domain/embedders/types.d.ts ====
+/**
+ * Embedding provider port (DIP) for the skill registry. Adapted from the
+ * theo-rag `Embedder` contract (Unbreakable Rule 9 — reuse the house pattern).
+ *
+ * The dimension is PINNED at 1536 (matches the pgvector `vector(1536)` column /
+ * OpenAI text-embedding-3-small). `assertEmbeddingDim` is the fail-fast guard
+ * that rejects any provider whose output diverges — silent corruption is worse
+ * than a loud rejection (ADR D2).
+ */
+/** Pinned embedding dimension. Changing it requires a migration + ADR. */
+export declare const EMBEDDING_DIM = 1536;
+/** Caller-controlled options shared by `embed` / `embedBatch`. */
+export interface EmbedOptions {
+    /** Optional cancellation signal; honored by network-backed providers. */
+    signal?: AbortSignal;
+}
+/**
+ * Text-to-vector embedding provider. Implementations: `createStubEmbedder`
+ * (deterministic, offline) and `createOpenAIEmbedder` (SDK; `local` = same
+ * adapter with a configured base URL).
+ */
+export interface EmbeddingProvider {
+    /** Provider tag persisted to `embeddings.provider`. */
+    readonly provider: 'stub' | 'openai';
+    /** Model identifier persisted to `embeddings.model`. */
+    readonly model: string;
+    /** Convert a single text into a numeric vector. */
+    embed(text: string, opts?: EmbedOptions): Promise<number[]>;
+    /** Convert N texts into N vectors. */
+    embedBatch(texts: string[], opts?: EmbedOptions): Promise<number[][]>;
+    /** Optional cleanup of provider-owned resources (idempotent). */
+    dispose?(): void;
+}
+/** Typed embedder error with structured context (never leaks secrets). */
+export declare class EmbedderError extends Error {
+    readonly cause: unknown;
+    readonly context: Readonly<Record<string, unknown>>;
+    constructor(message: string, cause?: unknown, context?: Record<string, unknown>);
+}
+/**
+ * Fail-fast dimension guard. Throws `EmbedderError` when `vector.length` is not
+ * exactly `EMBEDDING_DIM` — used at boot (selected provider) and per embedding
+ * (embed worker) so a mismatched provider never writes a corrupt vector.
+ */
+export declare function assertEmbeddingDim(vector: readonly number[], expected?: number): void;
+
+// ==== domain/frontmatter.d.ts ====
+export type FrontmatterErrorCode = 'missing_frontmatter' | 'schema_invalid';
+/** Typed error for a malformed SKILL.md frontmatter (fail-loud, Unbreakable Rule 8). */
+export declare class SkillFrontmatterError extends Error {
+    readonly code: FrontmatterErrorCode;
+    /**
+     * Campo culpado, quando HÁ um. `undefined` para erros sem campo identificável (YAML
+     * malformado, frontmatter ausente) — inventar um mandaria o editor pintar a linha errada
+     * com confiança, que é pior que não pintar.
+     */
+    readonly field?: string;
+    /** Linha 1-indexada no SKILL.md, para o editor posicionar o cursor. */
+    readonly line?: number;
+    constructor(code: FrontmatterErrorCode, message: string, field?: string, line?: number);
+}
+/**
+ * Onde a skill EXECUTA — e, por consequência, o que o registry entrega ao agente.
+ *
+ * `remote`: a skill é INSTRUÇÃO. O agente descobre, escolhe e **carrega o corpo** do
+ * servidor sob demanda; nada vai para o disco. É o caso comum, e por isso o default.
+ *
+ * `local`: a skill traz SCRIPT. Código precisa do sistema de arquivos, da rede e dos
+ * segredos de quem executa, então ele roda na máquina do cliente — instalado via `npx`.
+ * Não é preferência de entrega: é a única forma de a skill fazer o que promete.
+ *
+ * O campo importa porque o agente pode estar hospedado no Theo. Uma skill com script
+ * entregue como instrução a um agente remoto produz um agente seguindo passos que
+ * referenciam arquivos que não existem — falha plausível, que é a pior.
+ */
+export type SkillExecution = 'remote' | 'local';
+export declare const SKILL_EXECUTIONS: readonly SkillExecution[];
+export interface SkillFrontmatter {
+    /** Required. Theokit-compatible skill name. */
+    readonly name: string;
+    /** Required. What the skill does + when to use it. */
+    readonly description: string;
+    /**
+     * Eixo de descoberta, TEXTO LIVRE (`Sales`, `Shop`, …). Opcional.
+     *
+     * Livre de propósito: uma lista fechada travaria quem publica numa taxonomia que nós
+     * escolhemos hoje e ele descobre errada amanhã. O custo aceito é ruído no catálogo — e o
+     * filtro é auxiliar da busca semântica, não substituto dela.
+     */
+    readonly category?: string;
+    /** Onde executa. Default `remote` — ver {@link SkillExecution}. */
+    readonly execution: SkillExecution;
+    /**
+     * Versão semântica (M27). Opcional — só quem usa canais precisa versionar, e exigi-la de
+     * toda skill transformaria um registry de descoberta num gerenciador de pacotes.
+     */
+    readonly version?: string;
+    /** Full parsed frontmatter — unknown fields preserved (forward-compat, ADR-4). */
+    readonly fields: Readonly<Record<string, unknown>>;
+}
+/**
+ * Parse and validate a SKILL.md's YAML frontmatter using the `yaml` (eemeli)
+ * parser (no js-yaml CVE; no code-exec surface). Required fields: name,
+ * description. Unknown fields are preserved. Throws SkillFrontmatterError on any
+ * malformation.
+ */
+export declare function parseFrontmatter(content: string): SkillFrontmatter;
+
+// ==== domain/limits.d.ts ====
+/** Centralized validation limits (DRY) — frontmatter + zip payload guards. */
+export declare const MAX_NAME_LENGTH = 64;
+export declare const MAX_DESCRIPTION_LENGTH = 1024;
+/** Categoria é rótulo de filtro, não texto — cabe numa linha de UI. */
+export declare const MAX_CATEGORY_LENGTH = 64;
+export declare const MAX_ZIP_ENTRIES = 10000;
+export declare const MAX_UNCOMPRESSED_TOTAL_BYTES: number;
+export declare const MAX_SINGLE_FILE_BYTES: number;
+export declare const MAX_COMPRESSION_RATIO = 100;
+export declare const MAX_FOLDER_DEPTH = 8;
+
+// ==== domain/operation-errors.d.ts ====
+/**
+ * Raised when an operation fails due to a business-rule violation (validation,
+ * unique conflict) — the worker marks the operation FAILED and the job is NOT
+ * retried (retrying a deterministic rule violation is a useless loop). Transient
+ * errors (DB blip) are thrown plain so pg-boss retries with backoff.
+ */
+export declare class NonRetriableOperationError extends Error {
+    readonly reason: string;
+    constructor(reason: string, message: string);
+}
+
+// ==== domain/payload-validator.d.ts ====
+export type PayloadErrorCode = 'invalid_zip' | 'too_many_entries' | 'total_too_large' | 'file_too_large' | 'compression_ratio' | 'too_deep' | 'path_traversal' | 'symlink' | 'duplicate_entry' | 'missing_skill_md' | 'secret_detected';
+/** Typed error for a payload that violates a safety guard (fail-loud). */
+export declare class PayloadValidationError extends Error {
+    readonly code: PayloadErrorCode;
+    constructor(code: PayloadErrorCode, message: string);
+}
+/** A readable text entry extracted from the zip (after all guards passed). */
+export interface PayloadFile {
+    readonly path: string;
+    readonly content: string;
+}
+/** Result of a successful payload validation. */
+export interface ValidatedPayload {
+    /** Content of the root `SKILL.md`. */
+    readonly skillMd: string;
+    /** sha256 of the zip bytes (integrity + dedup). */
+    readonly contentHash: string;
+    /** Number of file entries (excluding directories). */
+    readonly entryCount: number;
+    /** All readable file entries (for downstream secret scanning). */
+    readonly files: readonly PayloadFile[];
+}
+/**
+ * Port (DIP) — validates an untrusted zip payload against the safety guards and
+ * extracts SKILL.md + file contents. The infrastructure adapter (yauzl) enforces
+ * the guards from central-directory metadata WITHOUT decompressing a failing
+ * entry (zip-bomb safe).
+ */
+export interface PayloadValidator {
+    validate(zip: Buffer): Promise<ValidatedPayload>;
+}
+
+// ==== domain/principal.d.ts ====
+/**
+ * Principal + Workspace — os tipos de domínio do isolamento multi-inquilino.
+ *
+ * Um {@link Principal} é o que uma credencial RESOLVE: responde "de quem é esta chave?"
+ * (o inquilino e suas capacidades), não apenas "a chave é válida?". Toda requisição carrega
+ * um Principal; todo dado pertence ao workspace dele; toda consulta é filtrada por
+ * `workspaceId`.
+ *
+ * Isolamento em nível de APLICAÇÃO, não um banco por inquilino: coluna `workspace_id`
+ * denormalizada nas tabelas consultadas, primeira em todo `WHERE`. Espelha o
+ * `theo-memory/packages/core/src/domain/principal.ts` — o ecossistema fala uma língua só.
+ *
+ * O `workspaceId` é injetado no SERVIDOR e NUNCA pode vir do corpo ou de um cabeçalho da
+ * requisição (ADR-M11-2): cabeçalho é falsificável por qualquer cliente.
+ */
+/** A fronteira do inquilino. Todo dado pertence a exatamente um workspace. */
+export interface Workspace {
+    readonly id: string;
+    readonly name: string;
+    readonly createdAt: Date;
+}
+/**
+ * Privilégio de um usuário DENTRO de um workspace.
+ *
+ * Ortogonal a {@link Principal.scopes}: `role` governa PERTENCIMENTO (quem administra
+ * membros, quem cunha chave); `scopes` governa CAPACIDADE sobre o dado (ler/escrever/
+ * publicar/administrar). Um `owner` com escopo só-leitura não escreve.
+ *
+ * Os papéis são consumidos por M13; o tipo nasce aqui porque o Principal já o carrega.
+ */
+export type WorkspaceRole = 'owner' | 'admin' | 'member';
+/**
+ * Verdadeiro quando `role` é ao menos tão privilegiado quanto `min`.
+ *
+ * É o mesmo predicado consultado pelo gate de rota e pelo guard anti-escalada de M13 —
+ * duas regras derivadas de uma definição só.
+ */
+export declare function roleSatisfies(role: WorkspaceRole, min: WorkspaceRole): boolean;
+/**
+ * Resolvido de uma credencial. Carrega o inquilino (`workspaceId`), o membro em nome de quem
+ * a chave age (`userId`, `null` para credencial de workspace sem membro), o papel desse
+ * membro e as capacidades da chave.
+ *
+ * `userId` é `string | null` DE PROPÓSITO. O theo-memory tentou torná-lo obrigatório no tipo
+ * (ADR-0021) e isso quebrou o acesso de administrador do workspace, que legitimamente não age
+ * em nome de ninguém. A lição herdada: o vínculo se aplica na FRONTEIRA de resolução, não
+ * engessando o tipo.
+ */
+export interface Principal {
+    readonly workspaceId: string;
+    readonly userId: string | null;
+    readonly role: WorkspaceRole;
+    readonly scopes: readonly string[];
+}
+/**
+ * Workspace para o qual toda requisição sem credencial colapsa (ponte legada).
+ *
+ * LITERAL FIXO, não UUID gerado: a instalação single-tenant que existe hoje precisa que o
+ * identificador seja o MESMO entre reinícios, senão cada boot criaria um inquilino novo e os
+ * dados anteriores ficariam inalcançáveis.
+ */
+export declare const DEFAULT_WORKSPACE_ID = "default";
+/**
+ * Principal da ponte legada. Papel `owner` porque, numa instalação single-tenant sem
+ * autenticação, quem alcança a API já é o dono de tudo — fingir menos privilégio seria teatro.
+ *
+ * Isto NÃO é o default de um erro de autenticação: quando M12 existir e o backend de auth
+ * falhar, a resposta é `503`, jamais este Principal (fail-closed).
+ */
+export declare const DEFAULT_PRINCIPAL: Principal;
+
+// ==== domain/retrievers/hybrid-retriever.d.ts ====
+import { type RetrievedSkill, type SkillRetriever } from './types.js';
+/** Reciprocal Rank Fusion constant (standard k=60; calibration-free — no weights). */
+export declare const RRF_K = 60;
+/**
+ * Candidate pool fetched from EACH sub-retriever before fusion. Decoupled from
+ * (and ≥) the final topK so a skill ranked mid-list in BOTH lexical + vector lists
+ * can still fuse high — the classic RRF-with-truncation pitfall. We fuse over the
+ * deeper pool, then slice to topK.
+ */
+export declare const FUSION_POOL = 50;
+export interface HybridRetrieverDeps {
+    readonly vector: SkillRetriever;
+    readonly keyword: SkillRetriever;
+    /**
+     * Avisa que uma das pernas caiu — e por quê.
+     *
+     * Sem isto o `.catch(() => [])` abaixo transformava a falha em lista vazia e a busca
+     * respondia 200 com resultado só lexical. Medido em produção 2026-08-01: a conta do
+     * provedor de embedding ficou sem crédito, a descoberta semântica — a promessa central do
+     * produto — parou, e nada acusou: `/v1/health` seguia `ok`.
+     *
+     * Resiliência sem observabilidade é o defeito, não a solução: quem resolve não fica
+     * sabendo, e quem consome não sabe que recebeu menos.
+     */
+    readonly onDegraded?: (perna: 'vector' | 'keyword', err: unknown) => void;
+    /**
+     * Teto de tempo por perna, em ms. Ausente = espera (quem não pediu limite não ganha um).
+     *
+     * Medido em produção 2026-08-01: com a conta do provedor de embedding sem crédito, a perna
+     * vetorial levava 9,4 s e a busca inteira ia junto. Detectar o formato do erro do
+     * fornecedor é frágil — `code` mudou entre versões e a mensagem é texto livre. O teto não
+     * depende de adivinhar nada: seja qual for a causa, a descoberta não pode gastar o
+     * orçamento de latência do agente esperando uma metade que não responde.
+     */
+    readonly timeoutMs?: number;
+}
+/** Erro do teto — distinguível de uma falha da própria perna no log de degradação. */
+export declare class RetrieverTimeoutError extends Error {
+    constructor(perna: string, ms: number);
+}
+/**
+ * Fuse two ranked lists by Reciprocal Rank Fusion: each list contributes
+ * `1 / (k + rank)` per skill; a skill present in BOTH lists sums both terms.
+ * Calibration-free (no lexical/vector weights to tune). Deterministic regardless
+ * of which retriever resolves first.
+ */
+export declare function rrfFuse(vectorResults: readonly RetrievedSkill[], keywordResults: readonly RetrievedSkill[], topK: number): RetrievedSkill[];
+/**
+ * Hybrid retriever — runs vector + keyword in PARALLEL over a deep candidate pool
+ * and fuses via RRF. EITHER side degrades gracefully: a failure on the vector side
+ * (e.g. embedder timeout) or the keyword side (e.g. missing FTS) yields an empty
+ * list rather than failing the whole retrieve, so hybrid still answers from the
+ * surviving retriever. (Single-strategy retrieve does NOT swallow errors — only
+ * the fused hybrid path is resilient by design.)
+ */
+export declare function createHybridRetriever(deps: HybridRetrieverDeps): SkillRetriever;
+
+// ==== domain/retrievers/index.d.ts ====
+/** Public barrel for the skill retrievers domain (port + adapters + RRF). */
+export { type RetrieveParams, type MatchedLeg, type RetrievedSkill, type SkillRetriever, type QueryExecutor, RetrieverError, } from './types.js';
+export { ParamBuilder } from './param-builder.js';
+export { createVectorRetriever, type VectorRetrieverDeps } from './vector-retriever.js';
+export { createKeywordRetriever, type KeywordRetrieverDeps } from './keyword-retriever.js';
+export { createHybridRetriever, RetrieverTimeoutError, type HybridRetrieverDeps, rrfFuse, RRF_K, FUSION_POOL } from './hybrid-retriever.js';
+
+// ==== domain/retrievers/keyword-retriever.d.ts ====
+import { type QueryExecutor, type SkillRetriever } from './types.js';
+export interface KeywordRetrieverDeps {
+    readonly executor: QueryExecutor;
+    /**
+     * Workspace que este retriever enxerga. Obrigatório e fixado na CONSTRUÇÃO, não
+     * passado por chamada: o mesmo desenho dos stores (`createSkillsStore(db, workspaceId)`),
+     * em que o filtro é ESTRUTURAL e não disciplinar — não existe caminho de código que
+     * construa um retriever sem tenant, então não existe consulta que esqueça o filtro.
+     */
+    readonly workspaceId: string;
+}
+/**
+ * Keyword (lexical) retriever — Postgres FTS over `skills.search_tsv`, ranked by
+ * `ts_rank`. The query is reduced to its stemmed lexemes and OR-ed together:
+ * `to_tsquery('english', array_to_string(tsvector_to_array(to_tsvector('english', q)), ' | '))`.
+ * This is RECALL-friendly (a skill matching ANY query term is a candidate, ranked
+ * by ts_rank) and SAFE on raw user input — the lexemes are clean tokens, so no
+ * user-supplied operator ever reaches `to_tsquery` (which would otherwise raise).
+ */
+export declare function createKeywordRetriever(deps: KeywordRetrieverDeps): SkillRetriever;
+
+// ==== domain/retrievers/lifecycle-clause.d.ts ====
+import { type LifecycleVisibility } from '../skill-lifecycle.js';
+import { type ParamBuilder } from './param-builder.js';
+/**
+ * Traduz a especificação de visibilidade (domínio) para a cláusula SQL da DESCOBERTA.
+ *
+ * Existe em um lugar só, deliberadamente (ADR D3 do plano `m32-skill-lifecycle`). Se cada
+ * consulta montasse a condição à mão, bastaria um retriever novo esquecer a cláusula para a
+ * deprecada reaparecer na busca — e o defeito só apareceria quando alguém reclamasse de ver
+ * uma skill descontinuada.
+ *
+ * NUNCA é chamado no caminho de RESOLUÇÃO (leitura por id / instrução). Essa assimetria é a
+ * garantia central do M32: a skill deprecada some da descoberta e continua servindo quem já a
+ * referencia. Ver `m32-lifecycle-discovery.integration.test.ts`.
+ *
+ * Os valores vão por parâmetro, nunca interpolados — o estágio é dado que atravessa a fronteira
+ * HTTP, e concatená-lo seria injeção pela porta da frente, como o filtro de categoria já
+ * documenta no `keyword-retriever`.
+ */
+export declare function buildLifecycleClause(b: ParamBuilder, visibility: LifecycleVisibility | undefined, alias?: string): string;
+
+// ==== domain/retrievers/map-row.d.ts ====
+import { type QueryExecutor, type RetrievedSkill } from './types.js';
+/**
+ * Run a retriever SQL and map rows to RetrievedSkill, coercing the pg numeric
+ * `score` (returned as a string by node-pg) to a number. Executor failures are
+ * wrapped in `RetrieverError` so a raw pg/driver error (which may carry the SQL
+ * or connection detail) never leaks to the caller.
+ */
+export declare function runRetrieveQuery(executor: QueryExecutor, sql: string, params: readonly unknown[]): Promise<RetrievedSkill[]>;
+
+// ==== domain/retrievers/param-builder.d.ts ====
+/**
+ * Sequential SQL placeholder binder. `bind(value)` appends the value and returns
+ * its `$N` placeholder, so numbering is GLOBAL across a composed statement —
+ * impossible to mis-number or SQL-inject. Port of the theo-rag pattern (Rule 9).
+ */
+export declare class ParamBuilder {
+    private readonly _params;
+    bind(value: unknown): string;
+    getParams(): unknown[];
+    getCount(): number;
+}
+
+// ==== domain/retrievers/types.d.ts ====
+/**
+ * Skill retrieval port (DIP) — hybrid lexical + vector search. Adapted from the
+ * theo-rag retriever pattern (Unbreakable Rule 9). Adapters (vector/keyword/
+ * hybrid) depend only on an injected `QueryExecutor` + (for vector) the M3
+ * `EmbeddingProvider` — never on pg/Drizzle directly.
+ */
+import { type LifecycleVisibility } from '../skill-lifecycle.js';
+/** Retrieval request. */
+export interface RetrieveParams {
+    readonly query: string;
+    readonly topK: number;
+    /**
+     * Filtro por categoria (M23). Ausente = todas.
+     *
+     * É AUXILIAR da busca semântica, não substituto: estreita o espaço antes do ranqueamento
+     * para o agente não varrer o catálogo inteiro. E não atravessa inquilino — a cláusula de
+     * tenant continua sendo a primeira de toda consulta.
+     */
+    readonly category?: string;
+    /**
+     * O que o ciclo de vida deixa visível NESTA busca (M32). Ausente = o default seguro da
+     * descoberta: só `active` e só habilitadas.
+     *
+     * Vive aqui, e não no construtor do retriever como o `workspaceId`, porque é decisão POR
+     * CHAMADA — o mesmo consumidor legitimamente quer o default numa busca e o acervo completo
+     * na seguinte (um operador auditando o que foi descontinuado). O tenant, ao contrário, nunca
+     * muda entre chamadas do mesmo retriever, e por isso continua estrutural.
+     */
+    readonly lifecycle?: LifecycleVisibility;
+}
+/** A retrieved skill with its (strategy-dependent) relevance score. */
+export interface RetrievedSkill {
+    readonly skill_id: string;
+    readonly score: number;
+    readonly name: string;
+    readonly description: string;
+    /**
+     * De onde veio (M14): `own` = do próprio workspace; `public` = do catálogo curado.
+     *
+     * Declarar a origem não é enfeite: uma skill pública é CÓDIGO DE TERCEIRO que o agente
+     * vai carregar. Sem esta marca o consumidor não tem como distinguir o que o próprio time
+     * publicou do que veio de fora — e essa é a decisão que ele precisa tomar.
+     */
+    readonly origin?: 'own' | 'public';
+    /** Eixo de descoberta declarado por quem publicou (M23). Texto livre. */
+    readonly category?: string;
+    /**
+     * Onde a skill executa (M23): `remote` = instrução, o agente CARREGA o corpo do servidor;
+     * `local` = traz script e precisa ser instalada na máquina do cliente.
+     *
+     * Vem na DESCOBERTA, e não só no detalhe, porque é o que decide se o agente pode usar a
+     * skill de onde ele está. Descobrir isso depois é descobrir seguindo passos que
+     * referenciam arquivos que não existem.
+     */
+    readonly execution?: 'remote' | 'local';
+    /**
+     * De QUAL perna da busca este resultado veio, e em que posição nela (M31).
+     *
+     * Um score fundido sozinho não distingue "achou porque as palavras batem" de "achou porque
+     * entendeu" — e essa é justamente a diferença que o produto vende. O M4 mediu o problema: a
+     * recall é carregada pelo FTS, e a perna vetorial isolada dá 0.308 sob o embedder stub. Com
+     * um número só, ninguém enxerga isso.
+     *
+     * `rank` é 1-BASED, ao contrário do laço interno da fusão. O contrato existe para quem lê —
+     * "1º na vetorial" é legível; "0º" é convite a off-by-one.
+     *
+     * Opcional porque é aditivo: `rrfFuse` é exportado do índice público do pacote, e trocar o
+     * tipo de retorno quebraria todo consumidor. Ausente significa "esta origem não foi
+     * informada", nunca "não casou".
+     */
+    readonly matched?: readonly MatchedLeg[];
+}
+/** Uma perna da busca híbrida e a posição do resultado dentro dela (M31). */
+export interface MatchedLeg {
+    readonly leg: 'vector' | 'keyword';
+    /** 1-based — ver a nota em `RetrievedSkill.matched`. */
+    readonly rank: number;
+}
+/** Strategy-agnostic retriever. */
+export interface SkillRetriever {
+    retrieve(params: RetrieveParams): Promise<RetrievedSkill[]>;
+}
+/** Minimal SQL executor port — the api wires a pg-pool-backed implementation. */
+export interface QueryExecutor {
+    query<T>(sql: string, params: readonly unknown[]): Promise<T[]>;
+}
+/** Typed retriever error (never leaks secrets). */
+export declare class RetrieverError extends Error {
+    readonly cause: unknown;
+    readonly context: Readonly<Record<string, unknown>>;
+    constructor(message: string, cause?: unknown, context?: Record<string, unknown>);
+}
+
+// ==== domain/retrievers/vector-retriever.d.ts ====
+import { type EmbeddingProvider } from '../embedders/index.js';
+import { type QueryExecutor, type SkillRetriever } from './types.js';
+export interface VectorRetrieverDeps {
+    readonly executor: QueryExecutor;
+    readonly embedder: EmbeddingProvider;
+    /** Workspace fixado na construção — ver `KeywordRetrieverDeps.workspaceId`. */
+    readonly workspaceId: string;
+}
+/**
+ * Vector retriever — embeds the query, then ranks each skill's CURRENT-revision
+ * embedding by cosine similarity (`1 - (vector <=> q)`). Dimension is guarded
+ * BEFORE the SQL so a mismatched provider never leaks an opaque pg error.
+ */
+export declare function createVectorRetriever(deps: VectorRetrieverDeps): SkillRetriever;
+
+// ==== domain/scope.d.ts ====
+/**
+ * Scopes de capacidade do registry (M12 DoD #2).
+ *
+ * Espelha o `scopeSatisfies` do theo-memory (`api/src/server/auth/scope-hierarchy.ts`) e o
+ * precedente `roleSatisfies` deste mesmo pacote: um scope mais privilegiado SATISFAZ a
+ * exigência de um mais fino que ele implica.
+ *
+ * A diferença em relação ao theo-memory é o EIXO da implicação, e ela vem do domínio, não
+ * de preferência: lá a relação é plana (`platform-admin ⊇ admin`), porque memória tem duas
+ * classes de operador. Aqui as capacidades formam uma CADEIA — publicar pressupõe escrever,
+ * escrever pressupõe ler — porque um cliente que pode publicar uma skill necessariamente
+ * consegue lê-la de volta.
+ */
+/** Scope de capacidade, do mais fino ao mais privilegiado. */
+export type Scope = 'skills:read' | 'skills:write' | 'skills:publish' | 'skills:admin';
+/** Todos os scopes, na ordem da cadeia. Útil para testes exaustivos e para docs. */
+export declare const ALL_SCOPES: readonly Scope[];
+/**
+ * O conjunto `granted` satisfaz o scope `required`?
+ *
+ * FAIL-CLOSED por construção: um scope que não está na tabela — chave antiga, provider
+ * externo, erro de digitação — não implica nada e nunca concede acesso por omissão. O
+ * `?? []` não é defensividade decorativa: `SCOPE_IMPLIES[g]` é `undefined` para qualquer
+ * string fora do union em runtime, que é exatamente o caso que um token de terceiro traz.
+ */
+export declare function scopeSatisfies(granted: readonly Scope[], required: Scope): boolean;
+
+// ==== domain/secret-scanner.d.ts ====
+import { type PayloadFile } from './payload-validator.js';
+/** A detected secret — type + location only. The raw value is NEVER carried. */
+export interface SecretFinding {
+    readonly file: string;
+    /** Rule/type identifier (e.g. the secretlint rule id). */
+    readonly type: string;
+}
+/**
+ * Port (DIP) — scans extracted payload files for secrets, in-memory. The
+ * infrastructure adapter (secretlint) provides the curated ruleset. The raw
+ * secret value is never returned nor logged (Unbreakable Rule 8 + security).
+ */
+export interface SecretScanner {
+    scan(files: readonly PayloadFile[]): Promise<readonly SecretFinding[]>;
+}
+
+// ==== domain/skill-id.d.ts ====
+/**
+ * Typed error for an invalid skillId. Carries the offending value and a precise
+ * reason so the boundary can fail loud and clear (Unbreakable Rule 8).
+ */
+export declare class InvalidSkillIdError extends Error {
+    readonly skillId: string;
+    readonly reason: string;
+    constructor(skillId: string, reason: string);
+}
+/**
+ * Validate a skillId at the trust boundary. Returns the value on success;
+ * throws InvalidSkillIdError otherwise. Immutable identity — see ROADMAP/PRD.
+ */
+export declare function parseSkillId(value: string): string;
+/** Non-throwing variant — returns true when the skillId is valid. */
+export declare function isValidSkillId(value: string): boolean;
+
+// ==== domain/skill-lifecycle.d.ts ====
+/**
+ * Ciclo de vida da skill — o eixo EDITORIAL, deliberadamente separado de outros dois.
+ *
+ * O registro tem três dimensões que respondem perguntas diferentes e não devem ser fundidas
+ * (ADR D1 do plano `m32-skill-lifecycle`):
+ *
+ *   - `lifecycle` (aqui)   — o que a skill É no ciclo de publicação: `active` · `draft` · `deprecated`
+ *   - habilitação          — liga/desliga operacional, reversível, sem juízo editorial
+ *   - `skills.state`       — exclusão (`ACTIVE`/`DELETED`), soft-delete que RESERVA o identificador
+ *
+ * Fundi-las custaria a capacidade de desligar temporariamente algo que não está descontinuado,
+ * e faria `DELETED` (irreversível, com reserva) parecer o mesmo eixo de `deprecated` (reversível).
+ *
+ * O módulo é domínio puro: nenhum import de infraestrutura, de HTTP ou de Zod — a direção
+ * permitida por `rules/architecture.md` é infra→domínio, nunca o contrário.
+ */
+/** O vocabulário fechado. Única fonte — o schema e o contrato derivam daqui, não redeclaram. */
+export declare const SKILL_LIFECYCLES: readonly ["active", "draft", "deprecated"];
+export type SkillLifecycle = (typeof SKILL_LIFECYCLES)[number];
+/**
+ * Erro tipado para estágio inválido. Carrega o valor ofensor e um `code` estável para a
+ * fronteira falhar alto e claro (Unbreakable Rule 8) — o consumidor decide pelo `code`,
+ * o humano lê a `message`.
+ */
+export declare class InvalidLifecycleError extends Error {
+    readonly code = "INVALID_LIFECYCLE";
+    readonly value: string;
+    constructor(value: string);
+}
+/**
+ * Valida um estágio na fronteira de confiança. Normaliza caixa e espaços antes de comparar:
+ * a entrada vem de HTTP e de CLI, e transformar diferença de caixa em 4xx não protege ninguém.
+ *
+ * Devolve o valor canônico; lança `InvalidLifecycleError` caso contrário.
+ */
+export declare function parseLifecycle(value: string): SkillLifecycle;
+/** Variante que não lança — para quando a ausência de um estágio válido não é excepcional. */
+export declare function isValidLifecycle(value: string): boolean;
+/** O que uma consulta de DESCOBERTA deve considerar visível. Traduzido para SQL pelo store. */
+export interface LifecycleVisibility {
+    readonly stages: SkillLifecycle[];
+    readonly requireEnabled: boolean;
+}
+/** Opt-in por eixo. Ausente = restrito, que é o default seguro para descoberta. */
+export interface LifecycleVisibilityOptions {
+    readonly includeDraft?: boolean;
+    readonly includeDeprecated?: boolean;
+    readonly includeDisabled?: boolean;
+}
+/**
+ * Constrói a especificação de visibilidade da DESCOBERTA — e apenas dela.
+ *
+ * A resolução por identificador NUNCA consulta esta função: é essa assimetria que faz a
+ * deprecação não quebrar quem já referencia a skill (ADR D2). Se um dia o caminho de leitura
+ * passar a chamar `buildLifecycleFilter`, o teste de regressão do M32 reprova — e deve.
+ *
+ * Os dois eixos COMPÕEM, não se anulam: pedir os desabilitados não devolve rascunhos junto.
+ */
+export declare function buildLifecycleFilter(opts?: LifecycleVisibilityOptions): LifecycleVisibility;
+
+// ==== domain/skill-validation.d.ts ====
+/**
+ * Single source of truth for skill-payload validation (M5). The server boundary
+ * (`ingestPayload`) AND the dev CLI both call this so their checks can never
+ * diverge (DRY — ROADMAP M5 risk #1). Runs the three checks in order:
+ *   1. zip-safety  (PayloadValidator → yauzl: limits, traversal, symlink, ratio)
+ *   2. frontmatter (parseFrontmatter: Theokit name/description rules)
+ *   3. secret scan (SecretScanner → secretlint preset-recommend)
+ * Returns a STRUCTURED result (does not throw on a rule violation) so the CLI can
+ * render clear per-rule errors and the server can map to HTTP 400.
+ */
+import { type SkillExecution } from './frontmatter.js';
+import { type PayloadValidator, type ValidatedPayload } from './payload-validator.js';
+import { type SecretScanner } from './secret-scanner.js';
+export interface SkillValidationDeps {
+    readonly payloadValidator: PayloadValidator;
+    readonly secretScanner: SecretScanner;
+}
+export interface SkillValidationOk {
+    readonly ok: true;
+    readonly name: string;
+    readonly description: string;
+    /** Eixo de descoberta declarado pelo autor (texto livre). */
+    readonly category?: string;
+    /** Onde a skill executa — governa o que o registry entrega ao agente. */
+    readonly execution: SkillExecution;
+    /** Versão semântica declarada (M27). Ausente = skill não versionada. */
+    readonly version?: string;
+    readonly frontmatter: Record<string, unknown>;
+    readonly validated: ValidatedPayload;
+}
+export interface SkillValidationFail {
+    readonly ok: false;
+    /** Stable rule code (same vocabulary the server returns as the 400 body). */
+    readonly code: string;
+    readonly message: string;
+    /** Optional per-item detail (e.g. one line per secret finding). */
+    readonly details?: readonly string[];
+    /** Campo culpado, quando há um (M30). `undefined` para erros sem campo identificável. */
+    readonly field?: string;
+    /** Linha 1-indexada no SKILL.md (M30). */
+    readonly line?: number;
+}
+export type SkillValidationResult = SkillValidationOk | SkillValidationFail;
+export declare function validateSkillPayload(zip: Buffer, deps: SkillValidationDeps): Promise<SkillValidationResult>;
+
+// ==== domain/version.d.ts ====
+/**
+ * Versionamento semântico das revisões (M19).
+ *
+ * O consumidor precisa declarar INTENÇÃO (`@stable`, `@^1.2.0`) em vez de escolher um id de
+ * revisão. Para isso a revisão precisa carregar uma versão comparável — e o registry precisa
+ * recusar o que tornaria a comparação mentirosa: retrocesso e colisão.
+ */
+export interface SemVer {
+    readonly major: number;
+    readonly minor: number;
+    readonly patch: number;
+    /** Pré-lançamento (`1.2.0-beta.1` → `beta.1`), ou `null`. */
+    readonly prerelease: string | null;
+}
+export declare class InvalidVersionError extends Error {
+    constructor(raw: string);
+}
+export declare function parseVersion(raw: string): SemVer;
+export declare function formatVersion(v: SemVer): string;
+/** `-1` se `a < b`, `0` se iguais, `1` se `a > b`. */
+export declare function compareVersions(a: SemVer, b: SemVer): number;
+export declare class VersionRejectedError extends Error {
+    readonly reason: 'not_greater' | 'duplicate';
+    constructor(reason: 'not_greater' | 'duplicate', message: string);
+}
+/**
+ * Aceita a nova versão apenas se ela for ESTRITAMENTE maior que todas as existentes.
+ *
+ * Recusar retrocesso e colisão é o que faz `@^1.2.0` significar algo estável. Sem isso um
+ * publisher republicaria `1.2.0` com outro conteúdo, e o mesmo intervalo passaria a resolver
+ * para bytes diferentes conforme o momento — o consumidor não teria como saber o que instalou.
+ */
+export declare function assertPublishable(next: SemVer, existentes: readonly SemVer[]): void;
+/**
+ * Resolve um intervalo (`^1.2.0`, `~1.2.0`, `1.2.3`, `latest`) para a MAIOR versão que o
+ * satisfaz. Devolve `null` quando nenhuma satisfaz.
+ *
+ * A resolução acontece no SERVIDOR (M19 DoD #3): o cliente declara intenção, o servidor
+ * escolhe. Resolver no cliente exigiria baixar a lista inteira de versões a cada instalação
+ * e deixaria dois clientes em desacordo sobre o que "^1.2.0" significa.
+ *
+ * Pré-lançamentos NUNCA satisfazem um intervalo — só correspondência exata os alcança. É a
+ * regra do npm, e ela existe para que publicar um `2.0.0-beta` não empurre todo mundo que
+ * pediu `^1.0.0` para um beta.
+ */
+export declare function resolveRange(range: string, disponiveis: readonly SemVer[]): SemVer | null;
+
+// ==== domain/webhook-sender.d.ts ====
+export interface WebhookSendRequest {
+    readonly url: string;
+    readonly body: string;
+    readonly headers: Readonly<Record<string, string>>;
+}
+export interface WebhookSendResponse {
+    readonly status: number;
+}
+/**
+ * Port (DIP) — sends a signed webhook over HTTP. The infrastructure adapter
+ * applies a timeout and `redirect: 'manual'` (SSRF defence).
+ */
+export interface WebhookSender {
+    send(req: WebhookSendRequest): Promise<WebhookSendResponse>;
+}
+
+// ==== index.d.ts ====
+export { InvalidSkillIdError, isValidSkillId, parseSkillId, } from './domain/skill-id.js';
+export { type EmbeddingProvider, type EmbedOptions, EmbedderError, EMBEDDING_DIM, assertEmbeddingDim, createStubEmbedder, stubEmbed, type StubEmbedderOptions, createOpenAIEmbedder, type OpenAIEmbedderOptions, type OpenAIEmbeddingsClient, } from './domain/embedders/index.js';
+export { type RetrieveParams, type MatchedLeg, type RetrievedSkill, type SkillRetriever, type QueryExecutor, RetrieverError, ParamBuilder, createVectorRetriever, type VectorRetrieverDeps, createKeywordRetriever, type KeywordRetrieverDeps, createHybridRetriever, RetrieverTimeoutError, type HybridRetrieverDeps, rrfFuse, RRF_K, FUSION_POOL, } from './domain/retrievers/index.js';
+export { type FrontmatterErrorCode, parseFrontmatter, type SkillFrontmatter, SkillFrontmatterError, } from './domain/frontmatter.js';
+export { type PayloadErrorCode, type PayloadFile, type PayloadValidator, PayloadValidationError, type ValidatedPayload, } from './domain/payload-validator.js';
+export { type SecretFinding, type SecretScanner, } from './domain/secret-scanner.js';
+export { type SkillValidationDeps, type SkillValidationOk, type SkillValidationFail, type SkillValidationResult, validateSkillPayload, } from './domain/skill-validation.js';
+export { MAX_COMPRESSION_RATIO, MAX_DESCRIPTION_LENGTH, MAX_FOLDER_DEPTH, MAX_NAME_LENGTH, MAX_SINGLE_FILE_BYTES, MAX_UNCOMPRESSED_TOTAL_BYTES, MAX_ZIP_ENTRIES, } from './domain/limits.js';
+export { type Operation, OperationSchema, type OperationState, OperationStateSchema, type RetrieveStrategy, RetrieveStrategySchema, type RetrieveParamsInput, RetrieveParamsSchema, type RetrieveResult, RetrieveResultSchema, type Skill, SkillSchema, type SkillInput, SkillInputSchema, type WebhookEndpoint, WebhookEndpointSchema, type WebhookEndpointCreate, WebhookEndpointCreateSchema, type WebhookEndpointCreated, WebhookEndpointCreatedSchema, type WebhookEventType, WebhookEventTypeSchema, type WebhookPayload, WebhookPayloadSchema, } from './contract/index.js';
+export { NonRetriableOperationError } from './domain/operation-errors.js';
+export { type WebhookSender, type WebhookSendRequest, type WebhookSendResponse, } from './domain/webhook-sender.js';
+export { operations, type OperationRow, skills, type SkillRow, } from './infrastructure/db/schema.js';
+export * from './domain/skill-lifecycle.js';
+export * from './domain/discoverability.js';
+export * from './domain/principal.js';
+export * from './domain/scope.js';
+export * from './domain/version.js';
+export * from './domain/dip/auth-verifier.js';
+
+// ==== infrastructure/db/migrate.d.ts ====
+import type { Pool } from 'pg';
+/**
+ * Aplica o schema. A imagem passa a ser autossuficiente: não existe passo manual entre puxar
+ * a imagem e ter um serviço que serve.
+ *
+ * POR QUE NO BOOT, e não num job separado. O `drizzle-kit` é devDependency e não existe na
+ * imagem de produção — só o migrator do `drizzle-orm`, que é dependência de produção. Um job
+ * separado exigiria uma segunda imagem (ou o retorno das devDependencies, desfazendo a
+ * eliminação de 41 CVEs). O `pg-boss` já bootstrapa o próprio schema no boot deste mesmo
+ * servidor; migrar aqui é o precedente que o produto já adota.
+ *
+ * O QUE ISSO CORRIGE. Sem este passo o serviço subia com ZERO tabelas: `/v1/health` devolvia
+ * 200 — porque ele é estático de propósito — enquanto `/v1/skills` devolvia 500. Um serviço
+ * "saudável" servindo erro em tudo é pior do que um serviço fora do ar, porque o painel o
+ * conta como frota completa.
+ */
+export declare function runMigrations(pool: Pool): Promise<void>;
+
+// ==== infrastructure/db/schema.d.ts ====
+/** Embedding column dimension — derived from the domain contract (no drift). */
+export declare const EMBEDDING_COLUMN_DIM = 1536;
+/**
+ * Skills — the registered capability. M1 adds the pointer to the current
+ * revision and the soft-delete + id-reservation columns (ADR-3/ADR-5).
+ */
+export declare const skills: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "skills";
+    schema: undefined;
+    columns: {
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        name: import("drizzle-orm/pg-core").PgColumn<{
+            name: "name";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        description: import("drizzle-orm/pg-core").PgColumn<{
+            name: "description";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        state: import("drizzle-orm/pg-core").PgColumn<{
+            name: "state";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        latestRevisionId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "latest_revision_id";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        deletedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "deleted_at";
+            tableName: "skills";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        reservedUntil: import("drizzle-orm/pg-core").PgColumn<{
+            name: "reserved_until";
+            tableName: "skills";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        searchText: import("drizzle-orm/pg-core").PgColumn<{
+            name: "search_text";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        visibility: import("drizzle-orm/pg-core").PgColumn<{
+            name: "visibility";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        category: import("drizzle-orm/pg-core").PgColumn<{
+            name: "category";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        execution: import("drizzle-orm/pg-core").PgColumn<{
+            name: "execution";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        lifecycle: import("drizzle-orm/pg-core").PgColumn<{
+            name: "lifecycle";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: "active" | "draft" | "deprecated";
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: ["active", "draft", "deprecated"];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        enabled: import("drizzle-orm/pg-core").PgColumn<{
+            name: "enabled";
+            tableName: "skills";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        deprecationReason: import("drizzle-orm/pg-core").PgColumn<{
+            name: "deprecation_reason";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        supersededBy: import("drizzle-orm/pg-core").PgColumn<{
+            name: "superseded_by";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        publishedBy: import("drizzle-orm/pg-core").PgColumn<{
+            name: "published_by";
+            tableName: "skills";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        publishedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "published_at";
+            tableName: "skills";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        searchTsv: import("drizzle-orm/pg-core").PgColumn<{
+            name: "search_tsv";
+            tableName: "skills";
+            dataType: "custom";
+            columnType: "PgCustomColumn";
+            data: string;
+            driverParam: unknown;
+            notNull: false;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: {
+                type: "always";
+            };
+        }, {}, {
+            pgColumnBuilderBrand: "PgCustomColumnBuilderBrand";
+        }>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "skills";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updateTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "update_time";
+            tableName: "skills";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/**
+ * Skill revisions — immutable snapshots (ADR-3). Never UPDATEd. The zip payload
+ * is stored as bytea; `content_hash` is the sha256 of the zip (integrity + dedup);
+ * `frontmatter` is the parsed SKILL.md frontmatter (jsonb, unknown fields kept).
+ */
+export declare const skillRevisions: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "skill_revisions";
+    schema: undefined;
+    columns: {
+        revisionId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "revision_id";
+            tableName: "skill_revisions";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "skill_revisions";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "skill_revisions";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        payload: import("drizzle-orm/pg-core").PgColumn<{
+            name: "payload";
+            tableName: "skill_revisions";
+            dataType: "custom";
+            columnType: "PgCustomColumn";
+            data: Buffer<ArrayBufferLike>;
+            driverParam: Buffer<ArrayBufferLike>;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {
+            pgColumnBuilderBrand: "PgCustomColumnBuilderBrand";
+        }>;
+        contentHash: import("drizzle-orm/pg-core").PgColumn<{
+            name: "content_hash";
+            tableName: "skill_revisions";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        version: import("drizzle-orm/pg-core").PgColumn<{
+            name: "version";
+            tableName: "skill_revisions";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        frontmatter: import("drizzle-orm/pg-core").PgColumn<{
+            name: "frontmatter";
+            tableName: "skill_revisions";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillMd: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_md";
+            tableName: "skill_revisions";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "skill_revisions";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/**
+ * Embeddings — one dense vector per (revision, provider, model). M3. Generated
+ * asynchronously by the `embed_skill` worker; idempotent via the unique index +
+ * `ON CONFLICT DO NOTHING`. HNSW cosine index powers intent search (M4).
+ */
+export declare const embeddings: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "embeddings";
+    schema: undefined;
+    columns: {
+        id: import("drizzle-orm/pg-core").PgColumn<{
+            name: "id";
+            tableName: "embeddings";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "embeddings";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        revisionId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "revision_id";
+            tableName: "embeddings";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "embeddings";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        provider: import("drizzle-orm/pg-core").PgColumn<{
+            name: "provider";
+            tableName: "embeddings";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        model: import("drizzle-orm/pg-core").PgColumn<{
+            name: "model";
+            tableName: "embeddings";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        dimensions: import("drizzle-orm/pg-core").PgColumn<{
+            name: "dimensions";
+            tableName: "embeddings";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        vector: import("drizzle-orm/pg-core").PgColumn<{
+            name: "vector";
+            tableName: "embeddings";
+            dataType: "custom";
+            columnType: "PgCustomColumn";
+            data: number[];
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {
+            pgColumnBuilderBrand: "PgCustomColumnBuilderBrand";
+        }>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "embeddings";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/**
+ * Operations — first-class long-running operation (ADR-1). pg-boss carries the
+ * job; the authoritative operation state lives here.
+ */
+export declare const operations: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "operations";
+    schema: undefined;
+    columns: {
+        operationId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "operation_id";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        type: import("drizzle-orm/pg-core").PgColumn<{
+            name: "type";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        state: import("drizzle-orm/pg-core").PgColumn<{
+            name: "state";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        error: import("drizzle-orm/pg-core").PgColumn<{
+            name: "error";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        idempotencyKey: import("drizzle-orm/pg-core").PgColumn<{
+            name: "idempotency_key";
+            tableName: "operations";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "operations";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updateTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "update_time";
+            tableName: "operations";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/** Webhook endpoints — subscriptions that receive skill events (M2). */
+export declare const webhookEndpoints: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "webhook_endpoints";
+    schema: undefined;
+    columns: {
+        id: import("drizzle-orm/pg-core").PgColumn<{
+            name: "id";
+            tableName: "webhook_endpoints";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "webhook_endpoints";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        url: import("drizzle-orm/pg-core").PgColumn<{
+            name: "url";
+            tableName: "webhook_endpoints";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        secret: import("drizzle-orm/pg-core").PgColumn<{
+            name: "secret";
+            tableName: "webhook_endpoints";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        active: import("drizzle-orm/pg-core").PgColumn<{
+            name: "active";
+            tableName: "webhook_endpoints";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        eventTypes: import("drizzle-orm/pg-core").PgColumn<{
+            name: "event_types";
+            tableName: "webhook_endpoints";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "webhook_endpoints";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updateTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "update_time";
+            tableName: "webhook_endpoints";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/**
+ * Webhook deliveries — the durable outbox row (M2, ADR-3). The reconciler
+ * recovers rows whose original enqueue never landed (orphan = all of
+ * delivered_at/failed_at/enqueued_at NULL).
+ */
+export declare const webhookDeliveries: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "webhook_deliveries";
+    schema: undefined;
+    columns: {
+        id: import("drizzle-orm/pg-core").PgColumn<{
+            name: "id";
+            tableName: "webhook_deliveries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "webhook_deliveries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        endpointId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "endpoint_id";
+            tableName: "webhook_deliveries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        eventType: import("drizzle-orm/pg-core").PgColumn<{
+            name: "event_type";
+            tableName: "webhook_deliveries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        payload: import("drizzle-orm/pg-core").PgColumn<{
+            name: "payload";
+            tableName: "webhook_deliveries";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        traceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "trace_id";
+            tableName: "webhook_deliveries";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        attemptCount: import("drizzle-orm/pg-core").PgColumn<{
+            name: "attempt_count";
+            tableName: "webhook_deliveries";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        deliveredAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "delivered_at";
+            tableName: "webhook_deliveries";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        failedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "failed_at";
+            tableName: "webhook_deliveries";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        enqueuedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "enqueued_at";
+            tableName: "webhook_deliveries";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "webhook_deliveries";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+export type SkillRow = typeof skills.$inferSelect;
+export type SkillRevisionRow = typeof skillRevisions.$inferSelect;
+export type OperationRow = typeof operations.$inferSelect;
+export type WebhookEndpointRow = typeof webhookEndpoints.$inferSelect;
+export type WebhookDeliveryRow = typeof webhookDeliveries.$inferSelect;
+export type EmbeddingRow = typeof embeddings.$inferSelect;
+/**
+ * Usuários e membros de workspace (M13).
+ *
+ * `users` é global; `workspace_users` é a relação M:N que carrega o PAPEL. O papel vive na
+ * RELAÇÃO e não no usuário porque a mesma pessoa é `owner` de um workspace e `member` de
+ * outro — modelar no usuário forçaria uma linha por combinação e perderia essa distinção.
+ */
+export declare const users: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "users";
+    schema: undefined;
+    columns: {
+        userId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "user_id";
+            tableName: "users";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        email: import("drizzle-orm/pg-core").PgColumn<{
+            name: "email";
+            tableName: "users";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "users";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+export declare const workspaceUsers: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "workspace_users";
+    schema: undefined;
+    columns: {
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "workspace_users";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        userId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "user_id";
+            tableName: "workspace_users";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        role: import("drizzle-orm/pg-core").PgColumn<{
+            name: "role";
+            tableName: "workspace_users";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "workspace_users";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updateTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "update_time";
+            tableName: "workspace_users";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/**
+ * Chaves de API cunhadas por workspace (M12 persistido + M13 anti-escalation).
+ *
+ * Guarda apenas o HASH: o token cru é mostrado uma vez na cunhagem e nunca mais. Um store
+ * que guardasse o valor transformaria um dump de banco em vazamento de todas as credenciais.
+ */
+export declare const apiKeys: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "api_keys";
+    schema: undefined;
+    columns: {
+        keyId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "key_id";
+            tableName: "api_keys";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "api_keys";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        userId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "user_id";
+            tableName: "api_keys";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        tokenHash: import("drizzle-orm/pg-core").PgColumn<{
+            name: "token_hash";
+            tableName: "api_keys";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        scopes: import("drizzle-orm/pg-core").PgColumn<{
+            name: "scopes";
+            tableName: "api_keys";
+            dataType: "json";
+            columnType: "PgJsonb";
+            data: unknown;
+            driverParam: unknown;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        revokedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "revoked_at";
+            tableName: "api_keys";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        expiresAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "expires_at";
+            tableName: "api_keys";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "api_keys";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+export type UserRow = typeof users.$inferSelect;
+export type WorkspaceUserRow = typeof workspaceUsers.$inferSelect;
+export type ApiKeyRow = typeof apiKeys.$inferSelect;
+/**
+ * Canais mutáveis por skill (M19).
+ *
+ * Um canal é um PONTEIRO para uma revisão — `stable`, `beta`, ou um nome do publisher. A
+ * revisão continua imutável; o que muda é para onde o canal aponta. Essa distinção é o que
+ * permite corrigir uma skill sem reemitir nada no lado do consumidor.
+ */
+export declare const skillChannels: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "skill_channels";
+    schema: undefined;
+    columns: {
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "skill_channels";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "skill_channels";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        channel: import("drizzle-orm/pg-core").PgColumn<{
+            name: "channel";
+            tableName: "skill_channels";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        revisionId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "revision_id";
+            tableName: "skill_channels";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        previousRevisionId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "previous_revision_id";
+            tableName: "skill_channels";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updatedBy: import("drizzle-orm/pg-core").PgColumn<{
+            name: "updated_by";
+            tableName: "skill_channels";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updateTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "update_time";
+            tableName: "skill_channels";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+export type SkillChannelRow = typeof skillChannels.$inferSelect;
+/**
+ * Bundles — o conjunto curado que um publisher distribui aos CLIENTES DELE (M20).
+ *
+ * Um bundle referencia skills por CANAL, não por revisão fixa: corrigir uma skill propaga
+ * para todos os destinatários sem reemitir um único token. Fixar revisão obrigaria o
+ * publisher a reemitir credenciais a cada correção — e ninguém faria isso, então as
+ * correções não chegariam.
+ */
+export declare const bundles: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "bundles";
+    schema: undefined;
+    columns: {
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "bundles";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        bundleId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "bundle_id";
+            tableName: "bundles";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        name: import("drizzle-orm/pg-core").PgColumn<{
+            name: "name";
+            tableName: "bundles";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "bundles";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/** Itens do bundle — cada um aponta para uma skill e o CANAL a seguir. */
+export declare const bundleItems: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "bundle_items";
+    schema: undefined;
+    columns: {
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "bundle_items";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        bundleId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "bundle_id";
+            tableName: "bundle_items";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "bundle_items";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        channel: import("drizzle-orm/pg-core").PgColumn<{
+            name: "channel";
+            tableName: "bundle_items";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+/**
+ * Tokens de distribuição — emitidos pelo PUBLISHER para os clientes dele.
+ *
+ * Escopados a UM bundle e com expiração OBRIGATÓRIA (`expiresAt` é notNull, ao contrário das
+ * chaves de API internas): uma credencial de terceiro sem prazo é uma que ninguém lembra de
+ * revogar. Guarda apenas o hash — o valor sai uma vez, na emissão.
+ */
+export declare const distributionTokens: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "distribution_tokens";
+    schema: undefined;
+    columns: {
+        tokenId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "token_id";
+            tableName: "distribution_tokens";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "distribution_tokens";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        bundleId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "bundle_id";
+            tableName: "distribution_tokens";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        tokenHash: import("drizzle-orm/pg-core").PgColumn<{
+            name: "token_hash";
+            tableName: "distribution_tokens";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        label: import("drizzle-orm/pg-core").PgColumn<{
+            name: "label";
+            tableName: "distribution_tokens";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        quotaPerWindow: import("drizzle-orm/pg-core").PgColumn<{
+            name: "quota_per_window";
+            tableName: "distribution_tokens";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        revokedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "revoked_at";
+            tableName: "distribution_tokens";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        expiresAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "expires_at";
+            tableName: "distribution_tokens";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "distribution_tokens";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+export type BundleRow = typeof bundles.$inferSelect;
+export type BundleItemRow = typeof bundleItems.$inferSelect;
+export type DistributionTokenRow = typeof distributionTokens.$inferSelect;
+/**
+ * Eventos de instalação (M21) — a telemetria que o publisher pede no primeiro dia.
+ *
+ * Guarda o token por **id**, NUNCA o valor: um evento com o segredo dentro transformaria a
+ * tabela de telemetria numa segunda cópia do cofre de credenciais, e telemetria costuma ter
+ * retenção mais longa e acesso mais amplo que credencial.
+ */
+export declare const installEvents: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "install_events";
+    schema: undefined;
+    columns: {
+        eventId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "event_id";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        workspaceId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "workspace_id";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        bundleId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "bundle_id";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        tokenId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "token_id";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        skillId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "skill_id";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        revisionId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "revision_id";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        version: import("drizzle-orm/pg-core").PgColumn<{
+            name: "version";
+            tableName: "install_events";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createTime: import("drizzle-orm/pg-core").PgColumn<{
+            name: "create_time";
+            tableName: "install_events";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
+export type InstallEventRow = typeof installEvents.$inferSelect;
+
+// ==== infrastructure/payload-validator.d.ts ====
+import { type PayloadValidator } from '../index.js';
+/** yauzl-backed PayloadValidator (zip-bomb safe — guards from metadata first). */
+export declare function createYauzlPayloadValidator(): PayloadValidator;
+
+// ==== infrastructure/secret-scanner.d.ts ====
+import { type SecretScanner } from '../index.js';
+/**
+ * secretlint-backed SecretScanner. Scans each extracted text file in-memory
+ * (no disk write, no physical file path) using the curated preset-recommend
+ * ruleset. Returns only the rule id + file — the raw secret value is never
+ * carried (security + Unbreakable Rule 8). `maskSecrets` is on as defence in depth.
+ */
+export declare function createSecretlintScanner(): SecretScanner;
+
+// ==== infrastructure/validators.d.ts ====
+/**
+ * Validadores de payload — barril do subpath `@usetheo/skills/validators`.
+ *
+ * Vivem no `core` e não no `api` porque a CLI precisa deles no caminho de PRODUÇÃO
+ * (`theoskill validate` e `publish` validam antes de enviar). Enquanto moravam no servidor,
+ * publicar a CLI no npm arrastaria pg-boss, drizzle e hono para dentro de um cliente de
+ * linha de comando — dependências de servidor num pacote que nunca sobe um servidor.
+ *
+ * A porta (`PayloadValidator`, `SecretScanner`) sempre foi do domínio; só as implementações
+ * estavam do lado errado da fronteira.
+ */
+export { createYauzlPayloadValidator } from './payload-validator.js';
+export { createSecretlintScanner } from './secret-scanner.js';
+export * from './zip-guards.js';
+
+// ==== infrastructure/zip-guards.d.ts ====
+import { type PayloadErrorCode } from '../index.js';
+/** Pure metadata shape needed to apply the zip-safety guards. */
+export interface ZipEntryMeta {
+    readonly fileName: string;
+    readonly uncompressedSize: number;
+    readonly compressedSize: number;
+    readonly externalFileAttributes: number;
+}
+export declare function isSymlink(externalFileAttributes: number): boolean;
+export declare function isPathUnsafe(name: string): boolean;
+export declare function exceedsDepth(name: string): boolean;
+/** Mutable accumulator across entries (dup detection + running totals). */
+export interface GuardState {
+    entryCount: number;
+    totalUncompressed: number;
+    readonly seen: Set<string>;
+}
+export declare function newGuardState(): GuardState;
+/**
+ * Apply all safety guards to a single entry given the running state. Returns the
+ * violated PayloadErrorCode, or null when the entry is safe. Stateless on the
+ * `meta`; mutates `state` (dup set + totals) only when the entry passes. Pure and
+ * exhaustively unit-testable WITHOUT a real zip.
+ */
+export declare function checkEntry(meta: ZipEntryMeta, isDirectory: boolean, state: GuardState): PayloadErrorCode | null;
