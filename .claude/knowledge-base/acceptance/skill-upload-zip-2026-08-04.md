@@ -75,8 +75,39 @@ ponta a ponta e está provada, mas o caminho tinha defeitos reais que a validaç
 conjuntos **diferentes** (`recovery`, `observability`, `M26`), nenhuma em skills, todas passando
 isoladas. Conjunto variável indica contenção sob paralelismo local. Registrado, não fechado.
 
+## Revalidação das correções do #444 — app-dev, bundle `index-CyPWDQdZ.js`
+
+As três correções foram exercitadas por clique depois que o dashboard convergiu:
+
+| Correção | Como foi exercitada | Resultado |
+|---|---|---|
+| Painel de publicação preso | publicar `acc-444-primeira`, trocar o identificador para `acc-444-segunda`, publicar de novo **sem recarregar** | painel some ao trocar; botão reabilita; segunda operação `op_q3h39j6d0m6882vzlh3vgv7v` → `ACTIVE`; cada link aponta para a skill certa |
+| Rotas em inglês | abrir `/skills/nova` com cache ignorado | redireciona para `/skills/new`; `Test discovery` aponta para `/skills/discovery` |
+| Rótulo traduzido | abrir o detalhe de uma skill | `Successor (optional)` |
+
+Skills de teste removidas do acervo ao final (`acc-444-primeira`, `acc-444-segunda`,
+`acc-upload-zip-vazada`).
+
+### Uma correção de rota que esta validação me obrigou a fazer
+
+Durante a espera afirmei que uma mudança só-dashboard **não chegava ao ar**, com base em 49 minutos
+sem convergência. Estava errado: convergiu em **~1h44** (publish 22:14:59Z → bundle novo entre
+23:03Z e 23:58Z). Retratei no [#320](https://github.com/usetheoai/theo-cloud/issues/320#issuecomment-5185937704).
+
+O achado real, com a natureza correta, é a **latência sem sinal de progresso** — e, separadamente,
+que **não existe forma de saber qual build do SPA está no ar**: `/v1/version` responde pelo binário
+Go e permanece correto durante toda a janela em que o frontend está velho. Aberto como
+[#446](https://github.com/usetheoai/theo-cloud/issues/446), porque é falta de observabilidade do
+produto, não do reconciliador — e porque o problema já havia sido notado no #363, que foi fechado
+por outro defeito e o levou junto.
+
 ## Artefatos vivos
 
-- Skill `acc-upload-zip-cambio` (`converter-cotacao`) permanece no acervo do app-dev como evidência.
+- Skill `acc-upload-zip-cambio` (`converter-cotacao`) permanece no acervo do app-dev como evidência
+  da capacidade.
 - PRs: [#443](https://github.com/usetheoai/theo-cloud/pull/443) (capacidade),
-  [#444](https://github.com/usetheoai/theo-cloud/pull/444) (defeitos da validação)
+  [#444](https://github.com/usetheoai/theo-cloud/pull/444) (defeitos que a validação expôs) — ambos
+  mergeados, no ar e revalidados por clique.
+- Issues: [#320](https://github.com/usetheoai/theo-cloud/issues/320) (latência do rollout, comentado
+  com evidência **e retratação**), [#446](https://github.com/usetheoai/theo-cloud/issues/446) (o SPA
+  não carimba versão — aberto por este ciclo).
