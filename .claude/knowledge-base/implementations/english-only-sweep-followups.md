@@ -57,3 +57,13 @@ O mapa de rename da T2.1 cobre os cinco primeiros (os do módulo de descobribili
 **Decisão tomada em T0.1 (não é followup, é escopo):** `.claude/` inteiro está fora do alcance do portão. São artefatos do próprio ciclo, e renomear um arquivo de evidência **quebra o registro de aceitação que o cita**. A exclusão está escrita em `IGNORED_ROOTS` com a razão ao lado.
 
 **Fica registrado aqui** apenas para que a ausência desses nomes na contagem não seja lida, mais tarde, como se eles não existissem.
+
+## F-5 — O teste de contrato do binário roda contra `dist/`, sem guarda de frescor
+
+**Descoberto em:** T1.1, ao restaurar `bin.ts` depois da prova de regressão.
+
+**Fato medido:** `bin.contract.test.ts:9` aponta para `packages/mcp/dist/bin.js`. Restaurei o fonte e rodei a suíte: **falhou**, porque o `dist/` ainda continha a injeção do teste anterior. O erro (`expected 'theo-skills mcp: THEOSKILL_REGISTRY e…' not to contain …`) descreve com precisão um estado que o fonte já não tinha.
+
+Rodar contra o binário é deliberado e correto — é o que o DoD do M25 pede. O que falta é o **frescor**: nada relaciona `dist/bin.js` ao `src/bin.ts` que o gerou, então a suíte pode passar (ou falhar) por um build velho, e a mensagem não dá pista de que o problema é esse.
+
+**Ação sugerida:** ou o `pretest` do pacote roda `build`, ou o teste compara o mtime de `dist/bin.js` com o de `src/bin.ts` e falha com "dist stale — run `pnpm build`". A segunda é mais barata e diz o que fazer.
