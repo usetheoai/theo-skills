@@ -25,7 +25,7 @@
     "typescript": "^5.4.0",
     "vitest": "^4.0.0"
   },
-  "description": "CLI do theo-skills — publicar, instalar e atualizar skills de agentes.",
+  "description": "CLI for theo-skills \u2014 publish, install and update agent skills.",
   "license": "Apache-2.0",
   "files": [
     "dist"
