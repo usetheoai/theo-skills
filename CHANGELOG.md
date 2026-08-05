@@ -9,6 +9,10 @@ ao [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Cinco CVEs HIGH em dependências de desenvolvimento estavam sem registro (#151).** O `/deps-audit` do sweep de idioma mediu 5 HIGH e 3 MODERATE: três de `brace-expansion` e uma de `js-yaml` entram por `eslint@^9`, uma de `postcss` por `vitest@^4`. Nenhuma alcança artefato publicado — `pnpm audit --prod` não as vê —, mas "dev-only" é razão para priorizar abaixo de produção, não para não rastrear. No mesmo passo, o #126 recebeu a medição que faltava: o `@hono/node-server` **direto** já foi corrigido (`2.0.12`), e o que continua vulnerável é a cópia transitiva `1.19.14` sob `@modelcontextprotocol/sdk` — então "subimos o hono" está satisfeito e não fecha o achado
+- **Plano `english-only-sweep` — v1.1, SHIPPABLE (90.4).** A v1.0 saiu `INVALID`: quatro caps, três deles defeitos reais do próprio plano. Um era uma referência a uma tarefa `T4.3` **que não existe** (Q3 e a tabela de riscos apontavam para ela); os outros dois, um portão de idioma cuja catraca comparava contra `HEAD` — que num evento `pull_request` é o merge commit, então ela comparava o PR consigo mesmo — e uma heurística de acento que não veria `integracao-theokit-mcp.md` nem `m28-execution-nao-confiavel`, os dois arquivos que o próprio plano manda renomear. O `/edge-case-plan` achou mais nove, entre eles um snapshot de API que prometia travar renames de campo e só via nomes
+- **Plano `english-only-sweep`.** O `/code-review` de 2026-08-05 verificou 10 achados; nove são a mesma falha em camadas diferentes — português ainda embarca em descrição de ferramenta MCP (que o modelo do agente lê para escolher a tool), em corpo de erro HTTP, na saída da CLI, nos identificadores exportados de um pacote publicado no npm e nos nomes de job que servem de *required status check*. O décimo é independente: `assertPublishable` não tem chamador de produção e não há índice único, então duas revisões diferentes podem ocupar a mesma versão semântica. O plano em `.claude/knowledge-base/plans/english-only-sweep-plan.md` fecha os dez com um portão de catraca que impede a regressão
+
 ### Changed
 
 - **O texto que o usuário lê passa a ser inglês.** O produto é monolíngue em inglês — `api-keys` e `billing` sempre estiveram assim — e as superfícies de skills respondiam em português, deixando o dashboard bilíngue conforme a tela. Traduzidos os `hints` do diagnóstico de descobribilidade (o texto de backend mais visível ao usuário, exibido na tela de autoria) e as mensagens de erro tipadas dos handlers. Comentários de código e identificadores internos permanecem como estão: são para quem mantém, não para quem usa.
@@ -18,6 +22,8 @@ ao [Semantic Versioning](https://semver.org/).
 ### Deprecated
 
 ### Removed
+
+- **O `prototype/` saiu do repositório.** Era estudo de interface — 17 arquivos, entre eles um `pnpm-lock.yaml` de 2773 linhas e um segundo `pnpm-workspace.yaml` — e nada dali vira produto: a interface desta capacidade nasce no `theo-cloud/dashboard`, como manda o `CLAUDE.md`. Mantido no repo, o diretório oferecia um segundo workspace pnpm e um segundo alvo de build que ninguém publica, e aparecia em toda varredura de código como se fosse superfície viva (#88d4fa4)
 
 ### Fixed
 
