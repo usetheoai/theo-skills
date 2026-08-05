@@ -71,11 +71,28 @@ def shas_from_progress(progress: dict, phase: str | None = None) -> list[str]:
 _NON_SOURCE_SUFFIXES = (".snap", ".json", ".md", ".lock", ".yaml", ".yml", ".txt", ".d.ts")
 
 
+# Test files are excluded for a different reason than data files: a symbol defined in a
+# test needs no PRODUCTION caller, which is the only thing pillar (a) asks about.
+# `check_wiring.py` already excludes tests when LOOKING for callers, so deriving symbols
+# from them poses a question the same tool refuses to answer.
+_TEST_PATH_MARKERS = ("/tests/", "/test/", "__tests__")
+_TEST_NAME_MARKERS = (".test.", ".spec.", "_test.")
+
+
+def _is_test(path: str) -> bool:
+    name = path.rsplit("/", 1)[-1]
+    if name.startswith("test_") or any(m in name for m in _TEST_NAME_MARKERS):
+        return True
+    return any(m in f"/{path}" for m in _TEST_PATH_MARKERS)
+
+
 def _is_source(path: str) -> bool:
-    """Whether added lines in this path can be said to DEFINE a symbol."""
+    """Whether added lines in this path can be said to DEFINE a symbol pillar (a) covers."""
     if not path or path == "/dev/null":
         return False
-    return not path.endswith(_NON_SOURCE_SUFFIXES)
+    if path.endswith(_NON_SOURCE_SUFFIXES):
+        return False
+    return not _is_test(path)
 
 
 def added_symbols_from_shas(repo_root: Path, shas: list[str]) -> set[str]:

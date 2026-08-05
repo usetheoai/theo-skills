@@ -52,7 +52,7 @@ Cross-layer cohesion detection requires per-project layer config in rules/archit
 ### 3. Wiring summary
 
 - status: `PASS`
-- symbols_checked: 45
+- symbols_checked: 9
 - pillar_a_fails: 0
 
 ### 4. Code-quality delta

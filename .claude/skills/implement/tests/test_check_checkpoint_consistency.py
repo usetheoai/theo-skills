@@ -183,3 +183,39 @@ def test_backward_check_is_skipped_loudly_when_no_range_can_be_derived(tmp_path:
     report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
 
     assert "task_committed_in_git_not_in_progress" not in [f.code for f in report.findings]
+
+
+def test_task_id_mentioned_only_in_the_body_is_not_a_claim_of_implementation(tmp_path: Path) -> None:
+    """The convention puts the task id in the SUBJECT. Prose that discusses another task is prose.
+
+    Measured on english-only-sweep: commits whose subject was `feat(T0.1): …` explained in
+    their body why T2.1 and T4.1 come later. Reading the whole message turned that
+    explanation into a claim that T2.1 had been implemented.
+    """
+    repo = _repo(tmp_path)
+    first = _commit(repo, "src/a.py", "x = 1\n",
+                    "feat(T1.1): the gate\n\nT2.1 renames the exports and comes later; T4.1 wires the guard.")
+
+    progress = {"tasks": [
+        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
+        {"id": "T2.1", "phase": "2", "status": "pending"},
+    ]}
+
+    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
+
+    assert "task_committed_in_git_not_in_progress" not in [f.code for f in report.findings]
+
+
+def test_task_id_in_the_subject_is_still_a_claim(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    first = _commit(repo, "src/a.py", "x = 1\n", "feat(T1.1): first")
+    _commit(repo, "src/b.py", "y = 1\n", "feat(T1.2): committed but never recorded")
+
+    progress = {"tasks": [
+        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
+        {"id": "T1.2", "phase": "1", "status": "pending"},
+    ]}
+
+    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T1.2"])
+
+    assert "task_committed_in_git_not_in_progress" in [f.code for f in report.findings]

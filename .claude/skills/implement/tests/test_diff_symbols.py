@@ -121,3 +121,20 @@ def test_symbols_from_real_source_are_still_harvested(tmp_path: Path) -> None:
     sha = _commit_file(repo, "src/thing.ts", "export function doThing(): void {}\n", "feat: thing")
 
     assert "doThing" in added_symbols_from_shas(repo, [sha])
+
+
+def test_symbols_are_not_harvested_from_test_files(tmp_path: Path) -> None:
+    """Pillar (a) asks for a PRODUCTION caller; a symbol defined in a test needs none.
+
+    `check_wiring.py` already excludes test files when LOOKING for callers, so harvesting
+    symbols from them asks a question that cannot be answered. Measured: a regression test
+    carrying `export interface ApiKeyRow` as a fixture string re-introduced the very
+    finding it was written to prevent.
+    """
+    repo = _init_repo(tmp_path)
+    sha = _commit_file(repo, "tests/test_thing.py",
+                       'FIXTURE = "export interface ApiKeyRow { id: string }"\n'
+                       "def test_x() -> None:\n    pass\n",
+                       "test: fixture")
+
+    assert "ApiKeyRow" not in added_symbols_from_shas(repo, [sha])

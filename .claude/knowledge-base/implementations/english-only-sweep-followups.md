@@ -125,3 +125,21 @@ A convenção `T{N}.{M}` é **a mesma em todos os planos do repositório**, e o 
 O critério do plano diz "todo arquivo alterado ≤ 500 linhas" sem qualificar. O orçamento existe para conter **complexidade de código**; aplicá-lo a um log append-only e a um snapshot mede a coisa errada.
 
 **Ação sugerida:** qualificar o critério no plano — o teto vale para arquivos de código-fonte, e o gate deve pular `CHANGELOG.md`, `*.snap`, `*.json` de fixture e `*-lock.*`.
+
+
+---
+
+## Estado dos followups em 2026-08-05
+
+| # | Estado | Nota |
+|---|---|---|
+| F-1 | **aberto** | `tests/workflows/**` fora de projeto TS — dívida preexistente, tarefa própria |
+| F-2 | **aberto** | terceiro arquivo com nome em PT (`m29-adoption-versao-real`) — entra na T6.1 |
+| F-3 | **aberto** | sexto export em PT (`registrarErroDePoolOcioso`) — entra no mapa da T2.1 |
+| F-4 | resolvido por escopo | `.claude/` fora do alcance do portão, com razão em `IGNORED_ROOTS` |
+| F-5 | **aberto** | `bin.contract.test.ts` roda contra `dist/` sem guarda de frescor |
+| F-6 | **CORRIGIDO** | `diff_symbols` só extrai de arquivo de código, e não de teste |
+| F-7 | **CORRIGIDO** | varredura recortada ao plano; id conta como referência estruturada, não como prosa |
+| F-8 | **CORRIGIDO** | teto de linhas não vale para CHANGELOG, snapshots e lockfiles |
+
+Os três corrigidos ganharam 9 testes de regressão em `.claude/skills/implement/tests/`. A suíte do kit foi de 118 para 127 testes.
