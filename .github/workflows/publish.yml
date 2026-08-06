@@ -97,7 +97,7 @@ jobs:
     # CADA gate declarado em `needs` precisa ser vetado à mão, aqui. `tests/workflows/gates.test.ts`
     # trava isso: acrescentar um `needs` sem o veto correspondente deixa a suíte vermelha.
     if: ${{ always() && needs.gate-ci.result == 'success' && needs.gate-integration.result == 'success' }}
-    uses: usetheoai/theo/.github/workflows/build-publish.yml@develop
+    uses: usetheoai/theo/.github/workflows/build-publish.yml@d1f3c94762609d2732ae73624c333d36a350e6ab # develop
     with:
       image: theo-skills
       dockerfile: Dockerfile
