@@ -1,7 +1,0 @@
-# AC5 — degradacao com registry inalcancavel (pacote PUBLICADO), 2026-08-03
-$ node ac5.mjs
-{"ms":0,"n":1,"nome":"local"}
-# fallback ENGAJOU (n=1, item correto) em 0ms — dentro do teto de 5s.
-# `usedFallback` AUSENTE da serializacao => nao ficou `true`.
-# Primeira execucao usou `fallback:` (nome errado); a opcao real e `localFallback:`.
-# Corrigido e reexecutado — este e o resultado da execucao correta.
