@@ -15,7 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Plan `english-only-sweep` v1.2, SHIPPABLE (90.4). v1.0 was INVALID over four caps, three of them real defects in the plan itself — including a reference to a task `T4.3` that never existed
 
 ### Changed
+- Hook de validação de comandos ficou mais rápido: ~6 processos por chamada de ferramenta em vez de ~50, sem mudança de comportamento
 
+- Commit em `workspace` não aciona mais a esteira: o gatilho `push: branches: [workspace]` do `ci` foi removido. A cobertura pós-merge continua vindo do `publish`, que invoca o `ci` por `workflow_call`. **Trade-off assumido:** o gatilho existia desde 2026-08-03 justamente porque `workspace` não tinha portão — 92 commits acumularam sem lint e três `async` sem `await` só apareceram no PR de promoção, bloqueando um release. Esse risco volta; a verificação passa a ser local, antes do push.
 - Every user- and agent-facing string is English: CLI output (`erro:` → `error:`, which also means a single `grep '^error:'` now covers the whole binary), SDK errors, HTTP `details`, and the typed version-rejection messages. Tier B of the language budget went 62 → 0 (#T3.2, #T3.3)
 - MCP tool descriptions are English. They are the MODEL's input when choosing a tool: an agent working in English that received `Busca skills por intenção…` could simply not pick the tool, and the registry would return nothing to someone who should have found a skill (#T3.1)
 - The MCP `error` field now carries a stable CODE, with the readable sentence in `message`. It used to hold both — `not_found` (a code) from get_skill, `query é obrigatória` (a sentence) from validation — so no client could branch on a validation failure. BREAKING for clients reading `error` as prose (#T3.1)
