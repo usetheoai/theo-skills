@@ -9,6 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`GET /v1/health/ready`**, and `service` on the liveness body. The service answered liveness only — during a rolling deploy an instance whose Postgres or queue had not resolved answered 200, the orchestrator read that as ready, and traffic landed on it. Readiness probes both dependencies and names what it checked; it answers 503 when one is unavailable, while liveness stays 200 so a healthy process is not restarted over a dependency it cannot fix. (B-119)
+
 - API surface gate: renaming a published export or a type FIELD now fails a test before publish. Two levels, because the name list alone is byte-identical under a field rename — measured (#T1.3)
 - Language gate with a ratchet: four tiers of PT-BR are counted against `tests/repo/language-budget.json`, which may only shrink. The base is `git merge-base`, never `HEAD` — on a `pull_request` the checkout is the merge commit, so `HEAD` compares the PR with itself. Baseline: A=6 B=62 C=1772 D=32 (#T0.1)
 - Five HIGH CVEs in dev-only transitive dependencies were untracked (#151). `@hono/node-server` direct is already fixed at `2.0.12`; the transitive `1.19.14` under `@modelcontextprotocol/sdk` remains — "we bumped hono" is satisfied and does not close #126

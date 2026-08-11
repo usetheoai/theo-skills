@@ -140,7 +140,13 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // o reconciliador do dev host leem exatamente `/v1/version` sem credencial alguma —
   // fechá-los quebraria a observabilidade da frota inteira, e foi o que um teste de wiring
   // pegou antes de virar incidente.
-  registerHealthRoutes(app);
+  // B-119 — readiness probes what the service actually needs in order to serve: Postgres, where
+  // the whole catalogue lives, and the queue, which carries distribution. A probe touching
+  // neither would answer `ready` for a process that cannot handle a single request.
+  registerHealthRoutes(app, async () => ({
+    database: await reachable(() => opts.pool.query('SELECT 1')),
+    queue: await reachable(() => opts.queue.getQueues()),
+  }));
   registerVersionRoutes(app);
 
   // DISTRIBUIÇÃO — registrada aqui, ANTES do middleware de autenticação interna, porque quem
@@ -346,4 +352,21 @@ function envReservationHours(): number {
 function envMaxBodyBytes(): number {
   const raw = Number(process.env['THEOSKILL_MAX_BODY_BYTES'] ?? '');
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_MAX_BODY_BYTES;
+}
+
+/**
+ * Whether a dependency answered, as a readiness check.
+ *
+ * Swallowing the error here is deliberate and is NOT the swallowed-exception anti-pattern: the
+ * question this asks is boolean, the answer is reported in the response body, and the caller of a
+ * readiness endpoint wants `unavailable` rather than a 500. What would be wrong is swallowing it
+ * silently — the status body names which dependency failed, which is the whole point of `checks`.
+ */
+async function reachable(probe: () => Promise<unknown>): Promise<'ok' | 'unavailable'> {
+  try {
+    await probe();
+    return 'ok';
+  } catch {
+    return 'unavailable';
+  }
 }
