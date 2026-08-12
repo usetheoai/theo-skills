@@ -20,8 +20,6 @@ name: CI
 on:
   # Invocado por publish.yml como gate encadeado, e disparado direto num PR.
   workflow_call:
-  pull_request:
-    branches: [develop, main]
   # SEM `paths-ignore` no PR, e isto é deliberado.
   #
   # Este job é um check EXIGIDO pela proteção de branch (desde 2026-08-01). `paths-ignore`

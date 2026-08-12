@@ -12,8 +12,6 @@ on:
   # silêncio — o portão que autoriza a imagem NÃO CONSEGUIA reprovar regressão de integração,
   # por construção. O reconciliador leva essa imagem ao app-dev a cada ~5 min.
   workflow_call:
-  pull_request:
-    branches: [develop, main]
   # SEM `paths-ignore` no PR, e isto é deliberado.
   #
   # Este job é um check EXIGIDO pela proteção de branch (desde 2026-08-01). `paths-ignore`

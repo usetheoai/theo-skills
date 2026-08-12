@@ -17,6 +17,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Plan `english-only-sweep` v1.2, SHIPPABLE (90.4). v1.0 was INVALID over four caps, three of them real defects in the plan itself — including a reference to a task `T4.3` that never existed
 
 ### Changed
+
+- Abrir um PR não dispara mais esteira: o gatilho `pull_request` foi removido dos 4 workflows que o declaravam (`actionlint.yml`, `ci.yml`, `integration.yml`, `security-sast.yml`). CI passa a rodar **somente no merge** — push em `develop`/`main` — por decisão do dono (2026-08-12). A cobertura no merge não se perde: estes workflows são invocados como gate pelo `publish.yml`, que dispara no push para `develop`. Se este repositório tiver *required status checks* configurados no GitHub para PRs, eles precisam ser removidos lá, senão o PR fica travado esperando um check que nunca reporta.
 - Hook de validação de comandos ficou mais rápido: ~6 processos por chamada de ferramenta em vez de ~50, sem mudança de comportamento
 
 - Commit em `workspace` não aciona mais a esteira: o gatilho `push: branches: [workspace]` do `ci` foi removido. A cobertura pós-merge continua vindo do `publish`, que invoca o `ci` por `workflow_call`. **Trade-off assumido:** o gatilho existia desde 2026-08-03 justamente porque `workspace` não tinha portão — 92 commits acumularam sem lint e três `async` sem `await` só apareceram no PR de promoção, bloqueando um release. Esse risco volta; a verificação passa a ser local, antes do push.
