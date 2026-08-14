@@ -68,17 +68,32 @@ export function withWorkspaceScope<T>(workspaceId: string, fn: () => Promise<T>)
 }
 
 /**
- * Runs `fn` as work that spans every workspace.
+ * REFUSES. Kept as a signpost, not as a capability.
  *
- * Reserved for migrations, health checks and platform maintenance. `reason` is
- * required because an unexplained cross-tenant scope is indistinguishable from
- * a forgotten one, and this is the single escape hatch in the whole mechanism.
+ * This used to run `fn` with the scope marked cross-workspace, which made
+ * `requireScopeValue` return the empty string, which the pool wrote into
+ * `app.workspace_id`. The isolation policy compares the column against exactly that
+ * value — so the "crossing" matched no row at all. Callers got an empty result and no
+ * error: the silent-nothing this mechanism exists to prevent, wearing the name of the
+ * sanctioned escape hatch. It went unnoticed because its only caller ran as a
+ * superuser, which bypasses row security outright.
+ *
+ * Under fail-closed RLS there is no in-process way to grant a real crossing. What
+ * works is `withWorkspaceScope(id, fn)` per workspace — iterating a list taken from
+ * outside the protected tables — or a policy that NAMES a role in `TO`, which is a
+ * reviewable, revocable grant rather than a function call.
  */
-export function withCrossWorkspaceScope<T>(reason: string, fn: () => Promise<T>): Promise<T> {
-  if (!reason?.trim()) {
-    throw new WorkspaceScopeError('withCrossWorkspaceScope requires a reason');
-  }
-  return STORE.run({ crossWorkspace: true, reason: reason.trim() }, fn);
+export function withCrossWorkspaceScope<T>(reason: string, _fn: () => Promise<T>): Promise<T> {
+  return Promise.reject(
+    new WorkspaceScopeError(
+      `withCrossWorkspaceScope(${JSON.stringify(reason)}) does not grant a crossing and never ` +
+        'did: it set the workspace context to the empty string, which the isolation policy ' +
+        'matches against nothing, so every statement inside returned zero rows without error. ' +
+        'Use withWorkspaceScope(id, fn) once per workspace — taking the list from outside the ' +
+        'protected tables — or add a policy that names a role in TO, which is a reviewable and ' +
+        'revocable grant instead of a silent one.',
+    ),
+  );
 }
 
 /** The active scope, or `undefined` outside any scope. */
@@ -120,5 +135,14 @@ export function requireScopeValue(operation: string): string {
         'must declare itself via withCrossWorkspaceScope(reason, …).',
     );
   }
-  return isCrossWorkspace(scope) ? '' : scope.workspaceId;
+  if (isCrossWorkspace(scope)) {
+    // Unreachable through withCrossWorkspaceScope, which now refuses — but a scope
+    // built any other way must not reach the pool either. The empty string is not
+    // "all workspaces": the policy compares against it literally and matches nothing.
+    throw new WorkspaceScopeError(
+      `${operation} attempted under a cross-workspace scope, which grants no access. ` +
+        'Iterate with withWorkspaceScope(id, fn) instead.',
+    );
+  }
+  return scope.workspaceId;
 }
