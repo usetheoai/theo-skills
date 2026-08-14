@@ -1,3 +1,4 @@
+import { workspaceScope } from './middleware/workspace-scope.js';
 import { type AuthVerifier, type QueryExecutor } from '@usetheo/skills';
 import {
   DEFAULT_PRINCIPAL,
@@ -215,6 +216,10 @@ export function createApp(opts: CreateAppOptions): Hono<AppEnv> {
   // O orçamento é POR PRINCIPAL e não por IP: num registry multi-tenant o IP é o gateway do
   // cliente, então limitar por IP puniria todos os usuários dele pelo excesso de um só — e
   // não conteria nada quando o abuso vem de IPs distintos com a mesma credencial.
+  // With the Principal resolved, bind the workspace before any route can reach
+  // the database, so PostgreSQL enforces the boundary itself (migration 0016).
+  app.use('*', workspaceScope());
+
   if (opts.rateLimit !== undefined) {
     app.use('*', createRateLimiter({ config: opts.rateLimit }));
   }

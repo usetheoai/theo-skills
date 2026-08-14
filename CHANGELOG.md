@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **O isolamento entre inquilinos passou a ser aplicado pelo banco de dados.** Um cliente não consegue mais ler nem escrever skills, bundles e revisões de outro, mesmo que uma consulta esqueça o filtro. Antes não havia barreira alguma no banco: o que separava os dados era o filtro escrito à mão em cada consulta, e um esquecimento devolvia dados alheios sem erro, sem log e sem teste vermelho. Skills carregam código executável: a direção de ESCRITA importa tanto quanto a de leitura, porque plantar uma skill na biblioteca de outro cliente seria pior do que ler a dele. São 12 tabelas com política restritiva. A ausência de contexto agora devolve nada em vez de tudo. (migration 0016)
+- **O contexto do inquilino passou a viajar junto com a requisição**, vindo da credencial autenticada e nunca de algo que o cliente envia. É aplicado a cada conexão entregue aos repositórios, que não mudaram. Uma operação sem contexto **falha alto** em vez de devolver lista vazia — vazio é ambíguo e passa por "não há dados".
+- **A tabela de credenciais fica deliberadamente fora dessa proteção.** Resolver a credencial é o que DESCOBRE o inquilino: protegê-la por inquilino seria circular — seria preciso saber o inquilino para ler a linha que diz qual é o inquilino — e o efeito prático seria toda autenticação falhar. A decisão está registrada na própria migration, com o que protege a tabela no lugar disso.
+
 ### Added
 
 - **`GET /v1/health/ready`**, and `service` on the liveness body. The service answered liveness only — during a rolling deploy an instance whose Postgres or queue had not resolved answered 200, the orchestrator read that as ready, and traffic landed on it. Readiness probes both dependencies and names what it checked; it answers 503 when one is unavailable, while liveness stays 200 so a healthy process is not restarted over a dependency it cannot fix. (B-119)
