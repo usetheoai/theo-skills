@@ -23,6 +23,7 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Os limites do pool de conexões passaram a ser declarados em vez de herdados.** O comportamento padrão mantém uma conexão viva indefinidamente: depois de uma troca de servidor do banco, o sistema continuava entregando conexões para um servidor que já não existia, e o sintoma era um gotejar de erros em vez de uma falha visível. Agora as conexões são aposentadas por tempo, e os limites estão escritos onde alguém pode discuti-los.
 - Abrir um PR não dispara mais esteira: o gatilho `pull_request` foi removido dos 4 workflows que o declaravam (`actionlint.yml`, `ci.yml`, `integration.yml`, `security-sast.yml`). CI passa a rodar **somente no merge** — push em `develop`/`main` — por decisão do dono (2026-08-12). A cobertura no merge não se perde: estes workflows são invocados como gate pelo `publish.yml`, que dispara no push para `develop`. Se este repositório tiver *required status checks* configurados no GitHub para PRs, eles precisam ser removidos lá, senão o PR fica travado esperando um check que nunca reporta.
 - Hook de validação de comandos ficou mais rápido: ~6 processos por chamada de ferramenta em vez de ~50, sem mudança de comportamento
 

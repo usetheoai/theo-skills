@@ -51,7 +51,22 @@ export function recordIdlePoolError(): void {
  * ela não aconteça — é a diferença entre tornar o erro impossível e tentar detectá-lo.
  */
 export function createPool(uri: string, logger: Logger): Pool {
-  const pool = new Pool({ connectionString: uri });
+  // Limites do pool DECLARADOS, nunca herdados. Por padrão o node-postgres mantém
+  // um cliente vivo indefinidamente: depois de um failover do Postgres gerenciado, ou
+  // de um proxy reciclando conexões por baixo, o pool segue entregando clientes
+  // apontando para um servidor que já não existe — e o sintoma é um gotejar de
+  // queries com erro, não algo que alguém perceba. `maxLifetimeSeconds` aposenta cada
+  // cliente por tempo, em vez de esperar que ele quebre.
+  //
+  // Configuração ausente é pior que valor errado: o errado aparece no diff e pode ser
+  // discutido; o ausente é invisível e acompanha o que a biblioteca decidir mudar.
+  const pool = new Pool({
+    connectionString: uri,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    maxLifetimeSeconds: 3_600,
+  });
   pool.on('error', (err: Error) => {
     errosDeClienteOcioso += 1;
     logger.error(
