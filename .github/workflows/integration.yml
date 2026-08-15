@@ -12,6 +12,22 @@ on:
   # silêncio — o portão que autoriza a imagem NÃO CONSEGUIA reprovar regressão de integração,
   # por construção. O reconciliador leva essa imagem ao app-dev a cada ~5 min.
   workflow_call:
+  # GATILHO DE PR — restaurado em 2026-08-15, e a exceção é deste repositório.
+  #
+  # A remoção de 2026-08-08 foi aplicada em bloco a todo o umbrella. Nos outros
+  # repositórios ela é inofensiva: eles não têm branch protection (o plano do
+  # GitHub não oferece o recurso em repositório privado — medido: 403 em
+  # theo-trust, theo-memory, theo-rag, theo-lens, theo-promptly). Este é PÚBLICO
+  # e tem proteção com três checks EXIGIDOS, então aqui a mesma remoção produziu
+  # um estado que ninguém pediu: o check exigido não podia mais reportar num PR,
+  # e TODO PR ficava `BLOCKED` para sempre. Medido no #154.
+  #
+  # A decisão do dono que motivou a remoção foi sobre `push` em `workspace`
+  # ("esteira não deve ser acionada por commit em workspace") — essa continua
+  # valendo e o gatilho `push` segue fora. O que volta é só o do PR, que é o
+  # evento que a proteção deste repositório pressupõe.
+  pull_request:
+    branches: [develop, main]
   # SEM `paths-ignore` no PR, e isto é deliberado.
   #
   # Este job é um check EXIGIDO pela proteção de branch (desde 2026-08-01). `paths-ignore`

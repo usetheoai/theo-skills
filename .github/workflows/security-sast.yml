@@ -6,6 +6,22 @@
 name: Security SAST
 
 on:
+  # GATILHO DE PR — restaurado em 2026-08-15, e a exceção é deste repositório.
+  #
+  # A remoção de 2026-08-08 foi aplicada em bloco a todo o umbrella. Nos outros
+  # repositórios ela é inofensiva: eles não têm branch protection (o plano do
+  # GitHub não oferece o recurso em repositório privado — medido: 403 em
+  # theo-trust, theo-memory, theo-rag, theo-lens, theo-promptly). Este é PÚBLICO
+  # e tem proteção com três checks EXIGIDOS, então aqui a mesma remoção produziu
+  # um estado que ninguém pediu: o check exigido não podia mais reportar num PR,
+  # e TODO PR ficava `BLOCKED` para sempre. Medido no #154.
+  #
+  # A decisão do dono que motivou a remoção foi sobre `push` em `workspace`
+  # ("esteira não deve ser acionada por commit em workspace") — essa continua
+  # valendo e o gatilho `push` segue fora. O que volta é só o do PR, que é o
+  # evento que a proteção deste repositório pressupõe.
+  pull_request:
+    branches: [develop, main]
   push:
     branches: [develop]
 
