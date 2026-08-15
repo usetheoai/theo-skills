@@ -29,7 +29,8 @@ function appWith(ready: () => Promise<Record<string, 'ok' | 'unavailable'>>) {
   return app;
 }
 
-const allWired = async (): Promise<Record<string, 'ok' | 'unavailable'>> => ({ database: 'ok' });
+const allWired = (): Promise<Record<string, 'ok' | 'unavailable'>> =>
+  Promise.resolve({ database: 'ok' });
 
 describe('the operational surface', () => {
   it('test_liveness_answers_ok', async () => {
@@ -67,9 +68,8 @@ describe('the operational surface', () => {
     // The case that makes the endpoint worth having. Without it, readiness is liveness wearing a
     // second URL, and the rolling deploy it exists to protect still sends traffic to an instance
     // that cannot serve.
-    const degraded = async (): Promise<Record<string, 'ok' | 'unavailable'>> => ({
-      database: 'unavailable',
-    });
+    const degraded = (): Promise<Record<string, 'ok' | 'unavailable'>> =>
+      Promise.resolve({ database: 'unavailable' });
     const res = await appWith(degraded).request('/v1/health/ready');
     const body = (await res.json()) as { status?: string; checks?: Record<string, string> };
 
@@ -81,9 +81,8 @@ describe('the operational surface', () => {
   it('test_liveness_stays_up_when_readiness_is_degraded', async () => {
     // The counterpart. Liveness answering 503 because a dependency is down makes the orchestrator
     // RESTART a healthy process, which loses in-flight work and does not fix the dependency.
-    const degraded = async (): Promise<Record<string, 'ok' | 'unavailable'>> => ({
-      database: 'unavailable',
-    });
+    const degraded = (): Promise<Record<string, 'ok' | 'unavailable'>> =>
+      Promise.resolve({ database: 'unavailable' });
     const res = await appWith(degraded).request('/v1/health');
     expect(res.status).toBe(200);
   });

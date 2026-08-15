@@ -31,8 +31,9 @@ describe('withCrossWorkspaceScope', () => {
   it('throws instead of running the callback', async () => {
     let ran = false;
     await expect(
-      withCrossWorkspaceScope('platform maintenance', async () => {
+      withCrossWorkspaceScope('platform maintenance', () => {
         ran = true;
+        return Promise.resolve();
       }),
     ).rejects.toBeInstanceOf(WorkspaceScopeError);
     expect(ran, 'the callback must not run — it would read zero rows and report success').toBe(
@@ -43,20 +44,20 @@ describe('withCrossWorkspaceScope', () => {
   it('says why, and points at what actually works', async () => {
     // The message is the whole value of keeping the function: the next person to
     // reach for it learns why in the stack trace, not after debugging empty results.
-    const attempt = withCrossWorkspaceScope('retention sweep', async () => undefined);
+    const attempt = withCrossWorkspaceScope('retention sweep', () => Promise.resolve(undefined));
     await expect(attempt).rejects.toThrow(/does not grant/i);
     await expect(attempt).rejects.toThrow(/withWorkspaceScope/);
   });
 
   it('leaves no scope behind when it refuses', async () => {
-    await withCrossWorkspaceScope('anything', async () => undefined).catch(() => undefined);
+    await withCrossWorkspaceScope('anything', () => Promise.resolve(undefined)).catch(() => undefined);
     expect(currentScope(), 'a refused call must not leak a scope into the caller').toBeUndefined();
   });
 });
 
 describe('withWorkspaceScope', () => {
   it('still binds a real workspace, which is the supported path', async () => {
-    const seen = await withWorkspaceScope('ws-a', async () => currentScope());
+    const seen = await withWorkspaceScope('ws-a', () => Promise.resolve(currentScope()));
     expect(seen).toEqual({ workspaceId: 'ws-a' });
   });
 });

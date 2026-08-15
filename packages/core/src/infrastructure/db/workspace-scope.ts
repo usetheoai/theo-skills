@@ -83,7 +83,13 @@ export function withWorkspaceScope<T>(workspaceId: string, fn: () => Promise<T>)
  * outside the protected tables — or a policy that NAMES a role in `TO`, which is a
  * reviewable, revocable grant rather than a function call.
  */
-export function withCrossWorkspaceScope<T>(reason: string, _fn: () => Promise<T>): Promise<T> {
+// O segundo parâmetro existe para manter a assinatura compatível com quem já
+// chamava, e é deliberadamente ANÔNIMO: esta função recusa, então nunca há um
+// callback para executar. Nomeá-lo (mesmo como `_fn`) faz o lint pedir que seja
+// usado, e a resposta certa não é silenciar a regra — é dizer no tipo que o
+// argumento é aceito e ignorado.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function withCrossWorkspaceScope<T>(reason: string, ..._: [fn: () => Promise<T>]): Promise<T> {
   return Promise.reject(
     new WorkspaceScopeError(
       `withCrossWorkspaceScope(${JSON.stringify(reason)}) does not grant a crossing and never ` +
