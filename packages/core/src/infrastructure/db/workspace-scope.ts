@@ -83,11 +83,11 @@ export function withWorkspaceScope<T>(workspaceId: string, fn: () => Promise<T>)
  * outside the protected tables — or a policy that NAMES a role in `TO`, which is a
  * reviewable, revocable grant rather than a function call.
  */
-// O segundo parâmetro existe para manter a assinatura compatível com quem já
-// chamava, e é deliberadamente ANÔNIMO: esta função recusa, então nunca há um
-// callback para executar. Nomeá-lo (mesmo como `_fn`) faz o lint pedir que seja
-// usado, e a resposta certa não é silenciar a regra — é dizer no tipo que o
-// argumento é aceito e ignorado.
+// The second parameter exists to keep the signature compatible with existing
+// callers, and it is deliberately ANONYMOUS: this function refuses, so there is
+// never a callback to run. Naming it (even as `_fn`) makes the linter ask for it
+// to be used, and the right answer is not to silence the rule — it is to say in
+// the TYPE that the argument is accepted and ignored.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function withCrossWorkspaceScope<T>(reason: string, ..._: [fn: () => Promise<T>]): Promise<T> {
   return Promise.reject(

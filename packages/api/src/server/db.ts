@@ -51,15 +51,16 @@ export function recordIdlePoolError(): void {
  * ela não aconteça — é a diferença entre tornar o erro impossível e tentar detectá-lo.
  */
 export function createPool(uri: string, logger: Logger): Pool {
-  // Limites do pool DECLARADOS, nunca herdados. Por padrão o node-postgres mantém
-  // um cliente vivo indefinidamente: depois de um failover do Postgres gerenciado, ou
-  // de um proxy reciclando conexões por baixo, o pool segue entregando clientes
-  // apontando para um servidor que já não existe — e o sintoma é um gotejar de
-  // queries com erro, não algo que alguém perceba. `maxLifetimeSeconds` aposenta cada
-  // cliente por tempo, em vez de esperar que ele quebre.
+  // Pool bounds are DECLARED, never inherited. node-postgres keeps a client alive
+  // indefinitely by default: after a managed-Postgres failover, or a proxy recycling
+  // connections underneath, the pool goes on handing out clients pointing at a server
+  // that is no longer there — and the symptom is a trickle of failing queries rather
+  // than anything anyone notices. `maxLifetimeSeconds` retires each client on a
+  // schedule instead of waiting for it to break.
   //
-  // Configuração ausente é pior que valor errado: o errado aparece no diff e pode ser
-  // discutido; o ausente é invisível e acompanha o que a biblioteca decidir mudar.
+  // Absent configuration is worse than a wrong value: a wrong one shows up in a diff
+  // and can be argued with; an absent one is invisible and follows whatever the
+  // library decides to change next.
   const pool = new Pool({
     connectionString: uri,
     max: 10,

@@ -6,20 +6,20 @@
 name: Security SAST
 
 on:
-  # GATILHO DE PR — restaurado em 2026-08-15, e a exceção é deste repositório.
+  # PR TRIGGER — restored 2026-08-15, and the exception belongs to this repo.
   #
-  # A remoção de 2026-08-08 foi aplicada em bloco a todo o umbrella. Nos outros
-  # repositórios ela é inofensiva: eles não têm branch protection (o plano do
-  # GitHub não oferece o recurso em repositório privado — medido: 403 em
-  # theo-trust, theo-memory, theo-rag, theo-lens, theo-promptly). Este é PÚBLICO
-  # e tem proteção com três checks EXIGIDOS, então aqui a mesma remoção produziu
-  # um estado que ninguém pediu: o check exigido não podia mais reportar num PR,
-  # e TODO PR ficava `BLOCKED` para sempre. Medido no #154.
+  # The 2026-08-08 removal was applied across the whole umbrella. Everywhere else
+  # it is harmless: no other repo has branch protection at all (the plan does not
+  # offer it on a private repository — measured: 403 on theo-trust, theo-memory,
+  # theo-rag, theo-lens, theo-promptly). This one is PUBLIC and enforces three
+  # REQUIRED checks, so the same removal produced a state nobody asked for: a
+  # required check that can no longer report on a PR leaves every PR BLOCKED
+  # forever. Measured on #154.
   #
-  # A decisão do dono que motivou a remoção foi sobre `push` em `workspace`
-  # ("esteira não deve ser acionada por commit em workspace") — essa continua
-  # valendo e o gatilho `push` segue fora. O que volta é só o do PR, que é o
-  # evento que a proteção deste repositório pressupõe.
+  # The owner decision behind the removal was about `push` on `workspace` ("the
+  # pipeline must not be triggered by a commit on workspace") — that one stands
+  # and the push trigger stays out. Only the PR trigger comes back, because it is
+  # the event this repository's protection assumes.
   pull_request:
     branches: [develop, main]
   push:

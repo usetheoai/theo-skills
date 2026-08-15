@@ -1170,6 +1170,8 @@ export * from './domain/principal.js';
 export * from './domain/scope.js';
 export * from './domain/version.js';
 export * from './domain/dip/auth-verifier.js';
+export { withWorkspaceScope, withCrossWorkspaceScope, currentScope, isCrossWorkspace, WorkspaceScopeError, type WorkspaceScope, type CrossWorkspaceScope, } from './infrastructure/db/workspace-scope.js';
+export { tenantScopedPool, describeScope } from './infrastructure/db/tenant-scoped-pool.js';
 
 // ==== infrastructure/db/migrate.d.ts ====
 import type { Pool } from 'pg';
@@ -3335,6 +3337,111 @@ export declare const installEvents: import("drizzle-orm/pg-core").PgTableWithCol
     dialect: "pg";
 }>;
 export type InstallEventRow = typeof installEvents.$inferSelect;
+
+// ==== infrastructure/db/tenant-scoped-pool.d.ts ====
+/**
+ * Tenant-scoped pool — where the request's workspace meets the connection.
+ *
+ * Wraps a `pg.Pool` so that every connection it hands out has already had
+ * `app.workspace_id` set from the ambient scope. The fail-closed RLS policies
+ * installed by migration 0016 read that setting, so a statement can only touch
+ * rows belonging to the workspace the request was authenticated for.
+ *
+ * WHY A WRAPPER AND NOT A CHANGED CALL SITE. Tenant-scoped statements are spread
+ * across the whole data layer of this package. Threading a
+ * workspace argument through all of them would put the guarantee back where it
+ * already failed once: on the discipline of remembering, in every file, forever.
+ * The wrapper moves it to the one place a statement cannot avoid — acquiring a
+ * connection. Data-access code keeps receiving "a Pool" and does not change.
+ *
+ * ORDER OF DEFENCE, weakest to strongest:
+ *   1. the `workspace_id = $n` predicates the code already writes
+ *   2. this wrapper, which sets the context on every connection
+ *   3. the database policies, which admit nothing without that context
+ *
+ * Each layer is independent. Any one of them alone would have prevented the
+ * 2026-08-14 exposure; the code shipped with only the first.
+ *
+ * @see workspace-scope.ts       — how the context is bound per request
+ * @see migrations/0016_rls_fail_closed.sql — the policies being satisfied
+ */
+import type { Pool } from 'pg';
+/**
+ * Wraps `pool` so every connection carries the ambient workspace context.
+ *
+ * Throws `WorkspaceScopeError` when used outside a scope — see
+ * `workspace-scope.ts` for why that is an exception rather than a fallback.
+ */
+export declare function tenantScopedPool(pool: Pool): Pool;
+/**
+ * Describes the active scope for logs and error messages.
+ *
+ * Never returns the workspace id itself: this string reaches logs, and a tenant
+ * identifier in a shared log stream is the kind of leak that is trivial to add
+ * and awkward to walk back.
+ */
+export declare function describeScope(): string;
+
+// ==== infrastructure/db/workspace-scope.d.ts ====
+/** What a scoped unit of work knows about its tenant. */
+export interface WorkspaceScope {
+    /** The workspace every statement in this scope is confined to. */
+    readonly workspaceId: string;
+}
+/**
+ * A unit of work that deliberately spans every workspace — migrations, health
+ * probes, platform-wide maintenance. Kept as a distinct, named state so that
+ * "no tenant" is always an explicit decision rather than an omission.
+ */
+export interface CrossWorkspaceScope {
+    readonly crossWorkspace: true;
+    /** Why this work legitimately spans tenants. Surfaces in errors and traces. */
+    readonly reason: string;
+}
+type Scope = WorkspaceScope | CrossWorkspaceScope;
+/** Type guard: does this scope deliberately span workspaces? */
+export declare function isCrossWorkspace(scope: Scope): scope is CrossWorkspaceScope;
+/**
+ * Runs `fn` with every database statement confined to `workspaceId`.
+ *
+ * Bind this once per request, immediately after the principal is resolved, and
+ * pass the principal's workspace — never a value from the body or the path,
+ * which the caller controls.
+ */
+export declare function withWorkspaceScope<T>(workspaceId: string, fn: () => Promise<T>): Promise<T>;
+/**
+ * Runs `fn` as work that spans every workspace.
+ *
+ * Reserved for migrations, health checks and platform maintenance. `reason` is
+ * required because an unexplained cross-tenant scope is indistinguishable from
+ * a forgotten one, and this is the single escape hatch in the whole mechanism.
+ */
+export declare function withCrossWorkspaceScope<T>(reason: string, fn: () => Promise<T>): Promise<T>;
+/** The active scope, or `undefined` outside any scope. */
+export declare function currentScope(): Scope | undefined;
+/**
+ * Raised when data access is attempted with no tenant context established.
+ *
+ * Deliberately an exception rather than a silent fallback. Under fail-closed
+ * RLS, a statement with no context matches no rows — and "zero rows" is
+ * ambiguous: it reads exactly like "this tenant has no data". Throwing turns a
+ * missing-scope bug into a loud failure at the call site that caused it,
+ * instead of an empty list somewhere downstream.
+ */
+export declare class WorkspaceScopeError extends Error {
+    constructor(message: string);
+}
+/**
+ * The value to hand PostgreSQL for `app.workspace_id`, or throws when no scope
+ * is active.
+ *
+ * Cross-workspace scopes resolve to the empty string; the policies never admit
+ * it, so such work must additionally run under a role holding the
+ * `*_maintenance` policy. Two independent conditions have to be met before
+ * anything reads across tenants, and neither is the default.
+ */
+export declare function requireScopeValue(operation: string): string;
+export {};
 
 // ==== infrastructure/payload-validator.d.ts ====
 import { type PayloadValidator } from '../index.js';
