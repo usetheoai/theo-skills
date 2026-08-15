@@ -3410,13 +3410,22 @@ export declare function isCrossWorkspace(scope: Scope): scope is CrossWorkspaceS
  */
 export declare function withWorkspaceScope<T>(workspaceId: string, fn: () => Promise<T>): Promise<T>;
 /**
- * Runs `fn` as work that spans every workspace.
+ * REFUSES. Kept as a signpost, not as a capability.
  *
- * Reserved for migrations, health checks and platform maintenance. `reason` is
- * required because an unexplained cross-tenant scope is indistinguishable from
- * a forgotten one, and this is the single escape hatch in the whole mechanism.
+ * This used to run `fn` with the scope marked cross-workspace, which made
+ * `requireScopeValue` return the empty string, which the pool wrote into
+ * `app.workspace_id`. The isolation policy compares the column against exactly that
+ * value — so the "crossing" matched no row at all. Callers got an empty result and no
+ * error: the silent-nothing this mechanism exists to prevent, wearing the name of the
+ * sanctioned escape hatch. It went unnoticed because its only caller ran as a
+ * superuser, which bypasses row security outright.
+ *
+ * Under fail-closed RLS there is no in-process way to grant a real crossing. What
+ * works is `withWorkspaceScope(id, fn)` per workspace — iterating a list taken from
+ * outside the protected tables — or a policy that NAMES a role in `TO`, which is a
+ * reviewable, revocable grant rather than a function call.
  */
-export declare function withCrossWorkspaceScope<T>(reason: string, fn: () => Promise<T>): Promise<T>;
+export declare function withCrossWorkspaceScope<T>(reason: string, ..._: [fn: () => Promise<T>]): Promise<T>;
 /** The active scope, or `undefined` outside any scope. */
 export declare function currentScope(): Scope | undefined;
 /**
