@@ -134,7 +134,7 @@ The promise `VALIDATION_GATE_PASSED` is emitted EXCLUSIVELY when `run_validation
 - Schema for cycle rules: `rules/cycle-rule-schema.md`
 - Skill: `skills/implement/SKILL.md`
 - Conventions: `rules/architecture.md`, `rules/testing.md`, `rules/error-handling.md`, `rules/git-safety.md`, `rules/loop-engine-convention.md`, `rules/parsimony-ladder.md`
-- Macro super-loop: `rules/cycle-roadmap.md` — one cycle-implement run per milestone in the super-loop
+- Macro super-loop: `rules/cycle-maintenance.md` — one cycle-implement run per milestone in the super-loop
 - Upstream: `rules/cycle-plan.md` (plan must reach verdict ≥ SHIPPABLE_WITH_CAVEATS)
 - Downstream: `rules/cycle-code-quality.md` (runs after `IMPLEMENTATION_COMPLETE`)
 - Companion gates against plan vagueness:

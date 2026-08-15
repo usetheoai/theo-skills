@@ -6,6 +6,20 @@
 name: Security SAST
 
 on:
+  # PR TRIGGER — restored 2026-08-15, and the exception belongs to this repo.
+  #
+  # The 2026-08-08 removal was applied across the whole umbrella. Everywhere else
+  # it is harmless: no other repo has branch protection at all (the plan does not
+  # offer it on a private repository — measured: 403 on theo-trust, theo-memory,
+  # theo-rag, theo-lens, theo-promptly). This one is PUBLIC and enforces three
+  # REQUIRED checks, so the same removal produced a state nobody asked for: a
+  # required check that can no longer report on a PR leaves every PR BLOCKED
+  # forever. Measured on #154.
+  #
+  # The owner decision behind the removal was about `push` on `workspace` ("the
+  # pipeline must not be triggered by a commit on workspace") — that one stands
+  # and the push trigger stays out. Only the PR trigger comes back, because it is
+  # the event this repository's protection assumes.
   pull_request:
     branches: [develop, main]
   push:

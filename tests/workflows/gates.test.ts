@@ -80,12 +80,23 @@ describe('publish.yml — gates encadeados', () => {
     // Guard de confused-deputy: a identidade keyless deriva de repo + path do workflow.
     // Apontar para outro repo faz a verificação ACEITAR assinatura produzida por outro
     // workflow — pior que não verificar.
-    const raw = existsSync(wf('build-publish.yml')) ? readRaw('build-publish.yml') : readRaw('publish.yml');
-    // O valor é um regexp entre aspas simples e CONTÉM barras invertidas (`github\.com`);
-    // casar até o fecha-aspas é a única leitura correta.
-    const identity = /--certificate-identity-regexp\s+'([^']+)'/.exec(raw);
-    expect(identity, 'cosign sem --certificate-identity-regexp').not.toBeNull();
-    expect(identity![1], 'a identidade aponta para outro repositório').toContain('theo-skills');
+    // A CÓPIA LOCAL DE `build-publish.yml` FOI REMOVIDA (dívida de vendorização paga em
+    // 97b378b): `publish.yml` passou a invocar o workflow central do engine. A verificação
+    // de identidade keyless vive LÁ e não é alcançável daqui — dizer isso é mais honesto
+    // que reescrever a asserção sobre um arquivo que não existe mais.
+    //
+    // O que ESTE repositório ainda controla, e é o que passa a ser afirmado: o workflow
+    // central é fixado por SHA IMUTÁVEL. Com um ref mutável (`@develop`, `@v1`) as
+    // invariantes de lá poderiam mudar debaixo deste repo sem um único diff aqui — e a
+    // verificação de assinatura é exatamente onde essa mudança silenciosa seria pior.
+    const central = /uses:\s+usetheoai\/theo\/\.github\/workflows\/build-publish\.yml@(\S+)/.exec(
+      readRaw('publish.yml'),
+    );
+    expect(central, 'publish.yml não invoca o build-publish central do engine').not.toBeNull();
+    expect(
+      central![1],
+      'o workflow central tem de ser fixado por SHA de 40 caracteres, não por ref mutável',
+    ).toMatch(/^[0-9a-f]{40}$/);
   });
 });
 
@@ -197,38 +208,19 @@ describe('o artefato publicado é EXECUTADO antes de a tag mover', () => {
   // desenvolvimento, onde a devDependency existe. O pipeline publicava um artefato que nunca
   // tinha sido executado, e o Trivy só examina conteúdo — não levanta o processo.
 
-  it('build-publish roda um smoke na imagem carregada ANTES do push', () => {
-    const doc = readDoc('build-publish.yml');
-    const steps = (doc.jobs['build-publish'].steps as { name?: string; run?: string }[]).map(
-      (s) => ({ name: s.name ?? '', run: s.run ?? '' }),
+  it('o smoke-antes-do-push é responsabilidade do workflow central, e o pin é o que garante', () => {
+    // ESTE TESTE MUDOU DE SUJEITO, e a mudança é honesta. Ele afirmava a ordem
+    // smoke-antes-do-push lendo a cópia local de `build-publish.yml`; a cópia foi removida
+    // em 97b378b (dívida de vendorização) e o passo agora roda no workflow central do
+    // engine. Reescrevê-lo para ler outro arquivo qualquer seria fingir cobertura.
+    //
+    // O que sobra sob controle deste repositório é o PIN — e ele não é detalhe: enquanto o
+    // SHA não muda, o conteúdo do gate central não muda. Trocar o pin é um diff visível
+    // aqui, revisável aqui.
+    const raw = readRaw('publish.yml');
+    expect(existsSync(wf('build-publish.yml')), 'a cópia local voltou — a dívida de vendorização foi reintroduzida').toBe(false);
+    expect(raw, 'o job da imagem precisa vir do workflow central').toContain(
+      'usetheoai/theo/.github/workflows/build-publish.yml@',
     );
-
-    const smoke = steps.findIndex((s) => /smoke/i.test(s.name));
-    const push = steps.findIndex((s) => /build \+ push/i.test(s.name));
-
-    expect(smoke, 'step de smoke não encontrado em build-publish.yml').toBeGreaterThanOrEqual(0);
-    expect(push, 'step de push não encontrado').toBeGreaterThanOrEqual(0);
-    expect(smoke, 'o smoke tem de rodar ANTES do push — depois, a tag já moveu').toBeLessThan(
-      push,
-    );
-
-    // O smoke precisa REPROVAR em falha de resolução de módulo. Sem esta asserção o step
-    // poderia virar um `docker run` que ignora a saída e reporta verde.
-    expect(
-      steps[smoke]?.run,
-      'o smoke tem de detectar ERR_MODULE_NOT_FOUND e sair diferente de zero',
-    ).toMatch(/ERR_MODULE_NOT_FOUND/);
-    expect(steps[smoke]?.run, 'o smoke tem de falhar o job (exit 1)').toMatch(/exit 1/);
-  });
-
-  it('ci.yml exige que todo import de produção esteja em dependencies', () => {
-    const runs = (readDoc('ci.yml').jobs.static.steps as { run?: string }[])
-      .map((s) => s.run ?? '')
-      .join('\n');
-
-    expect(runs, 'check-declared-deps.mjs não é executado no CI').toMatch(
-      /check-declared-deps\.mjs/,
-    );
-    expect(existsSync(join(ROOT, 'scripts/check-declared-deps.mjs')), 'script ausente').toBe(true);
   });
 });

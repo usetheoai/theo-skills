@@ -14,10 +14,28 @@ function app() {
 }
 
 describe('API contract (no DB)', () => {
-  it('GET /v1/health returns 200 {status:ok}', async () => {
+  it('GET /v1/health returns 200 and names the service', async () => {
+    // B-119 — `service` joined the body. An operator reading health rows in an aggregated panel
+    // gets eight byte-identical `{"status":"ok"}` responses otherwise, with no way to tell which
+    // service each came from. Asserted by field rather than by whole-object equality so the next
+    // additive field does not fail a contract it does not break.
     const res = await app().request('/v1/health');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok' });
+
+    const body = (await res.json()) as { status?: string; service?: string };
+    expect(body.status).toBe('ok');
+    expect(body.service).toBe('theo-skills');
+  });
+
+  it('GET /v1/health/ready is a different answer from liveness', async () => {
+    // Liveness says the process is up; readiness says it can serve. Without this route a rolling
+    // deploy sends traffic to an instance whose dependencies have not resolved — the process
+    // answers, so the orchestrator believes it is ready.
+    const res = await app().request('/v1/health/ready');
+    const body = (await res.json()) as { status?: string; checks?: Record<string, string> };
+
+    expect(body.status === 'ready' || body.status === 'degraded').toBe(true);
+    expect(body.checks, 'readiness that does not name what it checked is an assertion').toBeDefined();
   });
 
   it('POST /v1/skills with reserved gcp- prefix returns 400 invalid_skill_id (before any DB call)', async () => {

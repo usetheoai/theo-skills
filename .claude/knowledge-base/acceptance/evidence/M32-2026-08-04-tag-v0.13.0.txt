@@ -1,6 +1,0 @@
-AC2 deprecada RESOLVE por id      : true
-AC4 motivo no contrato de leitura : "substituida por nova"
-AC4 sucessora no contrato         : "nova"
-AC1 dois eixos no contrato        : {"lifecycle":"deprecated","enabled":true}
-AC3 busca padrao (so ativas)      : ["nova"]
-AC3 busca com opt-in total        : ["nova","rascunho","velha"]

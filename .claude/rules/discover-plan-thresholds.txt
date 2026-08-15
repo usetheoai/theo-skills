@@ -2,26 +2,29 @@
 #
 # Authoritative source: rules/discover-plan-golden-rule.md
 #
-# Format (one entry per line):
-#   KEY = VALUE
+# Format: <band-name>|<min-score>|<sunset-date>|<adr-ref>
 #
+# Comparison is >= (inclusive). Score == 70 -> SHIPPABLE_WITH_CAVEATS.
 # Lines starting with `#` and blank lines are skipped.
-# Defaults shipped with the skill at:
-#   skills/discover-plan-confidence/templates/ (when present)
 #
-# Per-project overrides go here and are CHANGELOG-tracked.
-
-# Soft caps
-soft_cap.question_count_low = 3
-soft_cap.coverage_corner_thin = 1   # questions per corner below which a soft cap fires
-
-# Hard caps
-hard_cap.question_count_max = 15
-hard_cap.fabricated_citation = 49
-hard_cap.empty_corner = 49
-
-# Verdict bands
-band.shippable = 90
-band.shippable_with_caveats = 70
-band.needs_revision = 50
-band.invalid = 0
+# Bands (descending):
+#   90+   -> SHIPPABLE              (measurement plan ready to execute)
+#   70-89 -> SHIPPABLE_WITH_CAVEATS (explicit caveats)
+#   50-69 -> NON_SHIPPABLE          (rewrite the plan)
+#   0-49  -> INVALID                (hard cap fired, or a very low score)
+#
+# HISTORY — 2026-08-05. This file previously used a `key = value` shape carrying
+# `soft_cap.*` / `hard_cap.*` / `band.*` entries. Nothing parsed it: the scorer's
+# `_parse_thresholds` splits on `|`, found no bands, and every score fell through to
+# INVALID. The defect was invisible because a second one hid it — the resolver looked
+# only under `.claude/rules/`, so in this repo's standalone layout the file was never
+# read at all. The cap keys are gone rather than reformatted: the caps live in the
+# orchestrator, and a config file that configures nothing is worse than no file, because
+# editing it feels like changing behaviour.
+#
+# Sunset = quarterly review. Update sunset + ADR ref when you recalibrate.
+#
+SHIPPABLE|90|2027-01-31|YOUR_ADR_REF
+SHIPPABLE_WITH_CAVEATS|70|2027-01-31|YOUR_ADR_REF
+NON_SHIPPABLE|50|2027-01-31|YOUR_ADR_REF
+INVALID|0|2027-01-31|YOUR_ADR_REF

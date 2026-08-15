@@ -118,5 +118,5 @@ State the target address, the verdict token, per-criterion status, evidence path
 - [`skills/release/SKILL.md`](../release/SKILL.md) — must have emitted `RELEASED`; no longer flips the checkbox
 - [`skills/dogfood/SKILL.md`](../dogfood/SKILL.md) — sustained-use honesty gate that consumes acceptance evidence
 - [`skills/cycle-goal/SKILL.md`](../cycle-goal/SKILL.md) — names this phase in the milestone goal condition
-- `rules/cycle-roadmap.md` — the macro loop that consumes this verdict
+- `rules/cycle-maintenance.md` — the macro loop that consumes this verdict
 - `rules/testing.md` — why exercised behaviour beats asserted coverage

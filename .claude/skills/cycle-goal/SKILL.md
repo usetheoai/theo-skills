@@ -2,7 +2,7 @@
 name: cycle-goal
 version: 0.1.0
 requires: [auto-plan, to-plan, implement, code-quality, review, release, acceptance]
-description: 'Turn one or more ROADMAP.md milestones into an active session goal. Validates the requested M<N> ids against ROADMAP.md (exists, still open, dependency order honoured), composes a termination condition whose single stop criterion is a green /acceptance run (ACCEPTED or ACCEPTED_WITH_CAVEATS) and which names the artifact each cycle phase must produce on the way there, and hands it to Claude Code''s built-in /goal — which registers a session-scoped Stop hook so the agent cannot stop until the condition is evaluated as met. Milestones run sequentially, one in flight at a time, per the single-flip invariant. Use AFTER /roadmap-init or /roadmap-feature have created the milestones and BEFORE driving them with /auto-plan. Refuses on unknown, already-released, or dependency-blocked milestones, and on a condition over /goal''s 4000-char cap.'
+description: 'Turn one or more ROADMAP.md milestones into an active session goal. Validates the requested M<N> ids against ROADMAP.md (exists, still open, dependency order honoured), composes a termination condition whose single stop criterion is a green /acceptance run (ACCEPTED or ACCEPTED_WITH_CAVEATS) and which names the artifact each cycle phase must produce on the way there, and hands it to Claude Code''s built-in /goal — which registers a session-scoped Stop hook so the agent cannot stop until the condition is evaluated as met. Milestones run sequentially, one in flight at a time, per the single-flip invariant. Use AFTER /backlog-init or /backlog-item have created the milestones and BEFORE driving them with /auto-plan. Refuses on unknown, already-released, or dependency-blocked milestones, and on a condition over /goal''s 4000-char cap.'
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write Edit
 argument-hint: "M<N> [M<N> ...]"
@@ -10,13 +10,13 @@ argument-hint: "M<N> [M<N> ...]"
 
 # `/cycle-goal` — Bind a session to one or more roadmap milestones
 
-`/roadmap-init` writes the milestones. `/auto-plan` executes one. Between them sits a gap: nothing holds the session to the process. The agent can stop early, declare a phase done without its artifact, or drift into a second milestone before the first shipped.
+`/backlog-init` writes the milestones. `/auto-plan` executes one. Between them sits a gap: nothing holds the session to the process. The agent can stop early, declare a phase done without its artifact, or drift into a second milestone before the first shipped.
 
 This skill closes that gap. It hands Claude Code's built-in `/goal` a condition that only a genuinely finished milestone can satisfy.
 
 ## Cycle contract
 
-This skill is the entry gate of [`cycle-roadmap`](../../rules/cycle-roadmap.md) — the macro super-loop. That rule is the **source of truth** for milestone selection, the single-flip invariant, dependency respect, the roadmap-run audit file, and the verdicts (`MILESTONE_RELEASED`, `MILESTONE_IN_FLIGHT`, `ROADMAP_COMPLETE`, `ROADMAP_BLOCKED`, `MILESTONE_BLOCKED`). **Read it before invoking.** This skill sets the termination condition; [`cycle-auto-plan`](../../rules/cycle-auto-plan.md) does the executing.
+This skill is the entry gate of [`cycle-maintenance`](../../rules/cycle-maintenance.md) — the macro super-loop. That rule is the **source of truth** for milestone selection, the single-flip invariant, dependency respect, the roadmap-run audit file, and the verdicts (`MILESTONE_RELEASED`, `MILESTONE_IN_FLIGHT`, `ROADMAP_COMPLETE`, `ROADMAP_BLOCKED`, `MILESTONE_BLOCKED`). **Read it before invoking.** This skill sets the termination condition; [`cycle-auto-plan`](../../rules/cycle-auto-plan.md) does the executing.
 
 ## When to invoke
 
@@ -28,7 +28,7 @@ This skill is the entry gate of [`cycle-roadmap`](../../rules/cycle-roadmap.md) 
 
 Do NOT invoke when:
 
-- `ROADMAP.md` is missing — run `/roadmap-init` first.
+- `ROADMAP.md` is missing — run `/backlog-init` first.
 - The milestone is already `[x]` — a goal over finished work is met before any work happens.
 - A dependency of the requested milestone is neither released nor part of the same call — resolve the wall first.
 - A goal is already active — clear it first (`install_goal_hook.py --clear`).
@@ -126,7 +126,7 @@ The fourth phase is the one most process descriptions omit. It is not optional h
 
 ## Hard gates
 
-- **One milestone in flight.** Parallel milestones collide on shared modules and corrupt the audit trail (`cycle-roadmap` § Anti-patterns). The composed condition states the order and the script enforces ascending.
+- **One milestone in flight.** Parallel milestones collide on shared modules and corrupt the audit trail (`cycle-maintenance` § Anti-patterns). The composed condition states the order and the script enforces ascending.
 - **No goal over finished work.** An already-`[x]` milestone makes the condition true before anything happens, which reads as success and is not.
 - **Dependency respect.** A dependency must be released already or earlier in the same call.
 - **The terminator is the acceptance verdict, and only that.** A condition that would let `RELEASED` (or any earlier verdict) end the goal is malformed — it re-opens the shipped-vs-works gap `cycle-acceptance` closes.
@@ -152,8 +152,8 @@ The fourth phase is the one most process descriptions omit. It is not optional h
 
 ## Related
 
-- [`skills/roadmap-init/SKILL.md`](../roadmap-init/SKILL.md) — creates `ROADMAP.md` and its milestones
-- [`skills/roadmap-feature/SKILL.md`](../roadmap-feature/SKILL.md) — appends a milestone to an existing roadmap
+- [`skills/backlog-init/SKILL.md`](../backlog-init/SKILL.md) — creates `ROADMAP.md` and its milestones
+- [`skills/backlog-item/SKILL.md`](../backlog-item/SKILL.md) — appends a milestone to an existing roadmap
 - [`skills/auto-plan/SKILL.md`](../auto-plan/SKILL.md) — executes one milestone end-to-end
 - `commands/plan-goal.md` — the sibling bridge that derives a `/goal` condition from an active plan instead of a milestone
 - `commands/plan-loop.md` — cadence primitive that pairs with a goal

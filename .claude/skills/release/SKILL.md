@@ -153,7 +153,7 @@ gh release create "v${NEXT_VERSION}" \
 
 ### Step 7.5 — Flip ROADMAP.md milestone checkbox (post-merge)
 
-Closes the `cycle-roadmap` super-loop. Runs after the tag + GitHub release are published.
+Closes the `cycle-maintenance` super-loop. Runs after the tag + GitHub release are published.
 
 ```bash
 # Extract the plan slug from the release context (passed from /auto-plan, or derived from the source review)
@@ -262,4 +262,4 @@ This skill is `phase 1` (only phase) of `cycle-release`. The cycle rule SoT is `
 - Conventions: [`rules/public-copy.md`](../../rules/public-copy.md) — release notes lint
 - Hooks enforced: `hooks/validate-command.sh` (git safety + Co-Authored-By block), `hooks/stop-validation.sh` (CHANGELOG hard gate)
 - Scripts: `scripts/compute_next_version.py`, `scripts/promote_unreleased.py`, `scripts/render_release_notes.py`, `scripts/changelog_section_nonempty.py`, `scripts/flip_milestone_checkbox.py` (Step 7.5 — pending implementation, see Task #20)
-- Macro super-loop: [`rules/cycle-roadmap.md`](../../rules/cycle-roadmap.md) — defines the single-flip invariant + the roadmap-runs file contract that Step 7.5 satisfies
+- Macro super-loop: [`rules/cycle-maintenance.md`](../../rules/cycle-maintenance.md) — defines the single-flip invariant + the roadmap-runs file contract that Step 7.5 satisfies

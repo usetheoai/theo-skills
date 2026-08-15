@@ -55,9 +55,7 @@ def validate_all(ecosystem_dir: Path, strict: bool = False) -> int:
             continue
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.exists():
-            # generated/ may have subdirectories — skip gracefully
-            if skill_dir.name != "generated":
-                warnings.append(f"WARN: {skill_dir.name}/ has no SKILL.md")
+            warnings.append(f"WARN: {skill_dir.name}/ has no SKILL.md")
             continue
 
         content = skill_md.read_text(encoding="utf-8")

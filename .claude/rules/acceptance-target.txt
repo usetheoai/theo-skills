@@ -1,31 +1,30 @@
-# Como a entrega RELEASED deste projeto é alcançada. /cycle-goal recusa armar sem isto.
+# How the RELEASED delivery of this project is reached — PER-PROJECT, edit this.
 #
-# CORREÇÃO 2026-08-03 (segunda): a versão anterior declarava SÓ os 4 pacotes publicáveis.
-# A aceitação do M30 provou que isso é incompleto — 4 dos 5 critérios exercitam ROTAS
-# (`POST /v1/skills:validate` e afins) que vivem em `@usetheo/skills-api`, que é
-# `private: true` e nunca vai ao registry. Declarar só a metade publicada deixa a outra
-# metade inexercitável por construção. O erro é meu (dono do kit), e é o mesmo que
-# cometi no theo-promptly: escrever o alvo sem verificar onde o código dos critérios vive.
-
-# --- metade PUBLICADA: bibliotecas no registry -----------------------------
-kind = library
-target = @usetheo/skills-sdk @usetheo/skills-cli @usetheo/skills-mcp @usetheo/skills
-build = pnpm install --frozen-lockfile && pnpm -r build
-verify = npm view @usetheo/skills-cli version
-credentials = NPM_TOKEN
-
-# NPM_TOKEN vive em ~/.npmrc (escopo de usuário, fora do repo). NUNCA escreva o valor
-# aqui nem em arquivo do projeto. Faltando credencial numa execução: PEÇA ao humano.
-
-# --- metade INTERNA: o serviço, que não é publicado ------------------------
-# `@usetheo/skills-api` é private=true por decisão. Para ele vale a rota interna do
-# cycle-acceptance § Target kinds: build a partir da TAG DE RELEASE em checkout limpo,
-# executado como o consumidor real o executa — nunca a working tree, nunca `pnpm dev`.
+# cycle-acceptance exercises the delivery as its user meets it. It cannot invent
+# how to reach it, and a goal armed without a reachable target is a trap: the gate
+# blocks forever on a condition nobody can satisfy. So /cycle-goal REFUSES to arm
+# until this file declares the path.
 #
-# internal_target = @usetheo/skills-api servido a partir do build da tag
-# internal_build  = git worktree add /tmp/acc-m30 <tag> && cd /tmp/acc-m30 && pnpm install --frozen-lockfile && pnpm -r build && pnpm --filter @usetheo/skills-api start
-# internal_deps   = postgres do próprio projeto (docker compose -f docker-compose.yaml up -d);
-#                   theoskill_pgvector responde em 127.0.0.1:5432 (user/db: theoskill)
+# Format: `key = value`, one per line. `#` starts a comment.
 #
-# A distinção que importa não é publicado vs privado — é O ARTEFATO vs A ÁRVORE DE
-# TRABALHO. Um build da tag reproduz o que o consumidor recebe; `pnpm dev` não.
+# kind      (required) one of: web | native | cli | library | api | internal
+# target    (required) how to reach it — a URL, a package name, or a command
+# build     (optional) command that produces the artifact from the release tag
+# verify    (optional) command proving the artifact is the RELEASED one, not the tree
+# credentials (optional) name of the secret needed to publish/consume. NEVER put the
+#             value here. If a run needs it and it is absent, ASK THE HUMAN — do not
+#             skip the phase, do not fake the result, do not mark NOT_VALIDATED and
+#             move on as if the milestone were done.
+#
+# --- examples -------------------------------------------------------------
+# kind = web
+# target = https://app.example.com
+#
+# kind = internal
+# target = @usetheo/skills-monorepo
+# build = git worktree add /tmp/rel <tag> && cd /tmp/rel && pnpm install && pnpm build
+# verify = node -e "console.log(require('./package.json').version)"
+# credentials = NPM_TOKEN
+#
+# --- this project ---------------------------------------------------------
+# (uncomment and fill; /cycle-goal refuses to arm while this section is empty)

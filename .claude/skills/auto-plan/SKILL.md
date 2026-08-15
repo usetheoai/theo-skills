@@ -50,7 +50,7 @@ Do NOT invoke when:
 2. If arg matches `^M[0-8]$` AND `ROADMAP.md` exists → roadmap-driven mode targeting that milestone.
 3. Otherwise → ad-hoc mode with the arg as free-form slug. Emit `INFO ad-hoc: no milestone_id will be persisted; release will skip checkbox flip`.
 
-If no arg AND `ROADMAP.md` is MISSING → refuse with `BLOCKED roadmap-init-required: run /roadmap-init {project-slug} first, or invoke /auto-plan {topic-slug} for ad-hoc work`.
+If no arg AND `ROADMAP.md` is MISSING → refuse with `BLOCKED backlog-init-required: run /backlog-init {project-slug} first, or invoke /auto-plan {topic-slug} for ad-hoc work`.
 
 ## Process
 
@@ -257,7 +257,7 @@ This skill is `phase 0` of the super-cycle that orchestrates `cycle-discover` + 
 
 ## Related
 
-- `rules/cycle-roadmap.md` — macro super-loop that delegates one `cycle-auto-plan` run per milestone
+- `rules/cycle-maintenance.md` — macro super-loop that delegates one `cycle-auto-plan` run per milestone
 - `rules/cycle-auto-plan.md` — cycle SoT
 - `rules/cycle-discover.md` — discover sub-cycle
 - `rules/cycle-plan.md` — plan sub-cycle

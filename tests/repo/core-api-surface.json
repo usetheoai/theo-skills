@@ -28,6 +28,10 @@
     "kind": "value"
   },
   {
+    "name": "describeScope",
+    "kind": "value"
+  },
+  {
     "name": "diagnoseDiscoverability",
     "kind": "value"
   },
@@ -122,6 +126,10 @@
   {
     "name": "SkillLifecycle",
     "kind": "type"
+  },
+  {
+    "name": "tenantScopedPool",
+    "kind": "value"
   },
   {
     "name": "VersionRejectedError",

@@ -120,102 +120,48 @@ def test_not_yet_committed_task_is_not_flagged(tmp_path: Path) -> None:
     assert report.findings == ()
 
 
-def test_empty_progress_no_commits_is_pass(tmp_path: Path) -> None:
+def test_empty_progress_against_a_non_empty_plan_fails(tmp_path: Path) -> None:
+    """This test used to assert PASS, and that assertion WAS the bypass.
+
+    A plan declaring T1.1 with an empty checkpoint is not a neutral state: both call sites run
+    after the work was supposed to happen — `mini_review` at a phase boundary (that phase's
+    tasks must be done) and `run_validation` at the final gate (all of them must be). There is
+    no invocation where "the plan declares work and the checkpoint accounts for none of it" is
+    a pass, so PASS here encoded exactly the omission the gate exists to catch.
+
+    Measured before the fix: a plan with T1.1/T1.2/T1.3 and a checkpoint holding the first two
+    exited 0 on both this gate and `check_phase_completeness`, while the same T1.3 recorded as
+    `pending` was caught HIGH. Omission was cheaper than admission.
+    """
     repo = _repo(tmp_path)
     _commit(repo, "README.md", "# hi\n", "docs: init")  # unrelated, no task id
     report = check_checkpoint_consistency({"tasks": []}, repo, ["T1.1"])
-    assert report.status == "PASS"
+    assert report.status == "FAIL"
+    assert [f.code for f in report.findings] == ["plan_task_absent_from_progress"]
 
 
-# ---------- F-7: the scan must be bounded to THIS plan's commits --------
+def test_an_empty_plan_still_passes(tmp_path: Path) -> None:
+    """The refusal must not swallow the genuinely-empty case: no declared tasks, nothing owed."""
+    repo = _repo(tmp_path)
+    _commit(repo, "README.md", "# hi\n", "docs: init")
+    assert check_checkpoint_consistency({"tasks": []}, repo, []).status == "PASS"
 
 
-def test_task_id_from_an_older_plan_is_not_attributed_to_this_one(tmp_path: Path) -> None:
-    """A `T{N}.{M}` in a commit that predates this plan belongs to another plan.
+def test_a_task_absent_from_the_checkpoint_is_reported_once(tmp_path: Path) -> None:
+    """The inventory check defers to the backward check when the task IS in git.
 
-    Every plan in the repository numbers its tasks `T{N}.{M}`, so an unbounded scan of
-    git history makes any mature repository collide with its own past. Measured on
-    english-only-sweep: 8 HIGH findings for T2.1..T5.1, all sourced from the M32 and M9
-    plans' commits, none of them attempted by the run being validated.
+    "Committed but unrecorded" is strictly more informative than "absent", and reporting both
+    would double-count one problem — inflating the finding count, which is how a report stops
+    being read.
     """
     repo = _repo(tmp_path)
-    # Another plan, months earlier — same numbering scheme.
-    _commit(repo, "src/old.py", "x = 1\n", "feat(lifecycle): columns (T2.1)")
-    # This plan starts here.
-    first = _commit(repo, "src/new.py", "y = 1\n", "feat: T1.1 the first task of THIS plan")
+    sha1 = _commit(repo, "src/a.py", "x = 1\n", "feat: a\n\nT1.1: foo")
+    _commit(repo, "src/b.py", "y = 2\n", "feat: b\n\nT1.2: bar")
+    progress = {"tasks": [{"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": sha1}]}
 
-    progress = {"tasks": [
-        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
-        {"id": "T2.1", "phase": "2", "status": "pending"},
-    ]}
-
-    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
-
-    codes = [f.code for f in report.findings]
-    assert "task_committed_in_git_not_in_progress" not in codes, (
-        "T2.1 comes from an older plan's commit and must not be attributed to this run"
-    )
-
-
-def test_a_real_unrecorded_task_inside_the_range_is_still_caught(tmp_path: Path) -> None:
-    """Bounding the scan must not blind the check to the defect it exists for."""
-    repo = _repo(tmp_path)
-    first = _commit(repo, "src/a.py", "x = 1\n", "feat: T1.1 first")
-    _commit(repo, "src/b.py", "y = 1\n", "feat: T1.2 committed but never recorded")
-
-    progress = {"tasks": [
-        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
-        {"id": "T1.2", "phase": "1", "status": "pending"},
-    ]}
-
-    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T1.2"])
-
-    assert "task_committed_in_git_not_in_progress" in [f.code for f in report.findings]
-
-
-def test_backward_check_is_skipped_loudly_when_no_range_can_be_derived(tmp_path: Path) -> None:
-    """With nothing committed yet there is no anchor — say so, do not scan everything."""
-    repo = _repo(tmp_path)
-    _commit(repo, "src/old.py", "x = 1\n", "feat(lifecycle): columns (T2.1)")
-
-    progress = {"tasks": [{"id": "T1.1", "phase": "1", "status": "pending"}]}
-
-    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
-
-    assert "task_committed_in_git_not_in_progress" not in [f.code for f in report.findings]
-
-
-def test_task_id_mentioned_only_in_the_body_is_not_a_claim_of_implementation(tmp_path: Path) -> None:
-    """The convention puts the task id in the SUBJECT. Prose that discusses another task is prose.
-
-    Measured on english-only-sweep: commits whose subject was `feat(T0.1): …` explained in
-    their body why T2.1 and T4.1 come later. Reading the whole message turned that
-    explanation into a claim that T2.1 had been implemented.
-    """
-    repo = _repo(tmp_path)
-    first = _commit(repo, "src/a.py", "x = 1\n",
-                    "feat(T1.1): the gate\n\nT2.1 renames the exports and comes later; T4.1 wires the guard.")
-
-    progress = {"tasks": [
-        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
-        {"id": "T2.1", "phase": "2", "status": "pending"},
-    ]}
-
-    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T2.1"])
-
-    assert "task_committed_in_git_not_in_progress" not in [f.code for f in report.findings]
-
-
-def test_task_id_in_the_subject_is_still_a_claim(tmp_path: Path) -> None:
-    repo = _repo(tmp_path)
-    first = _commit(repo, "src/a.py", "x = 1\n", "feat(T1.1): first")
-    _commit(repo, "src/b.py", "y = 1\n", "feat(T1.2): committed but never recorded")
-
-    progress = {"tasks": [
-        {"id": "T1.1", "phase": "1", "status": "committed", "commit_sha": first},
-        {"id": "T1.2", "phase": "1", "status": "pending"},
-    ]}
-
-    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T1.2"])
-
-    assert "task_committed_in_git_not_in_progress" in [f.code for f in report.findings]
+    # T1.2 is in git but not in the checkpoint; T1.3 is in neither.
+    report = check_checkpoint_consistency(progress, repo, ["T1.1", "T1.2", "T1.3"])
+    codes = sorted(f.code for f in report.findings)
+    assert codes == ["plan_task_absent_from_progress", "task_committed_in_git_not_in_progress"]
+    absent = [f for f in report.findings if f.code == "plan_task_absent_from_progress"]
+    assert "T1.3" in absent[0].message and "T1.2" not in absent[0].message

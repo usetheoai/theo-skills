@@ -1,3 +1,4 @@
+import { tenantScopedPool } from '@usetheo/skills';
 import { pathToFileURL } from 'node:url';
 
 import { serve } from '@hono/node-server';
@@ -135,7 +136,14 @@ async function main(): Promise<void> {
   await queue.createQueue(JOB_NAMES.EMBED_SKILL);
   await queue.createQueue(EMBED_SKILL_DLQ_QUEUE_NAME);
 
-  const db = createDb(pool);
+  // The repositories get the workspace-scoped view: each connection carries
+  // `app.workspace_id` from the request scope, which the fail-closed policies of
+  // migration 0016 read. Repository code is unchanged.
+  //
+  // `pool` stays raw for the three things that legitimately have no tenant:
+  // migrations, the job queue, and credential resolution — the last one being
+  // what DISCOVERS the workspace, so scoping it would be circular.
+  const db = createDb(tenantScopedPool(pool));
   const endpointsStore = createWebhookEndpointsStore(db, DEFAULT_WORKSPACE_ID);
   // FÁBRICA por inquilino, não instância fixa. Um store construído no boot obriga a
   // escolher um workspace ali — e a única escolha possível era o legado, o que fazia o

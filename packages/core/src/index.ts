@@ -115,3 +115,16 @@ export * from './domain/scope.js';
 export * from './domain/version.js';
 export * from './domain/dip/auth-verifier.js';
 
+
+// Tenant isolation (migration 0016): the request-bound workspace scope and the
+// pool wrapper that pushes it down to PostgreSQL for the RLS policies.
+export {
+  withWorkspaceScope,
+  withCrossWorkspaceScope,
+  currentScope,
+  isCrossWorkspace,
+  WorkspaceScopeError,
+  type WorkspaceScope,
+  type CrossWorkspaceScope,
+} from './infrastructure/db/workspace-scope.js';
+export { tenantScopedPool, describeScope } from './infrastructure/db/tenant-scoped-pool.js';

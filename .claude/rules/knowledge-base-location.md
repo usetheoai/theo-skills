@@ -26,11 +26,11 @@ Consumers do **not** share a knowledge-base. Each project owns its `ROADMAP.md` 
 
 - `install.sh` and `patch_install.sh` scaffold `.claude/knowledge-base/{acceptance,acceptance/evidence,roadmap-runs}`.
 - `install_goal_hook.py` defaults to `.claude/knowledge-base/acceptance` in plugin layout, and refuses paths outside the project.
-- `roadmap-review --knowledge-base` emits `split_knowledge_base` (MAJOR) when a second knowledge-base holds `.md` files.
+- `backlog-review --knowledge-base` emits `split_knowledge_base` (MAJOR) when a second knowledge-base holds `.md` files.
 
 ## Cross-references
 
 - Cycle that writes acceptance records: `rules/cycle-acceptance.md`
-- Macro loop that reads the run-files: `rules/cycle-roadmap.md`
+- Macro loop that reads the run-files: `rules/cycle-maintenance.md`
 - Session gate that reads the acceptance verdict: `skills/cycle-goal/SKILL.md`
-- Reviewer that detects the split: `skills/roadmap-review/SKILL.md`
+- Reviewer that detects the split: `skills/backlog-review/SKILL.md`

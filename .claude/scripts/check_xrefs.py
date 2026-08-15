@@ -57,20 +57,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # - skill-creator: standalone skill-authoring tool (the official Anthropic skill-creator);
 #   invoked on demand to create/improve any skill at skills/{purpose}/. Deliberately decoupled
 #   from every cycle (replaced the retired skill-writer/validator/register discover tail).
-AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "roadmap-init", "roadmap-feature", "roadmap-review", "cycle-goal", "plan-help", "quality-init", "skill-creator", "frontend-design"}
+AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "backlog-init", "backlog-review", "cycle-goal", "plan-help", "quality-init", "skill-creator", "frontend-design", "cap-theorem-specialist", "backpressure-specialist", "resilience-specialist", "arch-check"}
 
 
 def _is_auto_generated(skill: str) -> bool:
-    """Skills que os proprios cycles ESCREVEM, e nao fases que alguem mantem.
+    """Skills the cycles THEMSELVES write, not phases anyone maintains.
 
-    `/review` emite `review-{slug}-{dimensao}-knowledge` e o discover emite
-    `*-sepa-knowledge`: sao artefatos de execucao. Cobrar delas contrato de cycle
-    ou referencia num cycle-*.md e cobrar a saida de se comportar como entrada.
+    `/review` emits `review-{slug}-{dimension}-knowledge` and discover emits
+    `*-sepa-knowledge`: these are run artifacts. Demanding a cycle contract or a
+    reference in some cycle-*.md asks the output to behave like an input.
 
-    Vive aqui, e nao inline num check, porque a primeira versao isentou so o
-    `no_orphan_skills` e deixou o `skill_has_cycle_contract` cobrando -- meia
-    isencao, que trocou 26 WARN por 3 e pareceu conserto. Uma definicao, dois
-    consumidores: e o que impede a proxima metade de escapar.
+    It lives here rather than inline in a check because the first version exempted
+    only `no_orphan_skills` and left `skill_has_cycle_contract` still charging — a half
+    exemption that traded 26 WARN for 3 and looked like a fix. One definition, two
+    consumers: that is what stops the next half from escaping.
     """
     return skill.endswith("-knowledge") and (skill.startswith("review-") or "-sepa-" in skill)
 

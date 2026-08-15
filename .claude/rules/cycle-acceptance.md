@@ -10,7 +10,7 @@ This cycle exercises the **released** delivery the way a user meets it, and turn
 
 That placement is the whole design. Before this cycle existed, `cycle-release` flipped the ROADMAP checkbox itself, at tag-cut — so `[x]` meant *"we shipped it"*. It now means *"we shipped it and watched it work."* The flip moved here (`cycle-release § 7.5` → this cycle's `flip` phase) precisely so the claim and the evidence cannot drift apart.
 
-The cycle produces an **acceptance record** per milestone, and a **verdict** that `cycle-roadmap` consumes.
+The cycle produces an **acceptance record** per milestone, and a **verdict** that `cycle-maintenance` consumes.
 
 ## Pre-conditions
 
@@ -131,7 +131,7 @@ The record is the artifact an auditor reads to answer "was M3 ever actually used
 - Schema for cycle rules: `rules/cycle-rule-schema.md`
 - Skill implementing this cycle: `skills/acceptance/SKILL.md`
 - Upstream cycle (must have emitted `RELEASED`): `rules/cycle-release.md`
-- Macro loop that consumes this verdict: `rules/cycle-roadmap.md`
+- Macro loop that consumes this verdict: `rules/cycle-maintenance.md`
 - Checkbox-flip script reused from the release slice: `skills/release/scripts/flip_milestone_checkbox.py`
 - Session-binding skill whose goal terminates on this cycle's verdict: `skills/cycle-goal/SKILL.md`
 - Sibling honesty gate over sustained use (consumes acceptance evidence): `rules/dogfood-golden-rule.md`

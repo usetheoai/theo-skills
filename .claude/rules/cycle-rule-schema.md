@@ -55,8 +55,9 @@ Each cycle has its own verdict vocabulary because the **shape of the decision** 
 
 | Cycle | OK | OK with caveats | Not OK — recoverable | Not OK — structural |
 |---|---|---|---|---|
-| `cycle-roadmap` (macro super-loop) | `MILESTONE_RELEASED` / `ROADMAP_COMPLETE` | `MILESTONE_IN_FLIGHT` (paused at release human-approval gate) | `MILESTONE_BLOCKED` (recoverable per milestone) | `ROADMAP_BLOCKED` (dependency wall across all eligible milestones) |
-| `cycle-discover` | `SHIPPABLE` | `SHIPPABLE_WITH_CAVEATS` | `NEEDS_REVISION` | `INVALID` |
+| `cycle-maintenance` (macro super-loop) | `ITEM_SHIPPED` / `ITEM_KILLED` | `ITEM_IN_FLIGHT` (paused at a human-approval gate) | `ITEM_BLOCKED` (recoverable per item) | `ITEM_UNROUTABLE` (repo in no domain) |
+| `cycle-backlog` (phase 0 · intake) | `ITEM_REGISTERED` | — | `ITEM_MERGED` (folded into an open item) | `ITEM_REJECTED` (out of ecosystem, or gate G5) |
+| `cycle-discover` | `SHIPPABLE` (+ `ITEM_KILLED`, orthogonal) | `SHIPPABLE_WITH_CAVEATS` | `NEEDS_REVISION` | `INVALID` |
 | `cycle-plan` | `SHIPPABLE` | `SHIPPABLE_WITH_CAVEATS` | `NEEDS_REVISION` | `INVALID` |
 | `cycle-implement` | `IMPLEMENTATION_COMPLETE` (completion promise) | — | (halt-loop pauses for human) | — |
 | `cycle-code-quality` | `PASS` | `PASS_WITH_CAVEATS` | `FAIL_SOFT` | `FAIL_HARD` / `INVALID` |
@@ -70,8 +71,8 @@ Each cycle has its own verdict vocabulary because the **shape of the decision** 
 
 ### Why each vocabulary differs
 
-- **roadmap** emits **macro-loop progression verdicts** at two granularities: per-milestone (`MILESTONE_RELEASED`, `MILESTONE_IN_FLIGHT`, `MILESTONE_BLOCKED`) and at the roadmap-as-a-whole level (`ROADMAP_COMPLETE` when every milestone is `[x]`, `ROADMAP_BLOCKED` when no milestone is eligible because every unchecked one is blocked by another unchecked one — a structural dependency wall). Unlike sub-cycles, `cycle-roadmap` has no "with caveats" band because the macro-loop's only OK states are atomic: a milestone either shipped (`[x]`) or it did not.
-- **discover/plan** emit a **structural fitness verdict** on a document. `INVALID` means the document violates a hard cap (fabricated citation, missing Coverage Matrix); `NEEDS_REVISION` means the score is recoverable via `*-improve`.
+- **maintenance** emits **macro-loop progression verdicts** per item: `ITEM_SHIPPED` when the item reached RELEASED, `ITEM_KILLED` when measurement refuted the hypothesis (an OK outcome — the loop protected the plan cycle from a hunch), `ITEM_BLOCKED` when a sub-cycle blocked recoverably, and `ITEM_UNROUTABLE` when the item's repo belongs to no domain. Deliberately absent: a `*_COMPLETE` token. A roadmap is a finite declared scope and can be exhausted; a backlog is not a scope, and an empty one means nobody has looked recently rather than that the work is done. The empty state is `BACKLOG_EMPTY`, a prompt to sweep, and it is reported outside the OK/not-OK bands because it grades nothing.
+- **discover/plan** emit a **structural fitness verdict** on a document. `INVALID` means the document violates a hard cap (fabricated evidence pointer, empty corner); `NEEDS_REVISION` means the score is recoverable via `*-improve`. **`discover` carries a fifth token that is orthogonal to the other four**: `ITEM_KILLED` reports an *outcome* rather than grading an *artifact* — the measurement ran, the hypothesis did not hold, and there is no document to score. It sits in the OK column because a run that kills an item succeeded: it stopped work that would have been justified by a hunch. Collapsing it into `INVALID` would file the cycle's most valuable result as a failure and create a standing incentive to ship weak findings rather than kill them.
 - **implement** does not emit a verdict — it emits a **completion promise** (`IMPLEMENTATION_COMPLETE`) consumed by downstream cycles. Halt-loop pauses on hard-gate failure rather than emitting a verdict.
 - **code-quality** emits a **graded quality verdict** keyed to a score cap (per `code-quality-golden-rule.md` § 1): `PASS`/`PASS_WITH_CAVEATS` proceed to `/review`; `FAIL_SOFT` may proceed only with an ADR dismissing each soft cap; `FAIL_HARD` blocks `/review` and loops back to `/implement`; `INVALID` means structural integrity is broken (golden rule missing/corrupt). The golden rule is the Source of Truth for the rubric — this matrix only lists the tokens.
 - **review** emits **merge-readiness**: `READY_TO_MERGE` is the only green; `NEEDS_FIXES` returns to `/implement`; `NEEDS_DEEPER` returns to `/to-plan` for re-scoping.

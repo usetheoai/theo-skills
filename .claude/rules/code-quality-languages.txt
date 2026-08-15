@@ -1,14 +1,21 @@
-# Code-quality languages enablement — commit-tracked declarative config.
+# Languages enabled for /code-quality and post-edit-check.sh.
 #
-# Format (one entry per line):
-#   LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
-#   LANGUAGE ∈ { python, typescript, rust, go }
-#   STATUS   ∈ { ENABLED, DISABLED, DEFER }
+# Format: one language identifier per line. Lines starting with '#' are comments.
+# Identifiers match the file extensions handled by hooks/post-edit-check.sh.
 #
-# Lines starting with '#' and blank lines are skipped.
-
-typescript | package.json | ENABLED | TS strict monorepo (@usetheo/skills core + api)
-javascript | package.json | DISABLED | no standalone JS sources
-python | pyproject.toml | DISABLED | no Python in this project
-rust | Cargo.toml | DISABLED | no Rust in this project
-go | go.mod | DISABLED | no Go in this project
+# Default policy: empty file = no language-specific quality checks run. Each
+# project enables the languages it actually uses. Adding a language here is a
+# signal to /code-quality and the post-edit hook that the toolchain should be
+# present and consulted.
+#
+# Supported identifiers (uncomment the ones your project uses):
+#
+# go
+# python
+# typescript
+# javascript
+# rust
+# java
+# kotlin
+# ruby
+# csharp
