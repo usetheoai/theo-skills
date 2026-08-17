@@ -16,7 +16,7 @@ argument-hint: "[plan-slug] (optional — bind analysis to a plan's architecture
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> Ver `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Single entry-point for [`cycle-analysis`](../../rules/cycle-analysis.md). Validates whether a project is on the correct trajectory using the scientific method: hypotheses → measurements → evidence → verdict.
 
@@ -24,7 +24,7 @@ Single entry-point for [`cycle-analysis`](../../rules/cycle-analysis.md). Valida
 - `.claude/rules/analysis-golden-rule.md` — locked unbreakable contract.
 - `.claude/rules/analysis-config.txt` — opt-in enablement + profile + paths.
 - `.claude/rules/code-quality-languages.txt` — which languages are enabled (reused).
-- Unbreakable Rule 9 (`/home/paulo/.claude/CLAUDE.md § 9`) — use existing benchmark/profiling tools, never reimplement.
+- Unbreakable Rule 9 (`~/.claude/CLAUDE.md § 9`) — use existing benchmark/profiling tools, never reimplement.
 
 ---
 

@@ -16,14 +16,14 @@ argument-hint: "[plan-slug] (optional — bind audit to a plan's Dependencies se
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> See `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> See `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Audit project dependencies for known vulnerabilities AND outdated versions. Multi-ecosystem (npm, Python, Rust, Go) with auto-detection. **Read-only** by design: NEVER edits manifests; produces diff-style bump suggestions for human application.
 
 **Project rules consumed:**
 - `rules/deps-audit-golden-rule.md` — locked contract; unbreakable hard caps (CRITICAL/HIGH CVE in declared dep = BLOCKER).
 - `rules/deps-audit-allowlist.txt` — CVE/version allowlist with mandatory rationale + sunset date ≤ 90 days.
-- Unbreakable Rule 9 (`/home/paulo/.claude/CLAUDE.md § 9`) — drives the philosophy: use existing scanners (`osv-scanner`, `npm audit`, `pip-audit`, `cargo audit`, `govulncheck`); never reimplement CVE detection.
+- Unbreakable Rule 9 (`~/.claude/CLAUDE.md § 9`) — drives the philosophy: use existing scanners (`osv-scanner`, `npm audit`, `pip-audit`, `cargo audit`, `govulncheck`); never reimplement CVE detection.
 - `rules/cycle-plan.md` — wired between `/edge-case-plan` and `/plan-confidence`.
 
 ---
@@ -306,7 +306,7 @@ Allowlisted findings (within sunset) downgrade by ONE severity level: CRITICAL �
 - Allowlist: [`rules/deps-audit-allowlist.txt`](../../rules/deps-audit-allowlist.txt)
 - Wired into: [`rules/cycle-plan.md`](../../rules/cycle-plan.md) (new phase between `/edge-case-plan` and `/plan-confidence` — v1.1)
 - Renovate/Dependabot complementary setup: `.github/dependabot.yml` or `renovate.json` — passive GitHub-side infra, out of scope for this skill
-- Unbreakable Rule 9: [`/home/paulo/.claude/CLAUDE.md § 9`](file:///home/paulo/.claude/CLAUDE.md) (Do Not Reinvent the Wheel)
+- Unbreakable Rule 9: [`~/.claude/CLAUDE.md § 9`](file://~/.claude/CLAUDE.md) (Do Not Reinvent the Wheel)
 - Sibling skills: `/plan-confidence` (consumes this skill's verdict), `/dogfood` (also a hard-cap gate on plans)
 
 ## Downstream wiring required (NOT yet shipped — follow-up)

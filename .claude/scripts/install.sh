@@ -190,7 +190,7 @@ fi
 # to invoke this script is `cd squad && bash scripts/install.sh <target>` — so it was validating
 # the source repo and printing OK for the installation it never opened. Measured: with a routed
 # specialist and a cycle rule deleted from a fresh install, it answered
-# `ecosystem: /home/paulo/Projetos/squad` / `ALL CHECKS PASSED` / exit 0. A check that cannot
+# `ecosystem: <workspace>/squad` / `ALL CHECKS PASSED` / exit 0. A check that cannot
 # fail is worse than no check: it puts a green line next to a broken install.
 #
 # check_xrefs.py resolves from its own path and caught the same corruption (exit 1). Two lines

@@ -16,7 +16,7 @@ argument-hint: "<topic or description>"
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> Ver `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 **Project rules consumed:** if `.claude/rules/public-copy.md` exists, slides/diagrams derived from this output that may surface in README/PITCH are bound by its voice rules. `.claude/rules/dogfood-golden-rule.md` blocks any "production-ready" diagram label without dogfood evidence.
 

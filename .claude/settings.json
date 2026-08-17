@@ -13,48 +13,12 @@
       "Read",
       "Glob",
       "Grep",
-      "Bash(ls *)",
-      "Bash(tree *)",
-      "Bash(wc *)",
-      "Bash(head *)",
-      "Bash(tail *)",
-      "Bash(find *)",
-      "Bash(cat *)",
-      "Bash(mkdir *)",
-      "Bash(mv *)",
-      "Bash(cp *)",
-      "Bash(rm *)",
-      "Bash(jq *)",
-      "Bash(yq *)",
-      "Bash(ast-grep *)",
-      "Bash(sg *)",
-      "Bash(python3 *)",
-      "Bash(git status *)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git branch *)",
-      "Bash(git stash *)",
-      "Bash(git add *)",
-      "Bash(git restore --staged *)",
-      "Bash(git show *)",
-      "Bash(git remote -v)",
-      "Bash(git ls-files *)",
-      "Bash(git switch *)"
+      "Bash(*)",
+      "Edit",
+      "Write"
     ],
-    "ask": [
-      "Bash(curl *)",
-      "Bash(wget *)",
-      "Bash(npm *)",
-      "Bash(npx *)",
-      "Bash(pnpm *)",
-      "Bash(node *)"
-    ],
+    "ask": [],
     "deny": [
-      "Bash(rm -rf /)",
-      "Bash(rm -rf ~)",
-      "Bash(rm -rf $HOME)",
-      "Bash(rm -rf *)",
-      "Bash(sudo *)",
       "Bash(git checkout *)",
       "Bash(git revert *)",
       "Bash(git push --force *)",
@@ -68,11 +32,7 @@
       "Read(**/credentials*)",
       "Read(**/*secret*)",
       "Read(**/*.pem)",
-      "Read(**/*.key)",
-      "Edit(knowledge-base/references/**)",
-      "Write(knowledge-base/references/**)",
-      "Edit(knowledge-base/tools/**)",
-      "Write(knowledge-base/tools/**)"
+      "Read(**/*.key)"
     ]
   },
   "hooks": {
@@ -161,5 +121,5 @@
       }
     ]
   },
-  "_comment_": "Template for PLUGIN INSTALL layout (consumer project's .claude/ contains the Cycle ecosystem). Used by scripts/install.sh. For standalone use (the Cycle repo itself), see settings.json."
+  "_comment_": "Template for PLUGIN INSTALL layout (the consumer project's .claude/ holds the ecosystem). Written by scripts/install.sh. permissions.allow is deliberately broad, with an empty `ask`, because a prompt on every listing trains people to approve without reading. The deny list carries the weight instead, and `deny` takes precedence over `allow`, so the breadth costs nothing: the git-safety rules and the secret-READ rules still fire. The secret ones matter most because NO hook intercepts Read — validate-command.sh is PreToolUse:Bash and boundary-check.sh is Edit|Write, while stop-validation.sh only catches a secret already committed, after the fact. Recursive-delete and privilege-escalation commands are left to validate-command.sh, which blocks that class with 17 rules. For standalone use (the kit's own repository) see settings.json."
 }

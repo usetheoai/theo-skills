@@ -60,7 +60,7 @@ fi
 
 # 4) Reminder
 add ""
-add "Unbreakable principles apply (see /home/paulo/.claude/CLAUDE.md): 95% confidence, TDD-first, no commits to main, CHANGELOG discipline."
+add "Unbreakable principles apply (see ~/.claude/CLAUDE.md): 95% confidence, TDD-first, no commits to main, CHANGELOG discipline."
 
 # Exit silently if nothing relevant
 if [ -z "$CTX" ]; then
