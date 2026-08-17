@@ -12,7 +12,7 @@ argument-hint: "{topic-slug}"
 
 Interview the user about a plan/design until shared understanding is reached. Walks the decision tree branch by branch.
 
-Operationalizes the 95%-confidence principle (`/home/paulo/.claude/CLAUDE.md § 1`): instead of producing a plan from vague requirements and iterating with `/edge-case-plan` + `/plan-improve` later, surface and resolve the requirements gaps **before** any plan is written.
+Operationalizes the 95%-confidence principle (`~/.claude/CLAUDE.md § 1`): instead of producing a plan from vague requirements and iterating with `/edge-case-plan` + `/plan-improve` later, surface and resolve the requirements gaps **before** any plan is written.
 
 ## Cycle contract
 
@@ -147,4 +147,4 @@ Based on the verdict:
 - Phase 0 of: [`cycle-plan.md`](../../rules/cycle-plan.md) — optional, for vague topics
 - Downstream: `/to-plan` reads `knowledge-base/grills/{slug}-grill.md` when present
 - Sibling when discovery is needed: `/discover-plan`
-- 95%-confidence principle: `/home/paulo/.claude/CLAUDE.md § 1`
+- 95%-confidence principle: `~/.claude/CLAUDE.md § 1`

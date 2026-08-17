@@ -82,7 +82,7 @@ You MUST Read these files at the start of every consultation:
 - `.claude/rules/public-copy.md` — anchor "pure Postgres" + "Built on top of CNPG" + pre-release status
 - `.claude/rules/plan-confidence-golden-rule.md` — TDD on bug-fix is mandatory
 - `.claude/rules/cycle-implement.md` v1.5 — anti-patterns (NEVER drive manually outside ralph-loop, NEVER ask between phases)
-- `/home/paulo/.claude/CLAUDE.md` — Universal Unbreakable rules (TDD-first, fail-fast error handling, specific naming)
+- `~/.claude/CLAUDE.md` — Universal Unbreakable rules (TDD-first, fail-fast error handling, specific naming)
 
 ## Mode: TIGHT vs VERBOSE (per-invocation cost control)
 

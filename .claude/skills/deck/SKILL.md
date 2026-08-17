@@ -16,7 +16,7 @@ argument-hint: "<topic, audience, or file>"
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> See `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> See `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Orchestrates `/marp-slide` and `/excalidraw` into a single end-to-end workflow. One command produces a complete presentation with diagrams, slides, and rendered outputs.
 

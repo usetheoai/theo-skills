@@ -16,7 +16,7 @@ argument-hint: "[plan-slug] (optional — bind audit to a plan's Critical paths 
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> Ver `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Audit project code for dead symbols, fabricated APIs, cross-package orphan exports, and weak test quality. Multi-ecosystem (Python, TypeScript, Rust, Go) with auto-detection + declarative language enablement. **Read-only** by design: NEVER edits source code; produces findings + verdict for human application.
 
@@ -25,7 +25,7 @@ Audit project code for dead symbols, fabricated APIs, cross-package orphan expor
 - `.claude/rules/code-quality-languages.txt` — declarative enablement per language.
 - `.claude/rules/code-quality-thresholds.txt` — per-detector floors + behavioral knobs.
 - `.claude/rules/code-quality-allowlist.txt` — findings exemptions with mandatory sunset.
-- Unbreakable Rule 9 (`/home/paulo/.claude/CLAUDE.md § 9`) — drives philosophy: use existing tools (knip, vulture, cargo-udeps, deadcode, stryker, mutmut, tree-sitter); never reimplement.
+- Unbreakable Rule 9 (`~/.claude/CLAUDE.md § 9`) — drives philosophy: use existing tools (knip, vulture, cargo-udeps, deadcode, stryker, mutmut, tree-sitter); never reimplement.
 - `.claude/rules/cycle-implement.md` — wired between halt-loop and `/review` handoff (when extended via T6.1).
 
 ---

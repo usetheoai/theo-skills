@@ -16,15 +16,15 @@ argument-hint: "TARGET [--force] [--allow-missing-tools] [--strict] [--out PATH]
 > SEMPRE QUE PRECISAR DE UMA DECISAO DO USUARIO, APRESENTE
 > OPCOES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> Ver `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 This skill is a **one-shot rigorous initializer**. It walks a target codebase, measures actual code metrics, and emits calibrated Claude Code hooks that block code smells on every `Write` and `Edit` operation. Because it is a skill (not a plugin), it leaves no state behind and is safe to invoke in any project.
 
 **Project rules consumed:**
-- `/home/paulo/.claude/CLAUDE.md` § 7 (Testes) — hook scripts follow AAA pattern in tests
-- `/home/paulo/.claude/CLAUDE.md` § 8 (Error Handling) — fail-fast, fail-clear
-- `/home/paulo/.claude/CLAUDE.md` § 9 (Nao Reinvente) — uses `ast` stdlib for Python, `lizard` for multi-lang
-- `/home/paulo/.claude/CLAUDE.md` § 10 (KISS) — four focused modules, each under 300 lines
+- `~/.claude/CLAUDE.md` § 7 (Testes) — hook scripts follow AAA pattern in tests
+- `~/.claude/CLAUDE.md` § 8 (Error Handling) — fail-fast, fail-clear
+- `~/.claude/CLAUDE.md` § 9 (Nao Reinvente) — uses `ast` stdlib for Python, `lizard` for multi-lang
+- `~/.claude/CLAUDE.md` § 10 (KISS) — four focused modules, each under 300 lines
 
 ---
 

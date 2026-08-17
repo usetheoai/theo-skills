@@ -37,9 +37,9 @@ def _find_project_root(start: Path) -> Path:
       2. `rules/` AND `skills/` directly under the directory (plan standalone)
       3. `.git/` directory (any git repo root, last resort)
 
-    Without this, a stray empty `.git/` at `/home/paulo/Projetos/plan/.git/`
+    Without this, a stray empty `.git/` at `<workspace>/plan/.git/`
     would short-circuit the walk-up and the test suite would look for files at
-    `/home/paulo/Projetos/plan/.claude/rules/` which do not exist in the
+    `<workspace>/plan/.claude/rules/` which do not exist in the
     standalone layout.
     """
     current = start.resolve()

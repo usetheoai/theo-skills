@@ -16,7 +16,7 @@ argument-hint: "<topic or file>"
 > SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
 > OPÇÕES PARA ELE ESCOLHER.
 >
-> Ver `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).
+> Ver `~/.claude/CLAUDE.md` § 1 (95% Confidence).
 
 Generate Marp presentations with embedded CSS themes. No external files needed — each output is a self-contained `.md` ready for Marp CLI or VS Code.
 
