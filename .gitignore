@@ -44,3 +44,20 @@ cross-validation-output/
 halt-loop-prompts/
 .claude/ralph-loop.local.md
 .claude/knowledge-base/implementations/.progress-*.json
+
+# The Squad kit and the data it writes — a dependency and an output, kept apart.
+#
+# `.claude/` is an INSTALLED PLUGIN with a repository of its own, so a copy inside a
+# consumer is a dependency and not this project's source. Versioning it made every
+# adopting repo carry hundreds of permanently dirty files that no `git checkout` could
+# settle, because a reinstall rewrites them.
+#
+# `.squad/` is this PROJECT'S data: `records/` is a dated trail written per machine,
+# `wiki/` is the consolidated bundle. Separate roots so the versioning question is
+# answerable for each on its own terms.
+#
+# `.squad/*` and not `.squad/`: git does not descend into an excluded DIRECTORY, so the
+# negation below would never fire and new wiki pages would be dropped in silence.
+.claude/
+.squad/*
+!.squad/wiki/
