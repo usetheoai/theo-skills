@@ -38,7 +38,7 @@ jobs:
   # qualquer publicaria uma "release" que nunca passou pelo gate de release.
   guard-release-on-main:
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -121,3 +121,5 @@ jobs:
       # GHCR publishes as before. The account id is never fixed in text.
       ecr_registry: ${{ vars.ECR_REGISTRY }}
       aws_role_arn: ${{ vars.AWS_IMAGE_PUBLISH_ROLE_ARN }}
+      # No `runner:` input: the reusable defaults to '["ubuntu-latest"]', the same runner as
+      # every job in this repo, and repeating the default would only be a second copy to drift.

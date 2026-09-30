@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   actionlint:
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     # O scan leva segundos; a folga cobre o pull da imagem num runner frio.
     timeout-minutes: 10
     steps:
