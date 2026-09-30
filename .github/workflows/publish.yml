@@ -38,7 +38,7 @@ jobs:
   # qualquer publicaria uma "release" que nunca passou pelo gate de release.
   guard-release-on-main:
     if: startsWith(github.ref, 'refs/tags/')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -97,10 +97,29 @@ jobs:
     # CADA gate declarado em `needs` precisa ser vetado à mão, aqui. `tests/workflows/gates.test.ts`
     # trava isso: acrescentar um `needs` sem o veto correspondente deixa a suíte vermelha.
     if: ${{ always() && needs.gate-ci.result == 'success' && needs.gate-integration.result == 'success' }}
-    uses: usetheoai/theo/.github/workflows/build-publish.yml@d1f3c94762609d2732ae73624c333d36a350e6ab # develop
+    # The reusable declares these scopes, and GitHub refuses at startup — with no log — a
+    # reusable that asks for more than its caller grants (usetheoai/theo#436). `attestations` is
+    # for its GitHub-native provenance; `id-token` signs with cosign and assumes the ECR publish
+    # role.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: usetheoai/theo/.github/workflows/build-publish.yml@5e8033cf19fefa16ad23d6b29572d85be740ee5f # develop
     with:
       image: theo-skills
       dockerfile: Dockerfile
       sign: true
+      # This reusable verifies the signature against ITS OWN path in the SAN and this
+      # repository in the caller claim, and it signs and verifies the ECR copy too
+      # (usetheoai/theo#461).
       verify: true
       trivy: true
+      # Amazon ECR, the registry the platform pulls from, by the full commit SHA tag
+      # (usetheoai/theo#470). Both are repository VARIABLES; unset, the reusable skips ECR and
+      # GHCR publishes as before. The account id is never fixed in text.
+      ecr_registry: ${{ vars.ECR_REGISTRY }}
+      aws_role_arn: ${{ vars.AWS_IMAGE_PUBLISH_ROLE_ARN }}
+      # No `runner:` input: the reusable defaults to '["ubuntu-latest"]', the same runner as
+      # every job in this repo, and repeating the default would only be a second copy to drift.
