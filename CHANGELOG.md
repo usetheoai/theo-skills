@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **The image is also published to Amazon ECR**, the registry the platform pulls from, tagged with the full commit SHA, on every publish run. The ECR copy is keyless-signed and its signature verified like the GHCR one; GHCR publishing is unchanged. The shared build workflow is pinned to a version that requires the `attestations: write` scope, which the image job now grants. (usetheoai/theo#470)
+
 - **`GET /v1/health/ready`**, and `service` on the liveness body. The service answered liveness only — during a rolling deploy an instance whose Postgres or queue had not resolved answered 200, the orchestrator read that as ready, and traffic landed on it. Readiness probes both dependencies and names what it checked; it answers 503 when one is unavailable, while liveness stays 200 so a healthy process is not restarted over a dependency it cannot fix. (B-119)
 
 - API surface gate: renaming a published export or a type FIELD now fails a test before publish. Two levels, because the name list alone is byte-identical under a field rename — measured (#T1.3)
